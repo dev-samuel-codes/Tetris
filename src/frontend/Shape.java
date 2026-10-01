@@ -1,3 +1,5 @@
+// 블록 스타일을 만드는 파일
+
 package frontend;
 
 import java.util.Random;
