@@ -1,7 +1,6 @@
 package frontend;
 
 import java.awt.Color;
-import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -58,11 +57,11 @@ public class Board extends JPanel implements ActionListener {
 	}
 	// 여백 제거 (칸이 정사각형 되면 여백 생김)
 	int boardLeft() {
-		return (getWidth() - BOARD_WIDTH * squareSize()) / 2;
+		return (getWidth() - BOARD_WIDTH * squareSize()) / 2;  // 여백의 절반
 	}
 
 	int boardTop() {
-		return (getHeight() - BOARD_HEIGHT * squareSize()) / 2;
+		return (getHeight() - BOARD_HEIGHT * squareSize()) / 2; // 여백의 절반
 	}
 
 
@@ -97,18 +96,20 @@ public class Board extends JPanel implements ActionListener {
 		}
 		repaint();
 	}
-
+	// paint 메서드 변경 ->
 	public void paint(Graphics g) {
 		super.paint(g);
 
-		Dimension size = getSize();
-		int boardTop = (int) size.getHeight() - BOARD_HEIGHT * squareSize();
+		// 보드 사이즈 한번만 계산 (중앙으로)
+		int size = squareSize();
+		int left = boardLeft();
+		int top = boardTop();
 
 		for (int i = 0; i < BOARD_HEIGHT; ++i) {
 			for (int j = 0; j < BOARD_WIDTH; ++j) {
 				Tetrominoes shape = shapeAt(j, BOARD_HEIGHT - i - 1);
 				if (shape != Tetrominoes.NoShape)
-					drawSquare(g, 0 + j * squareSize(), boardTop + i * squareSize(), shape);
+					drawSquare(g, left + j * size, top + i * size, shape);
 			}
 		}
 
@@ -116,8 +117,7 @@ public class Board extends JPanel implements ActionListener {
 			for (int i = 0; i < 4; ++i) {
 				int x = curX + curPiece.x(i);
 				int y = curY - curPiece.y(i);
-				drawSquare(g, 0 + x * squareSize(), boardTop + (BOARD_HEIGHT - y - 1) * squareSize(),
-						curPiece.getShape());
+				drawSquare(g, left + x * size, top + (BOARD_HEIGHT - y - 1) * size, curPiece.getShape());
 			}
 		}
 	}
