@@ -1,4 +1,4 @@
-package kr.ac.jbnu.se.tetris;
+package kr.ac.jbnu.se.tetris.game;
 
 import java.awt.Color;
 import java.awt.Dimension;
@@ -11,6 +11,8 @@ import java.awt.event.KeyEvent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.Timer;
+
+import kr.ac.jbnu.se.tetris.ui.Tetris;
 
 public class Board extends JPanel implements ActionListener {
 

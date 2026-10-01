@@ -1,4 +1,4 @@
-package kr.ac.jbnu.se.tetris;
+package kr.ac.jbnu.se.tetris.game;
 
 import java.util.Random;
 

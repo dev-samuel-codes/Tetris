@@ -1,9 +1,11 @@
-package kr.ac.jbnu.se.tetris;
+package kr.ac.jbnu.se.tetris.ui;
 
 import java.awt.BorderLayout;
 
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+
+import kr.ac.jbnu.se.tetris.game.Board;
 
 public class Tetris extends JFrame {
 
@@ -24,11 +26,5 @@ public class Tetris extends JFrame {
 
 	public JLabel getStatusBar() {
 		return statusbar;
-	}
-
-	public static void main(String[] args) {
-		Tetris game = new Tetris();
-		game.setLocationRelativeTo(null);
-		game.setVisible(true);
 	}
 }
