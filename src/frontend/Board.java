@@ -56,6 +56,15 @@ public class Board extends JPanel implements ActionListener {
 		int byHeight = getHeight() / BOARD_HEIGHT;
 		return Math.min(byWidth, byHeight);
 	}
+	// 여백 제거 (칸이 정사각형 되면 여백 생김)
+	int boardLeft() {
+		return (getWidth() - BOARD_WIDTH * squareSize()) / 2;
+	}
+
+	int boardTop() {
+		return (getHeight() - BOARD_HEIGHT * squareSize()) / 2;
+	}
+
 
 	Tetrominoes shapeAt(int x, int y) {
 		return board[(y * BOARD_WIDTH) + x];
