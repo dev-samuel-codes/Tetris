@@ -10,252 +10,132 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.Timer;
 
+import frontend.engine.GameEngine;
+
+// 게임 입력과 타이머를 엔진에 전달하고, 현재 상태를 화면에 표시
 public class Board extends JPanel implements ActionListener {
 
-	// 보드 가로, 세로 칸 수
-	final static int BOARD_WIDTH = 10;
-	final static int BOARD_HEIGHT = 22;
+	final static int BOARD_WIDTH = GameEngine.BOARD_WIDTH;
+	final static int BOARD_HEIGHT = GameEngine.BOARD_HEIGHT;
 
-	Timer timer;
-	boolean isFallingFinished = false;
-	boolean isStarted = false;
-	boolean isPaused = false;
-	int numLinesRemoved = 0;
-	int curX = 0;
-	int curY = 0;
-	JLabel statusbar;
-	Shape curPiece;
-	Tetrominoes[] board;
+	private final GameEngine engine = new GameEngine();
+	private final Timer timer;
+	private final JLabel statusbar;
 
 	public Board(Tetris parent) {
-
 		setFocusable(true);
-		curPiece = new Shape();
 		timer = new Timer(400, this);
-		timer.start();
-
 		statusbar = parent.getStatusBar();
-		board = new Tetrominoes[BOARD_WIDTH * BOARD_HEIGHT];
 		addKeyListener(new TAdapter());
-		clearBoard();
 	}
 
 	public void actionPerformed(ActionEvent e) {
-		if (isFallingFinished) {
-			isFallingFinished = false;
-			newPiece();
-		} else {
-			oneLineDown();
-		}
+		engine.tick();
+		updateView();
 	}
-	// 칸 하나의 픽셀 크기. 가로,세로 중 작은 쪽에 맞춰 정사각형 모양
+
+	// 칸 하나의 크기를 가로와 세로 중 작은 쪽에 맞춰 정사각형으로 설정
 	int squareSize() {
 		int byWidth = getWidth() / BOARD_WIDTH;
 		int byHeight = getHeight() / BOARD_HEIGHT;
 		return Math.min(byWidth, byHeight);
 	}
-	// 여백 제거 (칸이 정사각형 되면 여백 생김)
+
+	// 남는 공간의 절반을 여백으로 두어 보드를 가운데 배치
 	int boardLeft() {
-		return (getWidth() - BOARD_WIDTH * squareSize()) / 2;  // 여백의 절반
+		return (getWidth() - BOARD_WIDTH * squareSize()) / 2;
 	}
 
 	int boardTop() {
-		return (getHeight() - BOARD_HEIGHT * squareSize()) / 2; // 여백의 절반
-	}
-
-
-	Tetrominoes shapeAt(int x, int y) {
-		return board[(y * BOARD_WIDTH) + x];
+		return (getHeight() - BOARD_HEIGHT * squareSize()) / 2;
 	}
 
 	public void start() {
-		if (isPaused)
-			return;
-
-		isStarted = true;
-		isFallingFinished = false;
-		numLinesRemoved = 0;
-		clearBoard();
-
-		newPiece();
-		timer.start();
+		engine.start();
+		updateView();
 	}
 
-	private void pause() {
-		if (!isStarted)
-			return;
-
-		isPaused = !isPaused;
-		if (isPaused) {
-			timer.stop();
-			statusbar.setText("paused");
-		} else {
+	// 게임 상태에 맞춰 타이머와 상태 표시를 갱신
+	private void updateView() {
+		if (engine.isStarted() && !engine.isPaused()) {
 			timer.start();
-			statusbar.setText(String.valueOf(numLinesRemoved));
+		} else {
+			timer.stop();
+		}
+
+		if (engine.isPaused()) {
+			statusbar.setText("paused");
+		} else if (!engine.isStarted()) {
+			statusbar.setText("game over");
+		} else {
+			statusbar.setText(String.valueOf(engine.getNumLinesRemoved()));
 		}
 		repaint();
 	}
-	// paint 메서드 변경 ->
+
 	public void paint(Graphics g) {
 		super.paint(g);
 
-		// 보드 사이즈 한번만 계산 (중앙으로)
 		int size = squareSize();
 		int left = boardLeft();
 		int top = boardTop();
 
 		for (int i = 0; i < BOARD_HEIGHT; ++i) {
 			for (int j = 0; j < BOARD_WIDTH; ++j) {
-				Tetrominoes shape = shapeAt(j, BOARD_HEIGHT - i - 1);
+				Tetrominoes shape = engine.shapeAt(j, BOARD_HEIGHT - i - 1);
 				if (shape != Tetrominoes.NoShape)
 					BlockPainter.drawSquare(g, left + j * size, top + i * size, size, shape);
 			}
 		}
 
-		if (curPiece.getShape() != Tetrominoes.NoShape) {
+		if (engine.getCurrentShape() != Tetrominoes.NoShape) {
 			for (int i = 0; i < 4; ++i) {
-				int x = curX + curPiece.x(i);
-				int y = curY - curPiece.y(i);
-				BlockPainter.drawSquare(g, left + x * size, top + (BOARD_HEIGHT - y - 1) * size, size, curPiece.getShape());
+				int x = engine.getCurrentX() + engine.getPieceX(i);
+				int y = engine.getCurrentY() - engine.getPieceY(i);
+				BlockPainter.drawSquare(g, left + x * size, top + (BOARD_HEIGHT - y - 1) * size,
+						size, engine.getCurrentShape());
 			}
-		}
-	}
-
-	private void dropDown() {
-		int newY = curY;
-		while (newY > 0) {
-			if (!tryMove(curPiece, curX, newY - 1))
-				break;
-			--newY;
-		}
-		pieceDropped();
-	}
-
-	private void oneLineDown() {
-		if (!tryMove(curPiece, curX, curY - 1))
-			pieceDropped();
-	}
-
-	private void clearBoard() {
-		for (int i = 0; i < BOARD_HEIGHT * BOARD_WIDTH; ++i)
-			board[i] = Tetrominoes.NoShape;
-	}
-
-	private void pieceDropped() {
-		for (int i = 0; i < 4; ++i) {
-			int x = curX + curPiece.x(i);
-			int y = curY - curPiece.y(i);
-			board[(y * BOARD_WIDTH) + x] = curPiece.getShape();
-		}
-
-		removeFullLines();
-
-		if (!isFallingFinished)
-			newPiece();
-	}
-
-	private void newPiece() {
-		curPiece.setRandomShape();
-		curX = BOARD_WIDTH / 2 + 1;
-		curY = BOARD_HEIGHT - 1 + curPiece.minY();
-
-		if (!tryMove(curPiece, curX, curY)) {
-			curPiece.setShape(Tetrominoes.NoShape);
-			timer.stop();
-			isStarted = false;
-			statusbar.setText("game over");
-		}
-	}
-
-	private boolean tryMove(Shape newPiece, int newX, int newY) {
-		for (int i = 0; i < 4; ++i) {
-			int x = newX + newPiece.x(i);
-			int y = newY - newPiece.y(i);
-			if (x < 0 || x >= BOARD_WIDTH || y < 0 || y >= BOARD_HEIGHT)
-				return false;
-			if (shapeAt(x, y) != Tetrominoes.NoShape)
-				return false;
-		}
-
-		curPiece = newPiece;
-		curX = newX;
-		curY = newY;
-		repaint();
-		return true;
-	}
-
-	private void removeFullLines() {
-		int numFullLines = 0;
-
-		for (int i = BOARD_HEIGHT - 1; i >= 0; --i) {
-			boolean lineIsFull = true;
-
-			for (int j = 0; j < BOARD_WIDTH; ++j) {
-				if (shapeAt(j, i) == Tetrominoes.NoShape) {
-					lineIsFull = false;
-					break;
-				}
-			}
-
-			if (lineIsFull) {
-				++numFullLines;
-				for (int k = i; k < BOARD_HEIGHT - 1; ++k) {
-					for (int j = 0; j < BOARD_WIDTH; ++j)
-						board[(k * BOARD_WIDTH) + j] = shapeAt(j, k + 1);
-				}
-			}
-		}
-
-		if (numFullLines > 0) {
-			numLinesRemoved += numFullLines;
-			statusbar.setText(String.valueOf(numLinesRemoved));
-			isFallingFinished = true;
-			curPiece.setShape(Tetrominoes.NoShape);
-			repaint();
 		}
 	}
 
 	class TAdapter extends KeyAdapter {
 		public void keyPressed(KeyEvent e) {
-
-			if (!isStarted || curPiece.getShape() == Tetrominoes.NoShape) {
+			if (!engine.isStarted() || engine.getCurrentShape() == Tetrominoes.NoShape)
 				return;
-			}
 
 			int keycode = e.getKeyCode();
-
-			if (keycode == 'p' || keycode == 'P') {
-				pause();
+			if (keycode == KeyEvent.VK_P) {
+				engine.pause();
+				updateView();
 				return;
 			}
 
-			if (isPaused)
+			if (engine.isPaused())
 				return;
 
 			switch (keycode) {
 			case KeyEvent.VK_LEFT:
-				tryMove(curPiece, curX - 1, curY);
+				engine.moveLeft();
 				break;
 			case KeyEvent.VK_RIGHT:
-				tryMove(curPiece, curX + 1, curY);
+				engine.moveRight();
 				break;
 			case KeyEvent.VK_DOWN:
-				tryMove(curPiece.rotateRight(), curX, curY);
+				engine.rotateRight();
 				break;
 			case KeyEvent.VK_UP:
-				tryMove(curPiece.rotateLeft(), curX, curY);
+				engine.rotateLeft();
 				break;
 			case KeyEvent.VK_SPACE:
-				dropDown();
+				engine.dropDown();
 				break;
-			case 'd':
-				oneLineDown();
+			case KeyEvent.VK_D:
+				engine.oneLineDown();
 				break;
-			case 'D':
-				oneLineDown();
-				break;
+			default:
+				return;
 			}
-
+			updateView();
 		}
 	}
 }
