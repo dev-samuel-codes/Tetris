@@ -1,7 +1,5 @@
 package frontend;
 
-import java.awt.Color;
-import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -56,6 +54,15 @@ public class Board extends JPanel implements ActionListener {
 		int byHeight = getHeight() / BOARD_HEIGHT;
 		return Math.min(byWidth, byHeight);
 	}
+	// 여백 제거 (칸이 정사각형 되면 여백 생김)
+	int boardLeft() {
+		return (getWidth() - BOARD_WIDTH * squareSize()) / 2;  // 여백의 절반
+	}
+
+	int boardTop() {
+		return (getHeight() - BOARD_HEIGHT * squareSize()) / 2; // 여백의 절반
+	}
+
 
 	Tetrominoes shapeAt(int x, int y) {
 		return board[(y * BOARD_WIDTH) + x];
@@ -88,18 +95,20 @@ public class Board extends JPanel implements ActionListener {
 		}
 		repaint();
 	}
-
+	// paint 메서드 변경 ->
 	public void paint(Graphics g) {
 		super.paint(g);
 
-		Dimension size = getSize();
-		int boardTop = (int) size.getHeight() - BOARD_HEIGHT * squareSize();
+		// 보드 사이즈 한번만 계산 (중앙으로)
+		int size = squareSize();
+		int left = boardLeft();
+		int top = boardTop();
 
 		for (int i = 0; i < BOARD_HEIGHT; ++i) {
 			for (int j = 0; j < BOARD_WIDTH; ++j) {
 				Tetrominoes shape = shapeAt(j, BOARD_HEIGHT - i - 1);
 				if (shape != Tetrominoes.NoShape)
-					drawSquare(g, 0 + j * squareSize(), boardTop + i * squareSize(), shape);
+					BlockPainter.drawSquare(g, left + j * size, top + i * size, size, shape);
 			}
 		}
 
@@ -107,8 +116,7 @@ public class Board extends JPanel implements ActionListener {
 			for (int i = 0; i < 4; ++i) {
 				int x = curX + curPiece.x(i);
 				int y = curY - curPiece.y(i);
-				drawSquare(g, 0 + x * squareSize(), boardTop + (BOARD_HEIGHT - y - 1) * squareSize(),
-						curPiece.getShape());
+				BlockPainter.drawSquare(g, left + x * size, top + (BOARD_HEIGHT - y - 1) * size, size, curPiece.getShape());
 			}
 		}
 	}
@@ -205,25 +213,6 @@ public class Board extends JPanel implements ActionListener {
 			curPiece.setShape(Tetrominoes.NoShape);
 			repaint();
 		}
-	}
-
-	private void drawSquare(Graphics g, int x, int y, Tetrominoes shape) {
-		Color colors[] = { new Color(0, 0, 0), new Color(204, 102, 102), new Color(102, 204, 102),
-				new Color(102, 102, 204), new Color(204, 204, 102), new Color(204, 102, 204), new Color(102, 204, 204),
-				new Color(218, 170, 0) };
-
-		Color color = colors[shape.ordinal()];
-
-		g.setColor(color);
-		g.fillRect(x + 1, y + 1, squareSize() - 2, squareSize() - 2);
-
-		g.setColor(color.brighter());
-		g.drawLine(x, y + squareSize() - 1, x, y);
-		g.drawLine(x, y, x + squareSize() - 1, y);
-
-		g.setColor(color.darker());
-		g.drawLine(x + 1, y + squareSize() - 1, x + squareSize() - 1, y + squareSize() - 1);
-		g.drawLine(x + squareSize() - 1, y + squareSize() - 1, x + squareSize() - 1, y + 1);
 	}
 
 	class TAdapter extends KeyAdapter {
