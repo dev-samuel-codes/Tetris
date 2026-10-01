@@ -10,7 +10,7 @@ public class GameEngine {
 	public static final int BOARD_WIDTH = 10;
 	public static final int BOARD_HEIGHT = 22;
 
-	private boolean isFallingFinished = false;
+	private boolean isFallingFinished = false;  // 현재 코드에서는 줄 제거 후 다음 블록 생성을 기다리는 상태 변수
 	private boolean isStarted = false;
 	private boolean isPaused = false;
 	private int numLinesRemoved = 0;
@@ -52,6 +52,7 @@ public class GameEngine {
 		}
 	}
 
+    // 나중에 좌우 컨트롤 자체 분리해도 괜찮을 것 같음
     // 왼쪽으로 움직임
 	public void moveLeft() {
 		if (canControlPiece())
@@ -104,35 +105,42 @@ public class GameEngine {
 			board[i] = Tetrominoes.NoShape;
 	}
 
+    // 블록 고정 및 완성된 줄을 확인
 	private void pieceDropped() {
+        // 현재 위치 계산
 		for (int i = 0; i < 4; ++i) {
 			int x = curX + curPiece.x(i);
 			int y = curY - curPiece.y(i);
 			board[(y * BOARD_WIDTH) + x] = curPiece.getShape();
 		}
 
-		removeFullLines();
+		removeFullLines(); // 블록 고정 후 줄 검사 (꽉 찼는 지)
 		if (!isFallingFinished)
 			newPiece();
 	}
 
 	private void newPiece() {
-		curPiece.setRandomShape();
+		curPiece.setRandomShape(); 
+        // 떨어지는 위치 설정; 현재 10칸이라 curX는 으로 설정되어 있음
 		curX = BOARD_WIDTH / 2 + 1;
 		curY = BOARD_HEIGHT - 1 + curPiece.minY();
 
+        // 들어갈 공간이 없으면 game over시킴
 		if (!tryMove(curPiece, curX, curY)) {
 			curPiece.setShape(Tetrominoes.NoShape);
 			isStarted = false;
 		}
 	}
 
+    // 블록을 원하는 위치에 배치할 수 있는 지 검사 & 이동
 	private boolean tryMove(Shape newPiece, int newX, int newY) {
 		for (int i = 0; i < 4; ++i) {
 			int x = newX + newPiece.x(i);
 			int y = newY - newPiece.y(i);
 			if (x < 0 || x >= BOARD_WIDTH || y < 0 || y >= BOARD_HEIGHT)
 				return false;
+            
+            // 쌓인 블록과 겹치는 지 검사
 			if (shapeAt(x, y) != Tetrominoes.NoShape)
 				return false;
 		}
@@ -145,6 +153,8 @@ public class GameEngine {
 
 	private void removeFullLines() {
 		int numFullLines = 0;
+
+        // 줄이 가등 찼는 지 검사
 		for (int i = BOARD_HEIGHT - 1; i >= 0; --i) {
 			boolean lineIsFull = true;
 			for (int j = 0; j < BOARD_WIDTH; ++j) {
@@ -154,6 +164,7 @@ public class GameEngine {
 				}
 			}
 
+            // 가득 찬 줄을 위쪽 줄로 덮어씀
 			if (lineIsFull) {
 				++numFullLines;
 				for (int k = i; k < BOARD_HEIGHT - 1; ++k) {
