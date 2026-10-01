@@ -1,6 +1,5 @@
 package frontend;
 
-import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -109,7 +108,7 @@ public class Board extends JPanel implements ActionListener {
 			for (int j = 0; j < BOARD_WIDTH; ++j) {
 				Tetrominoes shape = shapeAt(j, BOARD_HEIGHT - i - 1);
 				if (shape != Tetrominoes.NoShape)
-					drawSquare(g, left + j * size, top + i * size, shape);
+					BlockPainter.drawSquare(g, left + j * size, top + i * size, size, shape);
 			}
 		}
 
@@ -117,7 +116,7 @@ public class Board extends JPanel implements ActionListener {
 			for (int i = 0; i < 4; ++i) {
 				int x = curX + curPiece.x(i);
 				int y = curY - curPiece.y(i);
-				drawSquare(g, left + x * size, top + (BOARD_HEIGHT - y - 1) * size, curPiece.getShape());
+				BlockPainter.drawSquare(g, left + x * size, top + (BOARD_HEIGHT - y - 1) * size, size, curPiece.getShape());
 			}
 		}
 	}
@@ -214,25 +213,6 @@ public class Board extends JPanel implements ActionListener {
 			curPiece.setShape(Tetrominoes.NoShape);
 			repaint();
 		}
-	}
-
-	private void drawSquare(Graphics g, int x, int y, Tetrominoes shape) {
-		Color colors[] = { new Color(0, 0, 0), new Color(204, 102, 102), new Color(102, 204, 102),
-				new Color(102, 102, 204), new Color(204, 204, 102), new Color(204, 102, 204), new Color(102, 204, 204),
-				new Color(218, 170, 0) };
-
-		Color color = colors[shape.ordinal()];
-
-		g.setColor(color);
-		g.fillRect(x + 1, y + 1, squareSize() - 2, squareSize() - 2);
-
-		g.setColor(color.brighter());
-		g.drawLine(x, y + squareSize() - 1, x, y);
-		g.drawLine(x, y, x + squareSize() - 1, y);
-
-		g.setColor(color.darker());
-		g.drawLine(x + 1, y + squareSize() - 1, x + squareSize() - 1, y + squareSize() - 1);
-		g.drawLine(x + squareSize() - 1, y + squareSize() - 1, x + squareSize() - 1, y + 1);
 	}
 
 	class TAdapter extends KeyAdapter {
