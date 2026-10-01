@@ -14,8 +14,9 @@ import javax.swing.Timer;
 
 public class Board extends JPanel implements ActionListener {
 
-	final int BoardWidth = 10;
-	final int BoardHeight = 22;
+	// 보드 가로, 세로 칸 수
+	final static int BoardWidth = 10;
+	final static int BoardHeight = 22;
 
 	Timer timer;
 	boolean isFallingFinished = false;
