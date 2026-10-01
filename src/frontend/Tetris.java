@@ -25,10 +25,4 @@ public class Tetris extends JFrame {
 	public JLabel getStatusBar() {
 		return statusbar;
 	}
-
-	public static void main(String[] args) {
-		Tetris game = new Tetris();
-		game.setLocationRelativeTo(null);
-		game.setVisible(true);
-	}
 }
