@@ -46,7 +46,7 @@ public class Main extends JFrame {
 
         // 세 가지 게임 모드 버튼을 세로로 배치
         JPanel buttonPanel = new JPanel(
-                new GridLayout(3, 1, 20, 20)
+                new GridLayout(4, 1, 20, 20)
         );
 
         // 버튼들이 화면 끝에 붙지 않도록 여백 설정
@@ -60,11 +60,13 @@ public class Main extends JFrame {
         JButton classicButton = new JButton("클래식");
         JButton itemButton = new JButton("아이템");
         JButton multiplayerButton = new JButton("멀티플레이");
+        JButton settingsButton = new JButton("설정");
 
         // 버튼 폰트 설정
         classicButton.setFont(Style.BUTTON_FONT);
         itemButton.setFont(Style.BUTTON_FONT);
         multiplayerButton.setFont(Style.BUTTON_FONT);
+        settingsButton.setFont(Style.BUTTON_FONT);
 
         // 클래식 모드
         classicButton.addActionListener(new ActionListener() {
@@ -99,10 +101,44 @@ public class Main extends JFrame {
             }
         });
 
+        // 설정 화면으로 이동
+        settingsButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                showSettingsMenu();
+            }
+            // 설정 화면
+            private void showSettingsMenu() {
+
+                JPanel settingsContainer = new JPanel(new BorderLayout());
+
+                // 설정 제목
+                JLabel title = new JLabel("설정", SwingConstants.CENTER);
+                title.setFont(Style.TITLE_FONT);
+
+                // 메인 메뉴로 돌아가기
+                JButton backButton = new JButton("뒤로가기");
+                backButton.setFont(Style.BUTTON_FONT);
+                backButton.addActionListener(e -> showMainMenu());
+
+                // 설정 화면 구성
+                settingsContainer.add(title, BorderLayout.NORTH);
+                settingsContainer.add(backButton, BorderLayout.SOUTH);
+
+                // 현재 JFrame의 화면을 설정 화면으로 교체
+                setContentPane(settingsContainer);
+                revalidate();
+                repaint();
+            }
+        });
+
+
+
         // 버튼 패널에 버튼 추가
         buttonPanel.add(classicButton);
         buttonPanel.add(itemButton);
         buttonPanel.add(multiplayerButton);
+        buttonPanel.add(settingsButton);
 
         // 메인 화면 구성
         mainContainer.add(title, BorderLayout.NORTH);
