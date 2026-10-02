@@ -11,11 +11,20 @@ public class GameEngine {
 	public static final int BOARD_WIDTH = 10;
 	public static final int BOARD_HEIGHT = 22;
 
+	// 1줄 점수 : 10
+	// 연속 점수 : 2줄 : 보너스 +5 -> 25
+	// 연속 점수 : 3줄 : 보너스 + 10 -> 40
+	// 연속 점수 : 4줄 : 보너스 + 20 -> 60
+	private static final int[] LINE_SCORES = { 0, 10, 25, 40, 60 };
+	// 콤보 점수 10점 추가
+	private static final int COMBO_BONUS = 10;
+
 	private boolean isFallingFinished = false;  // 현재 코드에서는 줄 제거 후 다음 블록 생성을 기다리는 상태 변수
 	private boolean isStarted = false;
 	private boolean isPaused = false;
 	private int numLinesRemoved = 0;
 	private int score = 0;
+	private int combo = 0;
 	private int curX = 0;
 	private int curY = 0;
 	private Shape curPiece = new Shape();
@@ -34,6 +43,7 @@ public class GameEngine {
 		isFallingFinished = false;
 		numLinesRemoved = 0;
 		score = 0;
+		combo = 0;
 		clearBoard();
 		nextPiece.setRandomShape(); // 다음 블록을 먼저 뽑기
 		newPiece();
@@ -180,11 +190,18 @@ public class GameEngine {
 			}
 		}
 
+		// 콤보 보너스 점수, 연속 보너스 점수 추가
 		if (numFullLines > 0) {
 			numLinesRemoved += numFullLines;
-			score += numFullLines * 100;  //스코어 점수계산
+			combo++;
+			score += LINE_SCORES[numFullLines];
+			if ((combo > 1)) {
+				score += COMBO_BONUS;
+			}
 			isFallingFinished = true;
 			curPiece.setShape(Tetrominoes.NoShape);
+		} else {
+			combo = 0;
 		}
 	}
 
