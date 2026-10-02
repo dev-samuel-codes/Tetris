@@ -3,9 +3,7 @@ package frontend;
 import java.awt.Color;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
-
 import javax.swing.JPanel;
-
 import frontend.style.Style;
 
 public class SidePanel extends JPanel {
@@ -14,6 +12,7 @@ public class SidePanel extends JPanel {
     public static final int COLS = 6;
 
     // 배치 위치
+    private static final double TIME_ROW = 1.0;        // 시간 오른쪽 위
     private static final double SCORE_TITLE_ROW = 3.0; // "SCORE" 가운데 위
     private static final double SCORE_VALUE_ROW = 4.2; // 점수 숫자 기준선
     private static final double NEXT_TITLE_ROW = 6.5;  // "NEXT" : "SCORE" 아래
@@ -21,6 +20,7 @@ public class SidePanel extends JPanel {
     private static final int PREVIEW_CELLS = 4;        // 미리보기 상자 (4x4)
 
     private int score = 0;
+    private int elapsedSeconds = 0;
     private Tetrominoes nextShape = Tetrominoes.NoShape; // 다음 도형
 
     // 사이드 패널 색상(임시)
@@ -30,6 +30,12 @@ public class SidePanel extends JPanel {
 
     public void setScore(int score) {
         this.score = score;
+        repaint();
+    }
+
+    // 경과 시간이 바뀌면 다시 그리기
+    public void setElapsedSeconds(int seconds) {
+        this.elapsedSeconds = seconds;
         repaint();
     }
 
@@ -47,8 +53,19 @@ public class SidePanel extends JPanel {
         int size = getWidth() / COLS;
         g.setColor(Color.WHITE);
 
+        drawTime(g, size);
         drawScore(g, size);
         drawNextShape(g, size);
+    }
+
+    // 시간 표시
+    private void drawTime(Graphics g, int size) {
+        g.setFont(Style.SCORE_FONT.deriveFont(size * 0.7f));
+        String text = String.format("%02d:%02d", elapsedSeconds / 60, elapsedSeconds % 60);
+
+        int textWidth = g.getFontMetrics().stringWidth(text);
+        int x = getWidth() - textWidth - size / 3;
+        g.drawString(text, x, (int) (TIME_ROW * size));
     }
 
     // 점수 표시
