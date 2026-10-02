@@ -14,4 +14,7 @@ public class Style {
 
     public static final Font ROOM_TITLE_FONT =
             new Font("Malgun Gothic", Font.BOLD, 30);
+
+    public static final Font SCORE_FONT =
+            new Font("Malgun Gothic", Font.BOLD, 18);
 }

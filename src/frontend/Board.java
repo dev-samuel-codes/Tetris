@@ -21,9 +21,11 @@ public class Board extends JPanel implements ActionListener {
 	private final GameEngine engine = new GameEngine();
 	private final Timer timer;
 	private final JLabel statusbar;
+	private final SidePanel sidePanel;
 
-	public Board(Tetris parent) {
+	public Board(Tetris parent, SidePanel sidePanel) {
 		setFocusable(true);
+		this.sidePanel = sidePanel;
 		timer = new Timer(400, this);
 		statusbar = parent.getStatusBar();
 		addKeyListener(new TAdapter());
@@ -70,6 +72,7 @@ public class Board extends JPanel implements ActionListener {
 		} else {
 			statusbar.setText(String.valueOf(engine.getNumLinesRemoved()));
 		}
+		sidePanel.setScore(engine.getScore());
 		repaint();
 	}
 
