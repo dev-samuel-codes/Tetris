@@ -9,10 +9,12 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
 import javax.swing.BorderFactory;
+import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JToggleButton;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 
@@ -116,6 +118,28 @@ public class Main extends JFrame {
                 JLabel title = new JLabel("설정", SwingConstants.CENTER);
                 title.setFont(Style.TITLE_FONT);
 
+                // 크기 설정 버튼 생성
+                JPanel resolutionPanel = new JPanel(new GridLayout(3, 1, 20, 20));
+                resolutionPanel.setBorder(BorderFactory.createEmptyBorder(150, 250, 200, 250));
+
+                // 크기 선택
+                ButtonGroup resolutionGroup = new ButtonGroup();
+
+                // 크기 설정
+                Resolution[] order = { Resolution.LARGE, Resolution.MEDIUM, Resolution.SMALL };
+
+                for (Resolution resolution : order) {
+                    JToggleButton button = new JToggleButton(resolution.toString());
+                    button.setFont(Style.BUTTON_FONT);
+                    button.setSelected(resolution == GameSettings.getResolution());
+
+                    // 설정 저장
+                    button.addActionListener(e -> GameSettings.setResolution(resolution));
+
+                    resolutionGroup.add(button);
+                    resolutionPanel.add(button);
+                }
+
                 // 메인 메뉴로 돌아가기
                 JButton backButton = new JButton("뒤로가기");
                 backButton.setFont(Style.BUTTON_FONT);
@@ -123,6 +147,7 @@ public class Main extends JFrame {
 
                 // 설정 화면 구성
                 settingsContainer.add(title, BorderLayout.NORTH);
+                settingsContainer.add(resolutionPanel, BorderLayout.CENTER);
                 settingsContainer.add(backButton, BorderLayout.SOUTH);
 
                 // 현재 JFrame의 화면을 설정 화면으로 교체
