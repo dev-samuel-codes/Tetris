@@ -74,6 +74,8 @@ public class Board extends JPanel implements ActionListener {
 		}
 		sidePanel.setScore(engine.getScore());
 		repaint();
+
+		sidePanel.setNextShape(engine.getNextShape());
 	}
 
 	public void paint(Graphics g) {

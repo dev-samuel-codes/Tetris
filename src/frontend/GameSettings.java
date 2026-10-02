@@ -16,4 +16,3 @@ public class GameSettings {
         resolution = newResolution;
     }
 }
-}
