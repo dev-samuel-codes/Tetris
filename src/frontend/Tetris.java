@@ -8,12 +8,11 @@ import javax.swing.*;
 
 public class Tetris extends JFrame {
 
-	private static final int INITIAL_CELL_SIZE = 20;
 	private static final int MIN_CELL_SIZE = 10;
 
 	JLabel statusbar;
 
-	public Tetris() {
+	public Tetris(Resolution resolution) {
 		statusbar = new JLabel(" 0");
 		add(statusbar, BorderLayout.SOUTH);
 
@@ -28,7 +27,7 @@ public class Tetris extends JFrame {
 
 
 		// 게임판과 정보 패널을 같은 배율로 확대
-		JPanel background = new JPanel(new GameAreaLayout(board, sidePanel));
+		JPanel background = new JPanel(new GameAreaLayout(board, sidePanel, resolution.getCellSize()));
 		background.add(board);
 		background.add(sidePanel);
 		add(background, BorderLayout.CENTER);
@@ -97,10 +96,12 @@ public class Tetris extends JFrame {
 	static class GameAreaLayout implements LayoutManager {
 		private final Component board;
 		private final Component sidePanel;
+		private final int initialCellSize; // 처음 창을 열 때의 칸 크기
 
-		GameAreaLayout(Component board, Component sidePanel) {
+		GameAreaLayout(Component board, Component sidePanel,int initialCellSize) {
 			this.board = board;
 			this.sidePanel = sidePanel;
+			this.initialCellSize = initialCellSize;
 		}
 
 		@Override
@@ -113,7 +114,7 @@ public class Tetris extends JFrame {
 
 		@Override
 		public Dimension preferredLayoutSize(Container parent) {
-			return areaSize(parent, INITIAL_CELL_SIZE);
+			return areaSize(parent, initialCellSize);
 		}
 
 		@Override

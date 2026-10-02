@@ -72,7 +72,7 @@ public class Main extends JFrame {
             public void actionPerformed(ActionEvent e) {
 
                 // 기존 테트리스 JFrame 실행
-                Tetris game = new Tetris();
+                Tetris game = new Tetris(Resolution.MEDIUM); // 기본값 '보통'
                 game.setLocationRelativeTo(Main.this);
                 game.setVisible(true);
 
