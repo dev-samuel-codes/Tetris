@@ -20,6 +20,8 @@ public class Board extends JPanel implements ActionListener {
 
 	private final GameEngine engine = new GameEngine();
 	private final Timer timer;
+	private final Timer clockTimer;
+	private int elapsedSeconds = 0;
 	private final JLabel statusbar;
 	private final SidePanel sidePanel;
 
@@ -27,6 +29,12 @@ public class Board extends JPanel implements ActionListener {
 		setFocusable(true);
 		this.sidePanel = sidePanel;
 		timer = new Timer(400, this);
+
+		// 1초(1000ms)마다 경과 시간 사이드패널에 표시
+		clockTimer = new Timer(1000, e -> {
+			elapsedSeconds++;
+			sidePanel.setElapsedSeconds(elapsedSeconds);
+		});
 		statusbar = parent.getStatusBar();
 		addKeyListener(new TAdapter());
 	}
@@ -54,6 +62,8 @@ public class Board extends JPanel implements ActionListener {
 
 	public void start() {
 		engine.start();
+		elapsedSeconds = 0;
+		sidePanel.setElapsedSeconds(0);
 		updateView();
 	}
 
@@ -61,8 +71,10 @@ public class Board extends JPanel implements ActionListener {
 	private void updateView() {
 		if (engine.isStarted() && !engine.isPaused()) {
 			timer.start();
+			clockTimer.start();
 		} else {
 			timer.stop();
+			clockTimer.stop();
 		}
 
 		if (engine.isPaused()) {
