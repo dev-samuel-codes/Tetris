@@ -19,6 +19,7 @@ public class GameEngine {
 	private int curX = 0;
 	private int curY = 0;
 	private Shape curPiece = new Shape();
+	private final Shape nextPiece = new Shape(); // 다음에 나올 블록 (미리보기용)
 	private final Tetrominoes[] board = new Tetrominoes[BOARD_WIDTH * BOARD_HEIGHT];
 
 	public GameEngine() {
@@ -34,6 +35,7 @@ public class GameEngine {
 		numLinesRemoved = 0;
 		score = 0;
 		clearBoard();
+		nextPiece.setRandomShape(); // 다음 블록을 먼저 뽑기
 		newPiece();
 	}
 
@@ -123,7 +125,8 @@ public class GameEngine {
 	}
 
 	private void newPiece() {
-		curPiece.setRandomShape(); 
+		curPiece.setShape(nextPiece.getShape()); // 미리 뽑아 둔 블록을 현재 블록으로
+		nextPiece.setRandomShape();               // 다음 블록 만들기
         // 떨어지는 위치 설정; 현재 10칸이라 curX는 으로 설정되어 있음
 		curX = BOARD_WIDTH / 2 + 1;
 		curY = BOARD_HEIGHT - 1 + curPiece.minY();
@@ -223,4 +226,9 @@ public class GameEngine {
 	}
 
 	public int getScore() {return score;}
+
+	// 다음에 나올 블록 종류 (사이드패널 미리보기용)
+	public Tetrominoes getNextShape() {
+		return nextPiece.getShape();
+	}
 }
