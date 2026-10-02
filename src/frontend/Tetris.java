@@ -17,13 +17,15 @@ public class Tetris extends JFrame {
 		statusbar = new JLabel(" 0");
 		add(statusbar, BorderLayout.SOUTH);
 
-		// main board
-		Board board = new Board(this);
-		board.setMinimumSize(new Dimension(Board.BOARD_WIDTH * MIN_CELL_SIZE, Board.BOARD_HEIGHT * MIN_CELL_SIZE));
-
 		// SidePanel
 		SidePanel sidePanel = new SidePanel();
 		sidePanel.setMinimumSize(new Dimension(SidePanel.COLS * MIN_CELL_SIZE, Board.BOARD_HEIGHT * MIN_CELL_SIZE));
+
+		// main board
+		Board board = new Board(this,sidePanel);
+		board.setMinimumSize(new Dimension(Board.BOARD_WIDTH * MIN_CELL_SIZE, Board.BOARD_HEIGHT * MIN_CELL_SIZE));
+
+
 
 		// 게임판과 정보 패널을 같은 배율로 확대
 		JPanel background = new JPanel(new GameAreaLayout(board, sidePanel));

@@ -2,6 +2,7 @@ package frontend.engine;
 
 import frontend.Shape;
 import frontend.Tetrominoes;
+import frontend.style.Style;
 
 // 화면과 독립적으로 게임 상태와 블록 이동, 충돌, 줄 제거를 관리
 public class GameEngine {
@@ -14,6 +15,7 @@ public class GameEngine {
 	private boolean isStarted = false;
 	private boolean isPaused = false;
 	private int numLinesRemoved = 0;
+	private int score = 0;
 	private int curX = 0;
 	private int curY = 0;
 	private Shape curPiece = new Shape();
@@ -30,6 +32,7 @@ public class GameEngine {
 		isStarted = true;
 		isFallingFinished = false;
 		numLinesRemoved = 0;
+		score = 0;
 		clearBoard();
 		newPiece();
 	}
@@ -176,6 +179,7 @@ public class GameEngine {
 
 		if (numFullLines > 0) {
 			numLinesRemoved += numFullLines;
+			score += numFullLines * 100;  //스코어 점수계산
 			isFallingFinished = true;
 			curPiece.setShape(Tetrominoes.NoShape);
 		}
@@ -217,4 +221,6 @@ public class GameEngine {
 	public int getPieceY(int index) {
 		return curPiece.y(index);
 	}
+
+	public int getScore() {return score;}
 }
