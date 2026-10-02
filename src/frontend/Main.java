@@ -44,9 +44,9 @@ public class Main extends JFrame {
         );
         title.setFont(Style.TITLE_FONT);
 
-        // 4개의 게임 모드 버튼을 2 x 2로 배치
+        // 세 가지 게임 모드 버튼을 세로로 배치
         JPanel buttonPanel = new JPanel(
-                new GridLayout(2, 2, 20, 20)
+                new GridLayout(3, 1, 20, 20)
         );
 
         // 버튼들이 화면 끝에 붙지 않도록 여백 설정
@@ -57,19 +57,17 @@ public class Main extends JFrame {
         );
 
         // 게임 모드 버튼
-        JButton normalButton = new JButton("기본 모드");
-        JButton itemButton = new JButton("아이템전");
-        JButton twoPlayerButton = new JButton("1PC 2인 게임");
-        JButton pvpButton = new JButton("PVP");
+        JButton classicButton = new JButton("클래식");
+        JButton itemButton = new JButton("아이템");
+        JButton multiplayerButton = new JButton("멀티플레이");
 
         // 버튼 폰트 설정
-        normalButton.setFont(Style.BUTTON_FONT);
+        classicButton.setFont(Style.BUTTON_FONT);
         itemButton.setFont(Style.BUTTON_FONT);
-        twoPlayerButton.setFont(Style.BUTTON_FONT);
-        pvpButton.setFont(Style.BUTTON_FONT);
+        multiplayerButton.setFont(Style.BUTTON_FONT);
 
-        // 기본 모드
-        normalButton.addActionListener(new ActionListener() {
+        // 클래식 모드
+        classicButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
 
@@ -93,29 +91,18 @@ public class Main extends JFrame {
             }
         });
 
-        // 1PC 2인 게임
-        twoPlayerButton.addActionListener(new ActionListener() {
+        // 멀티플레이 선택 화면으로 이동
+        multiplayerButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-
-                // 나중에 1PC 2인 화면 연결
-                System.out.println("1PC 2인 게임");
-            }
-        });
-
-        // PVP 선택 화면으로 이동
-        pvpButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                showPvpMenu();
+                showMultiplayerMenu();
             }
         });
 
         // 버튼 패널에 버튼 추가
-        buttonPanel.add(normalButton);
+        buttonPanel.add(classicButton);
         buttonPanel.add(itemButton);
-        buttonPanel.add(twoPlayerButton);
-        buttonPanel.add(pvpButton);
+        buttonPanel.add(multiplayerButton);
 
         // 메인 화면 구성
         mainContainer.add(title, BorderLayout.NORTH);
@@ -130,22 +117,22 @@ public class Main extends JFrame {
     }
 
     // =========================
-    // PVP 선택 화면
+    // 멀티플레이 선택 화면
     // =========================
-    private void showPvpMenu() {
+    private void showMultiplayerMenu() {
 
-        JPanel pvpContainer = new JPanel(new BorderLayout());
+        JPanel multiplayerContainer = new JPanel(new BorderLayout());
 
-        // PVP 제목
+        // 멀티플레이 제목
         JLabel title = new JLabel(
-                "PVP",
+                "멀티플레이",
                 SwingConstants.CENTER
         );
         title.setFont(Style.TITLE_FONT);
 
-        // AI 대전 / 네트워크 대전 버튼
+        // 1PC 2인 게임 / AI 대전 / 네트워크 대전 버튼
         JPanel buttonPanel = new JPanel(
-                new GridLayout(1, 2, 20, 20)
+                new GridLayout(3, 1, 20, 20)
         );
 
         buttonPanel.setBorder(
@@ -154,14 +141,25 @@ public class Main extends JFrame {
                 )
         );
 
+        JButton twoPlayerButton = new JButton("1PC 2인 게임");
         JButton aiButton = new JButton("AI 대전");
         JButton networkButton = new JButton("네트워크 대전");
         JButton backButton = new JButton("뒤로가기");
 
         // 버튼 폰트 설정
+        twoPlayerButton.setFont(Style.BUTTON_FONT);
         aiButton.setFont(Style.BUTTON_FONT);
         networkButton.setFont(Style.BUTTON_FONT);
         backButton.setFont(Style.BUTTON_FONT);
+
+        // 1PC 2인 게임
+        twoPlayerButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                // 나중에 1PC 2인 화면 연결
+                System.out.println("1PC 2인 게임");
+            }
+        });
 
         // AI 대전
         aiButton.addActionListener(new ActionListener() {
@@ -192,16 +190,17 @@ public class Main extends JFrame {
         });
 
         // 버튼 추가
+        buttonPanel.add(twoPlayerButton);
         buttonPanel.add(aiButton);
         buttonPanel.add(networkButton);
 
-        // PVP 화면 구성
-        pvpContainer.add(title, BorderLayout.NORTH);
-        pvpContainer.add(buttonPanel, BorderLayout.CENTER);
-        pvpContainer.add(backButton, BorderLayout.SOUTH);
+        // 멀티플레이 화면 구성
+        multiplayerContainer.add(title, BorderLayout.NORTH);
+        multiplayerContainer.add(buttonPanel, BorderLayout.CENTER);
+        multiplayerContainer.add(backButton, BorderLayout.SOUTH);
 
-        // 현재 JFrame의 화면을 PVP 메뉴로 교체
-        setContentPane(pvpContainer);
+        // 현재 JFrame의 화면을 멀티플레이 메뉴로 교체
+        setContentPane(multiplayerContainer);
 
         // 화면 갱신
         revalidate();
