@@ -59,7 +59,11 @@ public class Main extends JFrame {
         );
 
         // 게임 모드 버튼
-        JButton classicButton = new JButton("클래식");
+        JButton classicButton = new JButton(
+                "<html><div style='text-align:center;'>클래식<br>Best Score: "
+                        + ScoreManager.getBestScore()
+                        + "</div></html>"
+        );
         JButton itemButton = new JButton("아이템");
         JButton multiplayerButton = new JButton("멀티플레이");
         JButton settingsButton = new JButton("설정");
