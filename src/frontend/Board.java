@@ -124,10 +124,11 @@ public class Board extends JPanel implements ActionListener {
 		}
 		previousLinesRemoved = currentLinesRemoved;
 
-		// 게임종료 시 BGM 종료 및 게임종료 효과음
+		// 게임종료 시 BGM 종료 및 게임종료 효과음 + 스코어 전달
 		if (wasStarted && !engine.isStarted()) {
 			SoundManager.stopBgm();
 			SoundManager.playGameOver();
+			ScoreManager.saveScore(engine.getScore());
 		}
 		wasStarted = engine.isStarted();
 
