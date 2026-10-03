@@ -48,7 +48,7 @@ public class Main extends JFrame {
 
         // 세 가지 게임 모드 버튼을 세로로 배치
         JPanel buttonPanel = new JPanel(
-                new GridLayout(4, 1, 20, 20)
+                new GridLayout(5, 1, 20, 20)
         );
 
         // 버튼들이 화면 끝에 붙지 않도록 여백 설정
@@ -66,6 +66,7 @@ public class Main extends JFrame {
         );
         JButton itemButton = new JButton("아이템");
         JButton multiplayerButton = new JButton("멀티플레이");
+        JButton rankingButton = new JButton("랭킹");
         JButton settingsButton = new JButton("설정");
 
         // 버튼 폰트 설정
@@ -73,6 +74,7 @@ public class Main extends JFrame {
         itemButton.setFont(Style.BUTTON_FONT);
         multiplayerButton.setFont(Style.BUTTON_FONT);
         settingsButton.setFont(Style.BUTTON_FONT);
+        rankingButton.setFont(Style.BUTTON_FONT);
 
         // 클래식 모드
         classicButton.addActionListener(new ActionListener() {
@@ -107,6 +109,14 @@ public class Main extends JFrame {
             }
         });
 
+        //랭킹 화면으로 이동
+        rankingButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                showRankingMenu();
+            }
+        });
+
         // 설정 화면으로 이동
         settingsButton.addActionListener(new ActionListener() {
             @Override
@@ -120,6 +130,7 @@ public class Main extends JFrame {
         buttonPanel.add(classicButton);
         buttonPanel.add(itemButton);
         buttonPanel.add(multiplayerButton);
+        buttonPanel.add(rankingButton);
         buttonPanel.add(settingsButton);
 
         // 메인 화면 구성
@@ -221,6 +232,50 @@ public class Main extends JFrame {
         setContentPane(multiplayerContainer);
 
         // 화면 갱신
+        revalidate();
+        repaint();
+    }
+    // 랭킹 화면
+    private void showRankingMenu() {
+        JPanel rankingContainer = new JPanel(new BorderLayout());
+        JLabel title = new JLabel(
+                "TOP 5",
+                SwingConstants.CENTER
+        );
+        title.setFont(Style.TITLE_FONT);
+
+        JPanel rankingPanel = new JPanel(new GridLayout(5, 1, 10, 10));
+        rankingPanel.setBorder(
+                BorderFactory.createEmptyBorder(100, 200, 100, 200)
+        );
+        // 반복문을 통해 랭킹 가져오기
+        for (int i = 0; i < 5; i++) {
+            String score = "-";
+            if (i < ScoreManager.loadScores().size()) {
+                score = String.valueOf(ScoreManager.loadScores().get(i));
+            }
+            JLabel rankLabel = new JLabel(
+                    (i + 1) + "위   " + score,
+                    SwingConstants.CENTER
+            );
+            rankLabel.setFont(Style.BUTTON_FONT);
+            rankingPanel.add(rankLabel);
+        }
+
+        JButton backButton = new JButton("뒤로가기");
+        backButton.setFont(Style.BUTTON_FONT);
+
+        backButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                showMainMenu();
+            }
+        });
+
+        rankingContainer.add(title, BorderLayout.NORTH);
+        rankingContainer.add(rankingPanel, BorderLayout.CENTER);
+        rankingContainer.add(backButton, BorderLayout.SOUTH);
+        setContentPane(rankingContainer);
         revalidate();
         repaint();
     }
