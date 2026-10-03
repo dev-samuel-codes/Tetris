@@ -1,6 +1,6 @@
 package frontend;
 
-import java.io.File;
+import java.net.URL;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
@@ -16,10 +16,11 @@ public class SoundManager {
     // BGM 파일을 불러와 반복 재생
     public static void playBgm() {
         try {
-            File file = new File("src/frontend/audio/bgm.wav");
+            URL url = SoundManager.class.getResource("/frontend/audio/bgm.wav");
+
 
             AudioInputStream audioStream =
-                    AudioSystem.getAudioInputStream(file);
+                    AudioSystem.getAudioInputStream(url);
 
             bgmClip = AudioSystem.getClip();
             bgmClip.open(audioStream);
@@ -42,21 +43,21 @@ public class SoundManager {
 
     // 줄을 제거했을 때 효과음 재생
     public static void playLineClear() {
-        playSound("src/frontend/audio/lineclear.wav");
+        playSound("/frontend/audio/lineclear.wav");
     }
 
     // 게임 오버가 되었을 때 효과음 재생
     public static void playGameOver() {
-        playSound("src/frontend/audio/gameover.wav");
+        playSound("/frontend/audio/gameover.wav");
     }
 
     // 전달받은 경로의 효과음 파일을 한 번 재생
     private static void playSound(String path) {
         try {
-            File file = new File(path);
+            URL url = SoundManager.class.getResource(path);
 
             AudioInputStream audioStream =
-                    AudioSystem.getAudioInputStream(file);
+                    AudioSystem.getAudioInputStream(url);
 
             Clip clip = AudioSystem.getClip();
             clip.open(audioStream);
