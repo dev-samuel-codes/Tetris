@@ -1,0 +1,55 @@
+package frontend;
+
+import java.io.File;
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.Clip;
+
+public class SoundManager {
+
+    private static Clip bgmClip;
+
+    // 객체 생성 하지말라는 생성자
+    private SoundManager() {
+    }
+
+    // BGM 파일을 불러와 반복 재생
+    public static void playBgm() {
+        // BGM은 나중에 구현
+    }
+
+    // 현재 재생 중인 BGM을 정지하고 종료
+    public static void stopBgm() {
+        if (bgmClip != null) {
+            bgmClip.stop();
+            bgmClip.close();
+        }
+    }
+
+    // 줄을 제거했을 때 효과음 재생
+    public static void playLineClear() {
+        playSound("src/frontend/audio/lineclear.wav");
+    }
+
+    // 게임 오버가 되었을 때 효과음 재생
+    public static void playGameOver() {
+        playSound("src/frontend/audio/gameover.wav");
+    }
+
+    // 전달받은 경로의 효과음 파일을 한 번 재생
+    private static void playSound(String path) {
+        try {
+            File file = new File(path);
+
+            AudioInputStream audioStream =
+                    AudioSystem.getAudioInputStream(file);
+
+            Clip clip = AudioSystem.getClip();
+            clip.open(audioStream);
+            clip.start();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
