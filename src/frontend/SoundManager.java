@@ -15,7 +15,21 @@ public class SoundManager {
 
     // BGM 파일을 불러와 반복 재생
     public static void playBgm() {
-        // BGM은 나중에 구현
+        try {
+            File file = new File("src/frontend/audio/bgm.wav");
+
+            AudioInputStream audioStream =
+                    AudioSystem.getAudioInputStream(file);
+
+            bgmClip = AudioSystem.getClip();
+            bgmClip.open(audioStream);
+
+            // 계속 반복 재생
+            bgmClip.loop(Clip.LOOP_CONTINUOUSLY);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     // 현재 재생 중인 BGM을 정지하고 종료

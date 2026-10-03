@@ -33,6 +33,7 @@ public class Tetris extends JFrame {
 		add(background, BorderLayout.CENTER);
 
 		board.start();
+		SoundManager.playBgm(); // BGM 시작
 
 		pack();
 		// 처음 표시되는 창의 가로·세로 비율을 이후 크기 변경에도 유지

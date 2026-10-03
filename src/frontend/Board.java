@@ -21,6 +21,7 @@ public class Board extends JPanel implements ActionListener {
 	private final GameEngine engine = new GameEngine();
 	private final Timer timer;
 	private final Timer clockTimer;
+	private boolean wasStarted = false;
 	private int elapsedSeconds = 0;
 	private int previousLinesRemoved = 0;
 	private final JLabel statusbar;
@@ -83,6 +84,13 @@ public class Board extends JPanel implements ActionListener {
 			SoundManager.playLineClear();
 		}
 		previousLinesRemoved = currentLinesRemoved;
+
+		// 게임종료 시 BGM 종료 및 게임종료 효과음
+		if (wasStarted && !engine.isStarted()) {
+			SoundManager.stopBgm();
+			SoundManager.playGameOver();
+		}
+		wasStarted = engine.isStarted();
 
 		if (engine.isPaused()) {
 			statusbar.setText("paused");
