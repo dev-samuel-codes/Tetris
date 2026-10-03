@@ -5,6 +5,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.awt.FontMetrics;
 
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -26,6 +27,8 @@ public class Board extends JPanel implements ActionListener {
 	private int previousLinesRemoved = 0;
 	private final JLabel statusbar;
 	private final SidePanel sidePanel;
+	private int currentLevel = 1;
+	private String levelMessage = "";
 
 	public Board(Tetris parent, SidePanel sidePanel) {
 		setFocusable(true);
@@ -69,6 +72,42 @@ public class Board extends JPanel implements ActionListener {
 		updateView();
 	}
 
+	// 현재 점수에 따라 블록 낙하 속도 변경
+	private void updateDropSpeed() {
+		int score = engine.getScore();
+		int newLevel = 1;
+
+		if (score >= 200) {
+			timer.setDelay(200);
+			newLevel = 5;
+		} else if (score >= 150) {
+			timer.setDelay(250);
+			newLevel = 4;
+		} else if (score >= 100) {
+			timer.setDelay(300);
+			newLevel = 3;
+		} else if (score >= 50) {
+			timer.setDelay(350);
+			newLevel = 2;
+		} else {
+			timer.setDelay(400);
+			newLevel = 1;
+		}
+		// 1.5초 동안 떴다가 사라지는 코드
+		if (newLevel != currentLevel) {
+			currentLevel = newLevel;
+			levelMessage = "LEVEL " + currentLevel;
+
+			Timer levelTimer = new Timer(1500, e -> {
+				levelMessage = "";
+				repaint();
+			});
+
+			levelTimer.setRepeats(false);
+			levelTimer.start();
+		}
+	}
+
 	// 게임 상태에 맞춰 타이머와 상태 표시를 갱신
 	private void updateView() {
 		if (engine.isStarted() && !engine.isPaused()) {
@@ -101,7 +140,7 @@ public class Board extends JPanel implements ActionListener {
 		}
 		sidePanel.setScore(engine.getScore());
 		repaint();
-
+		updateDropSpeed();
 		sidePanel.setNextShape(engine.getNextShape());
 	}
 
@@ -127,6 +166,15 @@ public class Board extends JPanel implements ActionListener {
 				BlockPainter.drawSquare(g, left + x * size, top + (BOARD_HEIGHT - y - 1) * size,
 						size, engine.getCurrentShape());
 			}
+		}
+		// 레벨 메세지 띄우기
+		if (!levelMessage.isEmpty()) {
+			FontMetrics fm = g.getFontMetrics();
+
+			int x = (getWidth() - fm.stringWidth(levelMessage)) / 2;
+			int y = 60;
+
+			g.drawString(levelMessage, x, y);
 		}
 	}
 
