@@ -69,6 +69,18 @@ public class Board extends JPanel implements ActionListener {
 		updateView();
 	}
 
+	// 현재 점수에 따라 블록 낙하 속도 변경
+	private void updateDropSpeed() {
+		int score = engine.getScore();
+
+		if (score >= 50) {
+			timer.setDelay(300);
+		} else if (score >= 50) {
+			timer.setDelay(2000);
+		}
+
+	}
+
 	// 게임 상태에 맞춰 타이머와 상태 표시를 갱신
 	private void updateView() {
 		if (engine.isStarted() && !engine.isPaused()) {
@@ -101,7 +113,7 @@ public class Board extends JPanel implements ActionListener {
 		}
 		sidePanel.setScore(engine.getScore());
 		repaint();
-
+		updateDropSpeed();
 		sidePanel.setNextShape(engine.getNextShape());
 	}
 
