@@ -22,6 +22,7 @@ public class Board extends JPanel implements ActionListener {
 	private final Timer timer;
 	private final Timer clockTimer;
 	private int elapsedSeconds = 0;
+	private int previousLinesRemoved = 0;
 	private final JLabel statusbar;
 	private final SidePanel sidePanel;
 
@@ -76,6 +77,12 @@ public class Board extends JPanel implements ActionListener {
 			timer.stop();
 			clockTimer.stop();
 		}
+		// 이전보다 제거된 줄 수가 증가했으면 줄 삭제 효과음 재생
+		int currentLinesRemoved = engine.getNumLinesRemoved();
+		if (currentLinesRemoved > previousLinesRemoved) {
+			SoundManager.playLineClear();
+		}
+		previousLinesRemoved = currentLinesRemoved;
 
 		if (engine.isPaused()) {
 			statusbar.setText("paused");
