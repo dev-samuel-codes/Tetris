@@ -36,3 +36,7 @@ bin/
 .DS_Store
 
 scores.txt
+
+### Tetris local profile and server scores ###
+.tetris/
+server-data/

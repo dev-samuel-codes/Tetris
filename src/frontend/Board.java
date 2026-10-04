@@ -32,13 +32,16 @@ public class Board extends JPanel implements ActionListener {
 	private int previousLinesRemoved = 0;
 	private final JLabel statusbar;
 	private final SidePanel sidePanel;
+	private final String playerNickname; // 게임 시작 시 닉네임으로 기록을 저장
 	private int currentLevel = 1;
 	private String levelMessage = "";
+	private String scoreSaveStatus = "";
 
 	public Board(Tetris parent, SidePanel sidePanel) {
 		setFocusable(true);
 		setBackground(Style.BACKGROUND);
 		this.sidePanel = sidePanel;
+		playerNickname = ScoreManager.getNickname();
 		timer = new Timer(400, this);
 
 		// 1초(1000ms)마다 경과 시간 사이드패널에 표시
@@ -87,6 +90,8 @@ public class Board extends JPanel implements ActionListener {
 		isStopped = false; // 게임 시작 시 다시 입력과 타이머 처리 허용
 		engine.start();
 		elapsedSeconds = 0;
+		scoreSaveStatus = "";
+		statusbar.setToolTipText(null);
 		sidePanel.setElapsedSeconds(0);
 		updateView();
 	}
@@ -152,14 +157,23 @@ public class Board extends JPanel implements ActionListener {
 		if (wasStarted && !engine.isStarted()) {
 			SoundManager.stopBgm();
 			SoundManager.playGameOver();
-			ScoreManager.saveScore(engine.getScore());
+			scoreSaveStatus = "점수 저장 중";
+			ScoreManager.saveScore(playerNickname, engine.getScore(), result -> {
+				// 메뉴로 돌아간 창에는 늦게 도착한 응답을 표시하지 않음
+				if (!isStopped) {
+					scoreSaveStatus = result.isSuccess() ? "서버 저장 완료"
+							: result.isPending() ? "재전송 대기" : "저장 실패";
+					statusbar.setText(scoreSaveStatus);
+					statusbar.setToolTipText(result.getMessage() + " · " + result.getDetail());
+				}
+			});
 		}
 		wasStarted = engine.isStarted();
 
 		if (engine.isPaused()) {
 			statusbar.setText("일시정지");
 		} else if (!engine.isStarted()) {
-			statusbar.setText("게임 종료");
+			statusbar.setText(scoreSaveStatus.isEmpty() ? "게임 종료" : scoreSaveStatus);
 		} else {
 			statusbar.setText("제거한 줄: " + currentLinesRemoved);
 		}
