@@ -2,12 +2,14 @@
 package frontend;
 
 import frontend.style.Style;
+import frontend.network.ScoreClient.RankingEntry;
+import frontend.network.ScoreClient.RankingPage;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.GridLayout;
-import java.util.List;
+import java.io.IOException;
 
 import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
@@ -17,12 +19,15 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JToggleButton;
+import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 
 // 앱 메인 화면
 // 나중에 메뉴 화면이 더 늘어나면 화면별 JPanel로 나눠도 괜찮을 것 같음
 public class Main extends JFrame {
+
+    private static final int RANKING_PAGE_SIZE = 5;
 
     public Main() {
         setTitle("Tetris");
@@ -40,10 +45,51 @@ public class Main extends JFrame {
         JPanel content = new JPanel(new BorderLayout(0, 16));
         content.setOpaque(false);
 
+        // 닉네임은 기기에 보관하고, 서버에서는 같은 닉네임의 최고 점수를 관리
+        String playerName = ScoreManager.getNickname();
+        JPanel identityPanel = new JPanel(new BorderLayout(10, 6));
+        identityPanel.setOpaque(false);
+        JPanel nicknameRow = new JPanel(new BorderLayout(12, 0));
+        nicknameRow.setOpaque(false);
+        JTextField nicknameField = new JTextField(playerName, 16);
+        nicknameField.setFont(Style.BUTTON_FONT);
+        nicknameField.setForeground(Style.TEXT);
+        nicknameField.setBackground(Style.PANEL);
+        nicknameField.setCaretColor(Style.TEXT);
+        nicknameField.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(Style.BOARD_BORDER),
+                BorderFactory.createEmptyBorder(6, 10, 6, 10)));
+        JLabel nicknameLabel = createLabel("닉네임", Style.TEXT);
+        nicknameLabel.setLabelFor(nicknameField);
+        JButton applyNickname = createButton("적용");
+        applyNickname.setPreferredSize(new Dimension(90, 42));
+        JLabel connectionStatus = createLabel(playerName.isEmpty()
+                ? "문자·숫자·_·-로 1~16자 입력해 주세요." : "서버 기록을 불러오는 중입니다.", Style.MUTED_TEXT);
+        Runnable saveNickname = () -> {
+            try {
+                ScoreManager.setNickname(nicknameField.getText());
+                showMainMenu();
+            } catch (IOException | IllegalArgumentException e) {
+                connectionStatus.setText(e.getMessage());
+                connectionStatus.setForeground(Style.PINK);
+            }
+        };
+        applyNickname.addActionListener(e -> saveNickname.run());
+        nicknameField.addActionListener(e -> saveNickname.run());
+        nicknameRow.add(nicknameLabel, BorderLayout.WEST);
+        nicknameRow.add(nicknameField, BorderLayout.CENTER);
+        nicknameRow.add(applyNickname, BorderLayout.EAST);
+        identityPanel.add(nicknameRow, BorderLayout.CENTER);
+        identityPanel.add(connectionStatus, BorderLayout.SOUTH);
+        content.add(identityPanel, BorderLayout.NORTH);
+
         // 세 가지 게임 모드는 큰 버튼으로, 랭킹과 설정은 아래에 배치
         JPanel modePanel = createButtonPanel(3);
         JButton classicButton = createMenuButton("클래식",
-                "Best Score: " + ScoreManager.getBestScore(), Style.ACCENT, Style.CLASSIC_BUTTON);
+                playerName.isEmpty() ? "닉네임을 입력한 뒤 시작하세요"
+                        : playerName + " · 내 최고 점수: " + ScoreManager.getCachedBestScore(playerName),
+                Style.ACCENT, Style.CLASSIC_BUTTON);
+        classicButton.setEnabled(!playerName.isEmpty());
         JButton itemButton = createMenuButton("아이템", "아이템 모드 · 준비 중",
                 Style.GREEN, Style.ITEM_BUTTON);
         JButton multiplayerButton = createMenuButton("멀티플레이", "함께 플레이할 모드 선택",
@@ -76,7 +122,18 @@ public class Main extends JFrame {
         mainContainer.add(content, BorderLayout.CENTER);
         mainContainer.add(createLabel("← → 이동   ↑ ↓ 회전   D 한 칸 하강   SPACE 즉시 낙하   P 일시정지",
                 Style.MUTED_TEXT), BorderLayout.SOUTH);
-        showPage(mainContainer, classicButton);
+        showPage(mainContainer, playerName.isEmpty() ? applyNickname : classicButton);
+
+        if (!playerName.isEmpty()) {
+            ScoreManager.loadBestScore(playerName, result -> {
+                if (!isDisplayable() || getContentPane() != mainContainer)
+                    return;
+                setMenuButtonText(classicButton, "클래식", playerName + " · 내 최고 점수: " + result.getValue());
+                connectionStatus.setText(result.getMessage());
+                connectionStatus.setToolTipText(result.getDetail());
+                connectionStatus.setForeground(result.isSuccess() ? Style.GREEN : Style.MUTED_TEXT);
+            });
+        }
     }
 
     private void showMultiplayerMenu() {
@@ -100,22 +157,79 @@ public class Main extends JFrame {
         showSubmenu(container);
     }
 
-    // 저장된 점수를 한 번 불러와서 상위 5개 표시
+    // 서버의 전체 랭킹을 한 페이지에 5명씩 표시
     private void showRankingMenu() {
-        JPanel container = createPage("TOP 5", "클래식 모드 최고 기록");
-        JPanel rankingPanel = createButtonPanel(5);
-        List<Integer> scores = ScoreManager.loadScores();
-        for (int i = 0; i < 5; i++) {
-            String score = i < scores.size() ? String.valueOf(scores.get(i)) : "-";
-            JLabel rankLabel = createLabel((i + 1) + "위    " + score, Style.TEXT);
+        showRankingMenu(0);
+    }
+
+    // 나중에 랭킹 검색이나 정렬 조건이 늘어나면 별도 화면 클래스로 나눠도 괜찮을 것 같음
+    private void showRankingMenu(int pageIndex) {
+        JPanel container = createPage("전체 랭킹", "닉네임별 클래식 최고 점수");
+        JPanel content = new JPanel(new BorderLayout(0, 12));
+        content.setOpaque(false);
+        JLabel status = createLabel("서버 랭킹을 불러오는 중입니다.", Style.MUTED_TEXT);
+        JPanel rankingPanel = createButtonPanel(RANKING_PAGE_SIZE);
+        JLabel[] rows = new JLabel[RANKING_PAGE_SIZE];
+        for (int i = 0; i < rows.length; i++) {
+            JLabel rankLabel = createLabel("-", Style.TEXT);
             rankLabel.setFont(Style.SCORE_FONT);
             rankLabel.setOpaque(true);
             rankLabel.setBackground(Style.PANEL);
             rankLabel.setBorder(BorderFactory.createMatteBorder(0, 4, 0, 0, Style.ACCENT));
             rankingPanel.add(rankLabel);
+            rows[i] = rankLabel;
         }
-        container.add(rankingPanel, BorderLayout.CENTER);
+        JPanel navigation = new JPanel(new GridLayout(1, 4, 12, 0));
+        navigation.setOpaque(false);
+        JButton previous = createButton("이전");
+        JButton next = createButton("다음");
+        JButton refresh = createButton("새로고침");
+        JLabel pageLabel = createLabel((pageIndex + 1) + " 페이지", Style.TEXT);
+        previous.setEnabled(pageIndex > 0);
+        next.setEnabled(false);
+        refresh.setEnabled(false);
+        previous.addActionListener(e -> showRankingMenu(pageIndex - 1));
+        next.addActionListener(e -> showRankingMenu(pageIndex + 1));
+        refresh.addActionListener(e -> showRankingMenu(pageIndex));
+        navigation.add(previous);
+        navigation.add(pageLabel);
+        navigation.add(next);
+        navigation.add(refresh);
+        content.add(status, BorderLayout.NORTH);
+        content.add(rankingPanel, BorderLayout.CENTER);
+        content.add(navigation, BorderLayout.SOUTH);
+        container.add(content, BorderLayout.CENTER);
         showSubmenu(container);
+
+        ScoreManager.loadRanking(pageIndex * RANKING_PAGE_SIZE, RANKING_PAGE_SIZE, result -> {
+            // 다른 메뉴로 이동한 뒤 받은 응답은 이전 화면에만 해당하므로 무시
+            if (!isDisplayable() || getContentPane() != container)
+                return;
+            refresh.setEnabled(true);
+            status.setToolTipText(result.getDetail());
+            if (!result.isSuccess()) {
+                status.setText(result.getMessage());
+                status.setForeground(Style.PINK);
+                return;
+            }
+            RankingPage page = result.getValue();
+            if (pageIndex > 0 && page.getEntries().isEmpty()) {
+                showRankingMenu(Math.max(0, (page.getTotalPlayers() - 1) / RANKING_PAGE_SIZE));
+                return;
+            }
+            status.setText("전체 " + page.getTotalPlayers() + "명 · 서버에 저장된 최고 점수");
+            pageLabel.setText((pageIndex + 1) + " / " + Math.max(1,
+                    (page.getTotalPlayers() + RANKING_PAGE_SIZE - 1) / RANKING_PAGE_SIZE));
+            next.setEnabled((pageIndex + 1) * RANKING_PAGE_SIZE < page.getTotalPlayers());
+            for (int i = 0; i < page.getEntries().size(); i++) {
+                RankingEntry entry = page.getEntries().get(i);
+                rows[i].setText(entry.getRank() + "위    " + entry.getNickname() + "    " + entry.getScore());
+                if (entry.getNickname().equals(ScoreManager.getNickname()))
+                    rows[i].setForeground(Style.ACCENT);
+            }
+            if (page.getEntries().isEmpty())
+                rows[0].setText("아직 등록된 기록이 없습니다.");
+        });
     }
 
     private void showSettingsMenu() {
@@ -165,13 +279,18 @@ public class Main extends JFrame {
     }
 
     private JButton createMenuButton(String title, String description, Color accent, Color background) {
-        JButton button = new JButton("<html>" + title
-                + "<br><span style='font-size:10pt;font-weight:normal;'>" + description + "</span></html>");
+        JButton button = new JButton();
+        setMenuButtonText(button, title, description);
         Style.applyButtonStyle(button, accent, background);
         button.setHorizontalAlignment(SwingConstants.LEFT);
+        return button;
+    }
+
+    private void setMenuButtonText(JButton button, String title, String description) {
+        button.setText("<html>" + title
+                + "<br><span style='font-size:10pt;font-weight:normal;'>" + description + "</span></html>");
         button.getAccessibleContext().setAccessibleName(title);
         button.getAccessibleContext().setAccessibleDescription(description);
-        return button;
     }
 
     private JButton createButton(String title) {
