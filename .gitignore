@@ -8,6 +8,7 @@ out/
 output/
 .build
 tetris2026-architecture.md
+docs/
 
 ### Eclipse ###
 .apt_generated
