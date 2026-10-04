@@ -1,6 +1,8 @@
 package frontend;
 
 import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyAdapter;
@@ -12,6 +14,7 @@ import javax.swing.JPanel;
 import javax.swing.Timer;
 
 import frontend.engine.GameEngine;
+import frontend.style.Style;
 
 // 게임 입력과 타이머를 엔진에 전달하고, 현재 상태를 화면에 표시
 public class Board extends JPanel implements ActionListener {
@@ -34,6 +37,7 @@ public class Board extends JPanel implements ActionListener {
 
 	public Board(Tetris parent, SidePanel sidePanel) {
 		setFocusable(true);
+		setBackground(Style.BACKGROUND);
 		this.sidePanel = sidePanel;
 		timer = new Timer(400, this);
 
@@ -153,25 +157,71 @@ public class Board extends JPanel implements ActionListener {
 		wasStarted = engine.isStarted();
 
 		if (engine.isPaused()) {
-			statusbar.setText("paused");
+			statusbar.setText("일시정지");
 		} else if (!engine.isStarted()) {
-			statusbar.setText("game over");
+			statusbar.setText("게임 종료");
 		} else {
-			statusbar.setText(String.valueOf(engine.getNumLinesRemoved()));
+			statusbar.setText("제거한 줄: " + currentLinesRemoved);
 		}
 		sidePanel.setScore(engine.getScore());
+		sidePanel.setLinesRemoved(currentLinesRemoved);
 		repaint();
 		updateDropSpeed();
 		sidePanel.setNextShape(engine.getNextShape());
 	}
 
-	public void paint(Graphics g) {
-		super.paint(g);
+	@Override
+	protected void paintComponent(Graphics g) {
+		super.paintComponent(g);
 
 		int size = squareSize();
+		if (size <= 0)
+			return;
+
 		int left = boardLeft();
 		int top = boardTop();
+		Graphics2D graphics = (Graphics2D) g.create();
+		try {
+			graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+			graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+			drawGrid(graphics, left, top, size);
+			drawPieces(graphics, left, top, size);
 
+			// 일시정지와 게임 종료 상태를 게임판 위에 표시
+			if (engine.isPaused()) {
+				drawOverlay(graphics, left, top, size, "PAUSED", "P 키를 눌러 계속하기");
+			} else if (!engine.isStarted()) {
+				drawOverlay(graphics, left, top, size, "GAME OVER", "메뉴로 돌아가서 다시 시작하세요");
+			} else if (!levelMessage.isEmpty()) {
+				graphics.setFont(Style.SCORE_FONT.deriveFont(size * 0.8f));
+				graphics.setColor(Style.OVERLAY);
+				graphics.fillRoundRect(left + size * 2, top + size, size * 6, size * 2, size / 2, size / 2);
+				graphics.setColor(Style.TEXT);
+				drawCentered(graphics, levelMessage, left + BOARD_WIDTH * size / 2, top + (int) (2.3 * size));
+			}
+		} finally {
+			graphics.dispose();
+		}
+	}
+
+	// 보드 배경과 격자도 블록과 같은 정사각형 칸 크기로 그림
+	private void drawGrid(Graphics2D g, int left, int top, int size) {
+		int width = BOARD_WIDTH * size;
+		int height = BOARD_HEIGHT * size;
+		g.setColor(Style.BOARD_BACKGROUND);
+		g.fillRect(left, top, width, height);
+		g.setColor(Style.BOARD_GRID);
+		for (int x = 1; x < BOARD_WIDTH; x++)
+			g.drawLine(left + x * size, top, left + x * size, top + height - 1);
+		for (int y = 1; y < BOARD_HEIGHT; y++)
+			g.drawLine(left, top + y * size, left + width - 1, top + y * size);
+		g.setColor(Style.BOARD_BORDER);
+		g.drawRect(left, top, width - 1, height - 1);
+	}
+
+	// 엔진의 상태를 읽어서 고정된 블록과 현재 블록을 표시
+	// 나중에 렌더링 효과가 더 늘어나면 보드 그리기를 별도 클래스로 나눠도 괜찮을 것 같음
+	private void drawPieces(Graphics2D g, int left, int top, int size) {
 		for (int i = 0; i < BOARD_HEIGHT; ++i) {
 			for (int j = 0; j < BOARD_WIDTH; ++j) {
 				Tetrominoes shape = engine.shapeAt(j, BOARD_HEIGHT - i - 1);
@@ -188,15 +238,24 @@ public class Board extends JPanel implements ActionListener {
 						size, engine.getCurrentShape());
 			}
 		}
-		// 레벨 메세지 띄우기
-		if (!levelMessage.isEmpty()) {
-			FontMetrics fm = g.getFontMetrics();
+	}
 
-			int x = (getWidth() - fm.stringWidth(levelMessage)) / 2;
-			int y = 60;
+	private void drawOverlay(Graphics2D g, int left, int top, int size, String title, String description) {
+		g.setColor(Style.OVERLAY);
+		g.fillRect(left, top, BOARD_WIDTH * size, BOARD_HEIGHT * size);
+		int centerX = left + BOARD_WIDTH * size / 2;
+		int centerY = top + BOARD_HEIGHT * size / 2;
+		g.setFont(Style.ROOM_TITLE_FONT.deriveFont(size * 0.9f));
+		g.setColor(Style.TEXT);
+		drawCentered(g, title, centerX, centerY);
+		g.setFont(Style.BODY_FONT.deriveFont(size * 0.43f));
+		g.setColor(Style.MUTED_TEXT);
+		drawCentered(g, description, centerX, centerY + size);
+	}
 
-			g.drawString(levelMessage, x, y);
-		}
+	private void drawCentered(Graphics2D g, String text, int centerX, int baselineY) {
+		FontMetrics fm = g.getFontMetrics();
+		g.drawString(text, centerX - fm.stringWidth(text) / 2, baselineY);
 	}
 
 	class TAdapter extends KeyAdapter {
