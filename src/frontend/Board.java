@@ -131,7 +131,13 @@ public class Board extends JPanel implements ActionListener {
 		// 1.5초 동안 떴다가 사라지는 코드
 		if (newLevel != currentLevel) {
 			currentLevel = newLevel;
-			levelMessage = "LEVEL " + currentLevel;
+			if (currentLevel == 4) {
+				levelMessage = "LEVEL 4 - NEXT 블록 숨김";
+			} else if (currentLevel == 5) {
+				levelMessage = "LEVEL 5 - 좌우키 반전";
+			} else {
+				levelMessage = "LEVEL " + currentLevel;
+			}
 
 			levelTimer.restart(); // 레벨이 다시 바뀌면 표시 시간도 처음부터 계산
 		}
@@ -181,7 +187,12 @@ public class Board extends JPanel implements ActionListener {
 		sidePanel.setLinesRemoved(currentLinesRemoved);
 		repaint();
 		updateDropSpeed();
-		sidePanel.setNextShape(engine.getNextShape());
+		// 4레벨이상 사이드 패널에 다음 모양 숨김
+		if (currentLevel >= 4) {
+			sidePanel.setNextShape(Tetrominoes.NoShape);
+		} else {
+			sidePanel.setNextShape(engine.getNextShape());
+		}
 	}
 
 	@Override
@@ -289,11 +300,22 @@ public class Board extends JPanel implements ActionListener {
 				return;
 
 			switch (keycode) {
+				// 5레벨 일때 좌우반전
 			case KeyEvent.VK_LEFT:
-				engine.moveLeft();
+				if (currentLevel ==5){
+					engine.moveRight();
+				}
+				else {
+					engine.moveLeft();
+				}
 				break;
 			case KeyEvent.VK_RIGHT:
-				engine.moveRight();
+				if (currentLevel ==5){
+					engine.moveLeft();
+				}
+				else {
+					engine.moveRight();
+				}
 				break;
 			case KeyEvent.VK_DOWN:
 				engine.rotateRight();
