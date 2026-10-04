@@ -22,6 +22,8 @@ public class Board extends JPanel implements ActionListener {
 	private final GameEngine engine = new GameEngine();
 	private final Timer timer;
 	private final Timer clockTimer;
+	private final Timer levelTimer; // 레벨 메세지를 지우는 타이머
+	private boolean isStopped = false; // 메뉴로 돌아간 보드가 계속 처리되지 않도록 확인
 	private boolean wasStarted = false;
 	private int elapsedSeconds = 0;
 	private int previousLinesRemoved = 0;
@@ -37,14 +39,26 @@ public class Board extends JPanel implements ActionListener {
 
 		// 1초(1000ms)마다 경과 시간 사이드패널에 표시
 		clockTimer = new Timer(1000, e -> {
+			// 게임을 정지한 뒤 들어온 이벤트면 시간도 늘리지 않음
+			if (isStopped)
+				return;
 			elapsedSeconds++;
 			sidePanel.setElapsedSeconds(elapsedSeconds);
 		});
+		// 1.5초 뒤 레벨 메세지를 지우고 화면 갱신
+		levelTimer = new Timer(1500, e -> {
+			levelMessage = "";
+			repaint();
+		});
+		levelTimer.setRepeats(false); // 반복하지 않고 한 번만 실행
 		statusbar = parent.getStatusBar();
 		addKeyListener(new TAdapter());
 	}
 
 	public void actionPerformed(ActionEvent e) {
+		// 정지 전에 들어온 타이머 이벤트도 무시
+		if (isStopped)
+			return;
 		engine.tick();
 		updateView();
 	}
@@ -66,10 +80,22 @@ public class Board extends JPanel implements ActionListener {
 	}
 
 	public void start() {
+		isStopped = false; // 게임 시작 시 다시 입력과 타이머 처리 허용
 		engine.start();
 		elapsedSeconds = 0;
 		sidePanel.setElapsedSeconds(0);
 		updateView();
+	}
+
+	// 메뉴로 돌아가거나 창을 닫을 때 게임 관련 타이머를 모두 정지
+	// 나중에 타이머가 더 늘어나면 타이머 관리 코드를 따로 나눠도 괜찮을 것 같음
+	public void stop() {
+		// 현재는 중간에 나간 게임의 점수는 저장하지 않음
+		isStopped = true;
+		timer.stop();
+		clockTimer.stop();
+		levelTimer.stop();
+		levelMessage = "";
 	}
 
 	// 현재 점수에 따라 블록 낙하 속도 변경
@@ -98,13 +124,7 @@ public class Board extends JPanel implements ActionListener {
 			currentLevel = newLevel;
 			levelMessage = "LEVEL " + currentLevel;
 
-			Timer levelTimer = new Timer(1500, e -> {
-				levelMessage = "";
-				repaint();
-			});
-
-			levelTimer.setRepeats(false);
-			levelTimer.start();
+			levelTimer.restart(); // 레벨이 다시 바뀌면 표시 시간도 처음부터 계산
 		}
 	}
 
@@ -181,7 +201,8 @@ public class Board extends JPanel implements ActionListener {
 
 	class TAdapter extends KeyAdapter {
 		public void keyPressed(KeyEvent e) {
-			if (!engine.isStarted() || engine.getCurrentShape() == Tetrominoes.NoShape)
+			// 메뉴로 돌아간 보드나 조작할 블록이 없는 상태면 입력 무시
+			if (isStopped || !engine.isStarted() || engine.getCurrentShape() == Tetrominoes.NoShape)
 				return;
 
 			int keycode = e.getKeyCode();
