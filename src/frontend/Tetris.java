@@ -6,22 +6,36 @@ import java.awt.event.ComponentEvent;
 
 import javax.swing.*;
 
+import frontend.style.Style;
+
 public class Tetris extends JFrame {
 
 	private static final int MIN_CELL_SIZE = 10;
 
 	JLabel statusbar;
+	private final Board board; // 메뉴로 돌아갈 때 게임 정지에 사용
 
 	public Tetris(Resolution resolution) {
 		statusbar = new JLabel(" 0");
-		add(statusbar, BorderLayout.SOUTH);
+
+		// 메뉴로 돌아가기 버튼
+		JButton menuButton = new JButton("메뉴로 돌아가기");
+		menuButton.setFont(Style.BUTTON_FONT);
+		menuButton.setFocusable(false); // 버튼이 게임 키 입력 포커스를 가져가지 않도록 설정
+		menuButton.addActionListener(e -> returnToMenu());
+
+		// 하단에 제거한 줄 수와 메뉴 버튼 표시
+		JPanel footer = new JPanel(new BorderLayout());
+		footer.add(statusbar, BorderLayout.CENTER);
+		footer.add(menuButton, BorderLayout.EAST);
+		add(footer, BorderLayout.SOUTH);
 
 		// SidePanel
 		SidePanel sidePanel = new SidePanel();
 		sidePanel.setMinimumSize(new Dimension(SidePanel.COLS * MIN_CELL_SIZE, Board.BOARD_HEIGHT * MIN_CELL_SIZE));
 
 		// main board
-		Board board = new Board(this,sidePanel);
+		board = new Board(this,sidePanel);
 		board.setMinimumSize(new Dimension(Board.BOARD_WIDTH * MIN_CELL_SIZE, Board.BOARD_HEIGHT * MIN_CELL_SIZE));
 
 
@@ -47,6 +61,28 @@ public class Tetris extends JFrame {
 
 	public JLabel getStatusBar() {
 		return statusbar;
+	}
+
+	// 현재 게임 창을 닫고 메인 메뉴로 이동
+	// 나중에 실수로 나가지 않도록 돌아가기 전에 확인창을 띄워도 괜찮을 것 같음
+	private void returnToMenu() {
+		// 이미 닫힌 창이면 메뉴를 또 만들지 않음
+		if (!isDisplayable())
+			return;
+
+		// 메뉴를 새로 만들면서 최고 점수도 다시 불러옴
+		Main menu = new Main();
+		menu.setLocationRelativeTo(this);
+		dispose();
+		menu.setVisible(true);
+	}
+
+	// 창을 닫을 때 타이머와 BGM도 같이 정지
+	@Override
+	public void dispose() {
+		board.stop();
+		SoundManager.stopBgm();
+		super.dispose();
 	}
 
 	// 한쪽 크기를 변경하면 다른 쪽도 같은 배율로 보정
