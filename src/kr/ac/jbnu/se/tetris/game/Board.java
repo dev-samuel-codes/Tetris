@@ -1,8 +1,11 @@
 package kr.ac.jbnu.se.tetris.game;
 
 import java.awt.Color;
-import java.awt.Dimension;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GradientPaint;
+import java.awt.RenderingHints;
+import java.awt.BasicStroke;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyAdapter;
@@ -92,17 +95,41 @@ public class Board extends JPanel implements ActionListener {
 		repaint();
 	}
 
-	public void paint(Graphics g) {
-		super.paint(g);
+	@Override
+	protected void paintComponent(Graphics g) {
+		super.paintComponent(g);
 
-		Dimension size = getSize();
-		int boardTop = (int) size.getHeight() - BoardHeight * squareHeight();
+		Graphics2D g2 = (Graphics2D) g.create();
+		g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+		int cellWidth = squareWidth();
+		int cellHeight = squareHeight();
+		int boardWidth = BoardWidth * cellWidth;
+		int boardHeight = BoardHeight * cellHeight;
+		int boardLeft = (getWidth() - boardWidth) / 2;
+		int boardTop = getHeight() - boardHeight;
+
+		g2.setColor(new Color(10, 12, 20));
+		g2.fillRoundRect(boardLeft - 5, boardTop - 5, boardWidth + 10, boardHeight + 10, 12, 12);
+		g2.setColor(new Color(22, 26, 40));
+		g2.fillRect(boardLeft, boardTop, boardWidth, boardHeight);
+
+		g2.setColor(new Color(39, 44, 62));
+		g2.setStroke(new BasicStroke(1f));
+		for (int column = 0; column <= BoardWidth; column++) {
+			int x = boardLeft + column * cellWidth;
+			g2.drawLine(x, boardTop, x, boardTop + boardHeight);
+		}
+		for (int row = 0; row <= BoardHeight; row++) {
+			int y = boardTop + row * cellHeight;
+			g2.drawLine(boardLeft, y, boardLeft + boardWidth, y);
+		}
 
 		for (int i = 0; i < BoardHeight; ++i) {
 			for (int j = 0; j < BoardWidth; ++j) {
 				Tetrominoes shape = shapeAt(j, BoardHeight - i - 1);
 				if (shape != Tetrominoes.NoShape)
-					drawSquare(g, 0 + j * squareWidth(), boardTop + i * squareHeight(), shape);
+					drawSquare(g2, boardLeft + j * cellWidth, boardTop + i * cellHeight, shape);
 			}
 		}
 
@@ -110,10 +137,32 @@ public class Board extends JPanel implements ActionListener {
 			for (int i = 0; i < 4; ++i) {
 				int x = curX + curPiece.x(i);
 				int y = curY - curPiece.y(i);
-				drawSquare(g, 0 + x * squareWidth(), boardTop + (BoardHeight - y - 1) * squareHeight(),
-						curPiece.getShape());
+				drawSquare(g2, boardLeft + x * cellWidth,
+						boardTop + (BoardHeight - y - 1) * cellHeight, curPiece.getShape());
 			}
 		}
+
+		g2.setColor(new Color(112, 105, 159));
+		g2.setStroke(new BasicStroke(2f));
+		g2.drawRoundRect(boardLeft - 1, boardTop - 1, boardWidth + 2, boardHeight + 2, 8, 8);
+
+		if (isPaused || !isStarted) {
+			g2.setColor(new Color(9, 10, 17, 190));
+			g2.fillRect(boardLeft, boardTop, boardWidth, boardHeight);
+			String title = isPaused ? "PAUSED" : "GAME OVER";
+			String subtitle = isPaused ? "Press P to resume" : "Close the window to exit";
+			g2.setFont(new java.awt.Font("SansSerif", java.awt.Font.BOLD, 25));
+			g2.setColor(Color.WHITE);
+			int titleX = boardLeft + (boardWidth - g2.getFontMetrics().stringWidth(title)) / 2;
+			int centerY = boardTop + boardHeight / 2;
+			g2.drawString(title, titleX, centerY);
+			g2.setFont(new java.awt.Font("SansSerif", java.awt.Font.PLAIN, 13));
+			g2.setColor(new Color(185, 181, 211));
+			int subtitleX = boardLeft + (boardWidth - g2.getFontMetrics().stringWidth(subtitle)) / 2;
+			g2.drawString(subtitle, subtitleX, centerY + 26);
+		}
+
+		g2.dispose();
 	}
 
 	private void dropDown() {
@@ -210,23 +259,32 @@ public class Board extends JPanel implements ActionListener {
 		}
 	}
 
-	private void drawSquare(Graphics g, int x, int y, Tetrominoes shape) {
-		Color colors[] = { new Color(0, 0, 0), new Color(204, 102, 102), new Color(102, 204, 102),
-				new Color(102, 102, 204), new Color(204, 204, 102), new Color(204, 102, 204), new Color(102, 204, 204),
-				new Color(218, 170, 0) };
+	private void drawSquare(Graphics2D g, int x, int y, Tetrominoes shape) {
+		Color[] colors = {
+				new Color(0, 0, 0),
+				new Color(239, 83, 133),
+				new Color(91, 213, 139),
+				new Color(92, 133, 255),
+				new Color(255, 204, 92),
+				new Color(183, 115, 255),
+				new Color(66, 211, 220),
+				new Color(255, 145, 82)
+		};
 
 		Color color = colors[shape.ordinal()];
+		int width = squareWidth();
+		int height = squareHeight();
+		int inset = Math.max(2, Math.min(width, height) / 12);
+		int blockWidth = Math.max(1, width - inset * 2);
+		int blockHeight = Math.max(1, height - inset * 2);
 
-		g.setColor(color);
-		g.fillRect(x + 1, y + 1, squareWidth() - 2, squareHeight() - 2);
-
-		g.setColor(color.brighter());
-		g.drawLine(x, y + squareHeight() - 1, x, y);
-		g.drawLine(x, y, x + squareWidth() - 1, y);
-
-		g.setColor(color.darker());
-		g.drawLine(x + 1, y + squareHeight() - 1, x + squareWidth() - 1, y + squareHeight() - 1);
-		g.drawLine(x + squareWidth() - 1, y + squareHeight() - 1, x + squareWidth() - 1, y + 1);
+		g.setPaint(new GradientPaint(x, y, color.brighter(), x + width, y + height, color.darker()));
+		g.fillRoundRect(x + inset, y + inset, blockWidth, blockHeight, 7, 7);
+		g.setColor(new Color(255, 255, 255, 100));
+		g.setStroke(new BasicStroke(1.2f));
+		g.drawLine(x + inset + 3, y + inset + 2, x + width - inset - 4, y + inset + 2);
+		g.setColor(new Color(0, 0, 0, 65));
+		g.drawRoundRect(x + inset, y + inset, blockWidth, blockHeight, 7, 7);
 	}
 
 	class TAdapter extends KeyAdapter {
