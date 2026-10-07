@@ -38,9 +38,14 @@ public class Board extends JPanel implements ActionListener {
 	private String scoreSaveStatus = "";
 
 	public Board(Tetris parent, SidePanel sidePanel) {
+		this(parent, sidePanel, false);
+	}
+
+	public Board(Tetris parent, SidePanel sidePanel, boolean itemMode) {
 		setFocusable(true);
 		setBackground(Style.BACKGROUND);
 		this.sidePanel = sidePanel;
+		this.engine.setItemMode(itemMode);
 		playerNickname = ScoreManager.getNickname();
 		timer = new Timer(400, this);
 
@@ -177,7 +182,9 @@ public class Board extends JPanel implements ActionListener {
 		}
 		wasStarted = engine.isStarted();
 
-		if (engine.isPaused()) {
+		if (engine.isItemMode() && !engine.getLastItemName().isEmpty()) {
+			statusbar.setText("아이템 발동: " + engine.getLastItemName());
+		} else if (engine.isPaused()) {
 			statusbar.setText("일시정지");
 		} else if (!engine.isStarted()) {
 			statusbar.setText(scoreSaveStatus.isEmpty() ? "게임 종료" : scoreSaveStatus);
