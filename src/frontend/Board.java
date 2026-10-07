@@ -36,29 +36,34 @@ public class Board extends JPanel implements ActionListener {
 	private int currentLevel = 1;
 	private String levelMessage = "";
 	private String scoreSaveStatus = "";
+	private boolean defaultKeysEnabled = true;
 
-	public Board(Tetris parent, SidePanel sidePanel) {
+
+	// 상태바와 사이드패널을 받아 게임판 생성,
+	// 기존에는 Tetris 객체 전체를 받아 statusbar를 꺼내 썼지만,이제는 필요한 statusbar와 sidePanel만 직접 받아 게임판을 생성 -> 다른 모드에서 가져가기 편할거임.
+	public Board(JLabel statusbar, SidePanel sidePanel) {
 		setFocusable(true);
 		setBackground(Style.BACKGROUND);
 		this.sidePanel = sidePanel;
+		this.statusbar = statusbar;
 		playerNickname = ScoreManager.getNickname();
 		timer = new Timer(400, this);
 
-		// 1초(1000ms)마다 경과 시간 사이드패널에 표시
+		// 1초마다 경과 시간 갱신
 		clockTimer = new Timer(1000, e -> {
-			// 게임을 정지한 뒤 들어온 이벤트면 시간도 늘리지 않음
 			if (isStopped)
 				return;
 			elapsedSeconds++;
 			sidePanel.setElapsedSeconds(elapsedSeconds);
 		});
-		// 1.5초 뒤 레벨 메세지를 지우고 화면 갱신
+
+		// 1.5초 뒤 레벨 메시지 제거
 		levelTimer = new Timer(1500, e -> {
 			levelMessage = "";
 			repaint();
 		});
-		levelTimer.setRepeats(false); // 반복하지 않고 한 번만 실행
-		statusbar = parent.getStatusBar();
+
+		levelTimer.setRepeats(false); // 반복하지 말고 한번만 실행
 		addKeyListener(new TAdapter());
 	}
 
@@ -84,6 +89,16 @@ public class Board extends JPanel implements ActionListener {
 
 	int boardTop() {
 		return (getHeight() - BOARD_HEIGHT * squareSize()) / 2;
+	}
+
+	// 기본 키 입력 비활성화 -> 1pc 2인 때문에
+	public void disableDefaultKeys() {
+		defaultKeysEnabled = false;
+	}
+
+	// Board가 사용하는 게임 엔진 반환 1pc2인게임에서 게임엔진 사용하기 위해서
+	public GameEngine getEngine() {
+		return engine;
 	}
 
 	public void start() {
@@ -284,7 +299,13 @@ public class Board extends JPanel implements ActionListener {
 	}
 
 	class TAdapter extends KeyAdapter {
+
 		public void keyPressed(KeyEvent e) {
+			// 1PC 2인용에서 키 입력 막기위한 코드
+
+			if (!defaultKeysEnabled)
+				return;
+
 			// 메뉴로 돌아간 보드나 조작할 블록이 없는 상태면 입력 무시
 			if (isStopped || !engine.isStarted() || engine.getCurrentShape() == Tetrominoes.NoShape)
 				return;

@@ -147,7 +147,13 @@ public class Main extends JFrame {
                 Style.PINK, Style.MULTIPLAYER_BUTTON);
 
         // 나중에 각 대전 기능이 구현되면 안내창 대신 게임 화면으로 연결
-        twoPlayerButton.addActionListener(e -> showComingSoon("1PC 2인 게임"));
+        // 1PC 2인용 모드로 이동
+        twoPlayerButton.addActionListener(e -> {
+            TwoPlayerTetris game = new TwoPlayerTetris();
+            game.setLocationRelativeTo(Main.this);
+            game.setVisible(true);
+            dispose();
+        });
         aiButton.addActionListener(e -> showComingSoon("AI 대전"));
         networkButton.addActionListener(e -> showComingSoon("네트워크 대전"));
         buttonPanel.add(twoPlayerButton);
