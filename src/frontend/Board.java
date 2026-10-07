@@ -123,6 +123,7 @@ public class Board extends JPanel implements ActionListener {
 	}
 
 	// 현재 점수에 따라 블록 낙하 속도 변경
+	// 나중에 난이도가 늘어나면 속도·미리보기·키 반전 규칙을 한곳에 정의해도 괜찮을 것 같음
 	private void updateDropSpeed() {
 		int score = engine.getScore();
 		int newLevel = 1;
@@ -202,6 +203,8 @@ public class Board extends JPanel implements ActionListener {
 		sidePanel.setLinesRemoved(currentLinesRemoved);
 		repaint();
 		updateDropSpeed();
+		// 점수에 따른 레벨 계산을 마친 뒤 정보 패널에도 같은 레벨 표시
+		sidePanel.setLevel(currentLevel);
 		// 4레벨이상 사이드 패널에 다음 모양 숨김
 		if (currentLevel >= 4) {
 			sidePanel.setNextShape(Tetrominoes.NoShape);
@@ -214,6 +217,7 @@ public class Board extends JPanel implements ActionListener {
 	protected void paintComponent(Graphics g) {
 		super.paintComponent(g);
 
+		// 그리기는 현재 상태만 사용하고 블록 이동이나 타이머 상태를 변경하지 않음
 		int size = squareSize();
 		if (size <= 0)
 			return;
@@ -227,17 +231,13 @@ public class Board extends JPanel implements ActionListener {
 			drawGrid(graphics, left, top, size);
 			drawPieces(graphics, left, top, size);
 
-			// 일시정지와 게임 종료 상태를 게임판 위에 표시
+			// 일시정지와 게임 종료 안내를 레벨 알림보다 먼저 표시
 			if (engine.isPaused()) {
 				drawOverlay(graphics, left, top, size, "PAUSED", "P 키를 눌러 계속하기");
 			} else if (!engine.isStarted()) {
 				drawOverlay(graphics, left, top, size, "GAME OVER", "메뉴로 돌아가서 다시 시작하세요");
 			} else if (!levelMessage.isEmpty()) {
-				graphics.setFont(Style.SCORE_FONT.deriveFont(size * 0.8f));
-				graphics.setColor(Style.OVERLAY);
-				graphics.fillRoundRect(left + size * 2, top + size, size * 6, size * 2, size / 2, size / 2);
-				graphics.setColor(Style.TEXT);
-				drawCentered(graphics, levelMessage, left + BOARD_WIDTH * size / 2, top + (int) (2.3 * size));
+				drawLevelNotice(graphics, left, top, size);
 			}
 		} finally {
 			graphics.dispose();
@@ -280,17 +280,56 @@ public class Board extends JPanel implements ActionListener {
 		}
 	}
 
+	// 보드만 반투명 배경으로 덮어 정보 패널의 점수와 키 안내는 계속 표시
 	private void drawOverlay(Graphics2D g, int left, int top, int size, String title, String description) {
 		g.setColor(Style.OVERLAY);
 		g.fillRect(left, top, BOARD_WIDTH * size, BOARD_HEIGHT * size);
 		int centerX = left + BOARD_WIDTH * size / 2;
 		int centerY = top + BOARD_HEIGHT * size / 2;
-		g.setFont(Style.ROOM_TITLE_FONT.deriveFont(size * 0.9f));
+		// 배경이 움직이던 화면과 안내 영역을 구분해 중지 상태에서도 글자가 잘 보이게 표시
+		int panelX = left + size / 2;
+		int panelY = centerY - size * 4;
+		g.setColor(Style.PANEL);
+		g.fillRect(panelX, panelY, size * 9, size * 7);
+		g.setColor(Style.BORDER);
+		g.drawRect(panelX, panelY, size * 9, size * 7);
+		// 상태 아이콘과 제목을 분리해 게임이 멈춘 이유를 한눈에 표시
+		g.setColor(Style.ACCENT);
+		int iconY = centerY - size * 3;
+		if (engine.isPaused()) {
+			g.fillRect(centerX - size / 2, iconY, size / 3, size);
+			g.fillRect(centerX + size / 6, iconY, size / 3, size);
+		} else {
+			g.fillRect(centerX - size / 2, iconY, size, size);
+		}
+		g.setFont(Style.DISPLAY_FONT.deriveFont(size * 0.95f));
 		g.setColor(Style.TEXT);
 		drawCentered(g, title, centerX, centerY);
-		g.setFont(Style.BODY_FONT.deriveFont(size * 0.43f));
+		g.setFont(Style.BODY_FONT.deriveFont(size * 0.45f));
 		g.setColor(Style.MUTED_TEXT);
-		drawCentered(g, description, centerX, centerY + size);
+		drawCentered(g, description, centerX, centerY + (int) (size * 1.2));
+		if (!engine.isStarted()) {
+			g.setFont(Style.SCORE_FONT.deriveFont(size * 0.48f));
+			g.setColor(Style.ACCENT);
+			drawCentered(g, "최종 점수  " + java.text.NumberFormat.getIntegerInstance().format(engine.getScore()),
+					centerX, centerY + (int) (size * 2.2));
+		}
+	}
+
+	private void drawLevelNotice(Graphics2D g, int left, int top, int size) {
+		int centerX = left + BOARD_WIDTH * size / 2;
+		g.setColor(Style.OVERLAY);
+		g.fillRect(left + size / 2, top + size, size * 9, size * 3);
+		g.setColor(Style.BORDER);
+		g.drawRect(left + size / 2, top + size, size * 9, size * 3);
+		g.setFont(Style.MONO_FONT.deriveFont(size * 0.62f));
+		g.setColor(Style.ACCENT);
+		drawCentered(g, "LEVEL " + currentLevel, centerX, top + (int) (2.15 * size));
+		g.setFont(Style.BODY_FONT.deriveFont(size * 0.43f));
+		g.setColor(Style.TEXT);
+		String description = currentLevel == 5 ? "좌우 이동 키가 반전됩니다"
+				: currentLevel == 4 ? "다음 블록이 숨겨집니다" : "블록이 조금 더 빠르게 떨어집니다";
+		drawCentered(g, description, centerX, top + (int) (3.15 * size));
 	}
 
 	private void drawCentered(Graphics2D g, String text, int centerX, int baselineY) {

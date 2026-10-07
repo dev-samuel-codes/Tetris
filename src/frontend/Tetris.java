@@ -9,43 +9,44 @@ import java.awt.event.WindowEvent;
 import javax.swing.*;
 
 import frontend.style.Style;
+import frontend.ui.PixelLogo;
 
 public class Tetris extends JFrame {
 
-	private static final int MIN_CELL_SIZE = 10;
+	private static final int MIN_CELL_SIZE = 20; // 일반 화면에서는 점수와 키 안내가 읽히는 최소 칸 크기로 사용
 
 	JLabel statusbar;
 	private final Board board; // 메뉴로 돌아갈 때 게임 정지에 사용
 
 	public Tetris(Resolution resolution) {
-		JPanel root = new JPanel(new BorderLayout(0, 12));
-		root.setBackground(Style.BACKGROUND);
-		root.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
+		JPanel root = Style.createBackground(new BorderLayout(0, 16));
+		root.setBorder(BorderFactory.createEmptyBorder(18, 22, 18, 22));
 		setContentPane(root);
 
 		// 게임 화면에서도 메뉴와 같은 제목과 색상 사용
 		JPanel header = new JPanel(new BorderLayout(12, 0));
-		header.setBackground(Style.PANEL);
-		header.setBorder(BorderFactory.createCompoundBorder(
-				BorderFactory.createMatteBorder(0, 4, 0, 0, Style.ACCENT),
-				BorderFactory.createEmptyBorder(8, 12, 8, 12)));
-		JLabel title = new JLabel("TETRIS");
-		title.setFont(Style.ROOM_TITLE_FONT);
-		title.setForeground(Style.TEXT);
-		JLabel mode = new JLabel("CLASSIC");
-		mode.setFont(Style.BODY_FONT);
-		mode.setForeground(Style.ACCENT);
+		header.setOpaque(false);
+		header.setBorder(BorderFactory.createEmptyBorder(2, 0, 6, 0));
+		JLabel title = new JLabel(new PixelLogo(3));
+		title.setHorizontalAlignment(SwingConstants.LEFT);
+		title.getAccessibleContext().setAccessibleName("Tetris");
+		JLabel mode = new JLabel("클래식");
+		mode.setFont(Style.SMALL_FONT);
+		mode.setForeground(Style.MUTED_TEXT);
 		header.add(title, BorderLayout.CENTER);
 		header.add(mode, BorderLayout.EAST);
 		root.add(header, BorderLayout.NORTH);
 
 		statusbar = new JLabel("제거한 줄: 0");
-		statusbar.setFont(Style.BODY_FONT);
+		statusbar.setFont(Style.SMALL_FONT);
 		statusbar.setForeground(Style.MUTED_TEXT);
 
 		// 메뉴로 돌아가기 버튼
-		JButton menuButton = new JButton("메뉴로 돌아가기");
+		JButton menuButton = new JButton("← 메뉴로 돌아가기");
+		menuButton.getAccessibleContext().setAccessibleName("메뉴로 돌아가기");
 		Style.applyButtonStyle(menuButton, Style.ACCENT, Style.PANEL);
+		menuButton.setFont(Style.BODY_FONT);
+		menuButton.setBorder(BorderFactory.createEmptyBorder(10, 14, 10, 14));
 		menuButton.setFocusable(false); // 버튼이 게임 키 입력 포커스를 가져가지 않도록 설정
 		menuButton.addActionListener(e -> returnToMenu());
 
@@ -74,8 +75,14 @@ public class Tetris extends JFrame {
 		SoundManager.playBgm(); // BGM 시작
 
 		pack();
+		// 크게를 골라도 제목과 메뉴 버튼이 화면 밖으로 나가지 않도록 작업 영역 안에 배치
+		fitOnScreen();
 		// 처음 표시되는 창의 가로·세로 비율을 이후 크기 변경에도 유지
-		AspectRatioResizeHandler resizeHandler = new AspectRatioResizeHandler(getSize(), getMinimumSize());
+		// 작업 영역이 작으면 20픽셀 기준 최소 크기도 낮춰 화면에 맞춘 창을 다시 키우지 않음
+		Dimension layoutMinimum = getMinimumSize();
+		Dimension fittedMinimum = new Dimension(Math.min(layoutMinimum.width, getWidth()),
+				Math.min(layoutMinimum.height, getHeight()));
+		AspectRatioResizeHandler resizeHandler = new AspectRatioResizeHandler(getSize(), fittedMinimum);
 		setMinimumSize(resizeHandler.minimumSize());
 		addComponentListener(resizeHandler);
 		setResizable(true);
@@ -87,6 +94,20 @@ public class Tetris extends JFrame {
 				board.requestFocusInWindow(); // 게임 화면을 열자마자 키보드 조작 가능
 			}
 		});
+	}
+
+	private void fitOnScreen() {
+		GraphicsConfiguration configuration = getGraphicsConfiguration();
+		Rectangle screen = configuration.getBounds();
+		// 메뉴 막대와 Dock 영역을 제외하고 추가 여백을 둔 작업 영역 사용
+		// 나중에 다른 모니터로 이동하면 해당 모니터의 작업 영역으로 다시 맞춰도 괜찮을 것 같음
+		Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(configuration);
+		int availableWidth = screen.width - insets.left - insets.right - 32;
+		int availableHeight = screen.height - insets.top - insets.bottom - 32;
+		double scale = Math.min(1, Math.min(availableWidth / (double) getWidth(),
+				availableHeight / (double) getHeight()));
+		if (scale < 1)
+			setSize((int) (getWidth() * scale), (int) (getHeight() * scale));
 	}
 
 	public JLabel getStatusBar() {
@@ -135,6 +156,7 @@ public class Tetris extends JFrame {
 		}
 
 		Dimension constrainSize(Dimension requestedSize) {
+			// 더 크게 바뀐 축을 기준으로 다른 축도 보정해 처음 창 비율 유지
 			double widthChange = Math.abs(requestedSize.width - lastSize.width) / (double) baseSize.width;
 			double heightChange = Math.abs(requestedSize.height - lastSize.height) / (double) baseSize.height;
 			double scale = widthChange >= heightChange
@@ -150,6 +172,7 @@ public class Tetris extends JFrame {
 		public void componentResized(ComponentEvent event) {
 			Component window = event.getComponent();
 			Dimension requestedSize = window.getSize();
+			// 비율 보정으로 다시 발생한 크기 변경은 반복 처리하지 않음
 			if (requestedSize.equals(lastSize))
 				return;
 
@@ -202,6 +225,7 @@ public class Tetris extends JFrame {
 			int width = Math.max(0, parent.getWidth() - insets.left - insets.right);
 			int height = Math.max(0, parent.getHeight() - insets.top - insets.bottom);
 			int totalCols = Board.BOARD_WIDTH + SidePanel.COLS + GAP_COLS;
+			// 남은 가로·세로 공간에 들어가는 정수 칸 크기를 사용해 블록을 정사각형으로 표시
 			int cellSize = Math.min(width / totalCols, height / Board.BOARD_HEIGHT);
 			int boardWidth = Board.BOARD_WIDTH * cellSize;
 			int sideWidth = SidePanel.COLS * cellSize;
