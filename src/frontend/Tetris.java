@@ -13,7 +13,7 @@ import frontend.ui.PixelLogo;
 
 public class Tetris extends JFrame {
 
-	private static final int MIN_CELL_SIZE = 10;
+	private static final int MIN_CELL_SIZE = 20; // 일반 화면에서는 점수와 키 안내가 읽히는 최소 칸 크기로 사용
 
 	JLabel statusbar;
 	private final Board board; // 메뉴로 돌아갈 때 게임 정지에 사용
@@ -75,8 +75,14 @@ public class Tetris extends JFrame {
 		SoundManager.playBgm(); // BGM 시작
 
 		pack();
+		// 크게를 골라도 제목과 메뉴 버튼이 화면 밖으로 나가지 않도록 작업 영역 안에 배치
+		fitOnScreen();
 		// 처음 표시되는 창의 가로·세로 비율을 이후 크기 변경에도 유지
-		AspectRatioResizeHandler resizeHandler = new AspectRatioResizeHandler(getSize(), getMinimumSize());
+		// 작업 영역이 작으면 20픽셀 기준 최소 크기도 낮춰 화면에 맞춘 창을 다시 키우지 않음
+		Dimension layoutMinimum = getMinimumSize();
+		Dimension fittedMinimum = new Dimension(Math.min(layoutMinimum.width, getWidth()),
+				Math.min(layoutMinimum.height, getHeight()));
+		AspectRatioResizeHandler resizeHandler = new AspectRatioResizeHandler(getSize(), fittedMinimum);
 		setMinimumSize(resizeHandler.minimumSize());
 		addComponentListener(resizeHandler);
 		setResizable(true);
@@ -88,6 +94,20 @@ public class Tetris extends JFrame {
 				board.requestFocusInWindow(); // 게임 화면을 열자마자 키보드 조작 가능
 			}
 		});
+	}
+
+	private void fitOnScreen() {
+		GraphicsConfiguration configuration = getGraphicsConfiguration();
+		Rectangle screen = configuration.getBounds();
+		// 메뉴 막대와 Dock 영역을 제외하고 추가 여백을 둔 작업 영역 사용
+		// 나중에 다른 모니터로 이동하면 해당 모니터의 작업 영역으로 다시 맞춰도 괜찮을 것 같음
+		Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(configuration);
+		int availableWidth = screen.width - insets.left - insets.right - 32;
+		int availableHeight = screen.height - insets.top - insets.bottom - 32;
+		double scale = Math.min(1, Math.min(availableWidth / (double) getWidth(),
+				availableHeight / (double) getHeight()));
+		if (scale < 1)
+			setSize((int) (getWidth() * scale), (int) (getHeight() * scale));
 	}
 
 	public JLabel getStatusBar() {
