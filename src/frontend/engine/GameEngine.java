@@ -7,6 +7,24 @@ import frontend.style.Style;
 // 화면과 독립적으로 게임 상태와 블록 이동, 충돌, 줄 제거를 관리
 public class GameEngine {
 
+    public enum ItemType {
+        ROW_CLEAR("한 줄 제거"),
+        COLUMN_CLEAR("열 제거"),
+        BOMB_CLEAR("폭탄 제거"),
+        BOTTOM_CLEAR("하단 제거"),
+        SCORE_BOOST("점수 업");
+
+        private final String label;
+
+        ItemType(String label) {
+            this.label = label;
+        }
+
+        public String getLabel() {
+            return label;
+        }
+    }
+
     // 테트리스 가로·세로 칸 수
 	public static final int BOARD_WIDTH = 10;
 	public static final int BOARD_HEIGHT = 22;
@@ -22,6 +40,7 @@ public class GameEngine {
 	private boolean isFallingFinished = false;  // 현재 코드에서는 줄 제거 후 다음 블록 생성을 기다리는 상태 변수
 	private boolean isStarted = false;
 	private boolean isPaused = false;
+    private boolean itemMode = false;
 	private int numLinesRemoved = 0;
 	private int score = 0;
 	private int combo = 0;
@@ -30,6 +49,7 @@ public class GameEngine {
 	private Shape curPiece = new Shape();
 	private final Shape nextPiece = new Shape(); // 다음에 나올 블록 (미리보기용)
 	private final Tetrominoes[] board = new Tetrominoes[BOARD_WIDTH * BOARD_HEIGHT];
+    private String lastItemName = "";
 
 	public GameEngine() {
 		clearBoard();
@@ -44,6 +64,7 @@ public class GameEngine {
 		numLinesRemoved = 0;
 		score = 0;
 		combo = 0;
+        lastItemName = "";
 		clearBoard();
 		nextPiece.setRandomShape(); // 다음 블록을 먼저 뽑기
 		newPiece();
@@ -200,10 +221,99 @@ public class GameEngine {
 			}
 			isFallingFinished = true;
 			curPiece.setShape(Tetrominoes.NoShape);
+            if (itemMode && numFullLines >= 3) {
+                activateRandomItemForClearedLines(numFullLines);
+            }
 		} else {
 			combo = 0;
 		}
 	}
+
+    public void setItemMode(boolean itemMode) {
+        this.itemMode = itemMode;
+        if (!itemMode) {
+            lastItemName = "";
+        }
+    }
+
+    public boolean isItemMode() {
+        return itemMode;
+    }
+
+    public boolean activateRandomItemForClearedLines(int linesCleared) {
+        if (!itemMode || linesCleared < 3) {
+            return false;
+        }
+
+        ItemType item = ItemType.values()[(int) (Math.random() * ItemType.values().length)];
+        applyItem(item);
+        lastItemName = item.getLabel();
+        return true;
+    }
+
+    public String getLastItemName() {
+        return lastItemName;
+    }
+
+    private void applyItem(ItemType item) {
+        switch (item) {
+            case ROW_CLEAR:
+                clearRandomRow();
+                break;
+            case COLUMN_CLEAR:
+                clearRandomColumn();
+                break;
+            case BOMB_CLEAR:
+                clearAreaAroundCenter();
+                break;
+            case BOTTOM_CLEAR:
+                clearBottomRows(2);
+                break;
+            case SCORE_BOOST:
+                score += 30;
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void clearRandomRow() {
+        int row = randomBetween(0, BOARD_HEIGHT - 1);
+        for (int x = 0; x < BOARD_WIDTH; x++) {
+            board[row * BOARD_WIDTH + x] = Tetrominoes.NoShape;
+        }
+    }
+
+    private void clearRandomColumn() {
+        int column = randomBetween(0, BOARD_WIDTH - 1);
+        for (int y = 0; y < BOARD_HEIGHT; y++) {
+            board[y * BOARD_WIDTH + column] = Tetrominoes.NoShape;
+        }
+    }
+
+    private void clearAreaAroundCenter() {
+        int centerX = BOARD_WIDTH / 2;
+        int centerY = BOARD_HEIGHT / 2;
+        for (int y = centerY - 1; y <= centerY + 1; y++) {
+            for (int x = centerX - 1; x <= centerX + 1; x++) {
+                if (x >= 0 && x < BOARD_WIDTH && y >= 0 && y < BOARD_HEIGHT) {
+                    board[y * BOARD_WIDTH + x] = Tetrominoes.NoShape;
+                }
+            }
+        }
+    }
+
+    private void clearBottomRows(int rowsToClear) {
+        for (int y = BOARD_HEIGHT - rowsToClear; y < BOARD_HEIGHT; y++) {
+            for (int x = 0; x < BOARD_WIDTH; x++) {
+                board[y * BOARD_WIDTH + x] = Tetrominoes.NoShape;
+            }
+        }
+    }
+
+    private int randomBetween(int min, int max) {
+        return min + (int) (Math.random() * ((max - min) + 1));
+    }
 
 	// 화면에서 표시에 필요한 게임 상태를 조회
 	public Tetrominoes shapeAt(int x, int y) {

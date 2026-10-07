@@ -100,7 +100,7 @@ public class TwoPlayerTetris extends JFrame {
         SidePanel sidePanel = new SidePanel();
         sidePanel.setPreferredSize(new Dimension(150, 0));
 
-        Board board = new Board(statusbar, sidePanel);
+        Board board = new Board(statusbar, sidePanel, false);
 
         JPanel gamePanel = new JPanel(new BorderLayout(10, 0));
         gamePanel.setOpaque(false);
@@ -179,6 +179,7 @@ public class TwoPlayerTetris extends JFrame {
         if (player2Board != null)
             player2Board.stop();
 
+        SoundManager.stopBgm();
         super.dispose();
     }
 }

@@ -38,26 +38,26 @@ public class Board extends JPanel implements ActionListener {
 	private String scoreSaveStatus = "";
 	private boolean defaultKeysEnabled = true;
 
+    // 상태바와 사이드패널, 아이템 모드 여부를 받아 게임판 생성
+    public Board(JLabel statusbar, SidePanel sidePanel, boolean itemMode) {
+        setFocusable(true);
+        setBackground(Style.BACKGROUND);
+        this.sidePanel = sidePanel;
+        this.statusbar = statusbar;
+        this.engine.setItemMode(itemMode);
+        playerNickname = ScoreManager.getNickname();
+        timer = new Timer(400, this);
 
-	// 상태바와 사이드패널을 받아 게임판 생성,
-	// 기존에는 Tetris 객체 전체를 받아 statusbar를 꺼내 썼지만,이제는 필요한 statusbar와 sidePanel만 직접 받아 게임판을 생성 -> 다른 모드에서 가져가기 편할거임.
-	public Board(JLabel statusbar, SidePanel sidePanel) {
-		setFocusable(true);
-		setBackground(Style.BACKGROUND);
-		this.sidePanel = sidePanel;
-		this.statusbar = statusbar;
-		playerNickname = ScoreManager.getNickname();
-		timer = new Timer(400, this);
 
-		// 1초마다 경과 시간 갱신
+		// 1초(1000ms)마다 경과 시간 사이드패널에 표시
 		clockTimer = new Timer(1000, e -> {
+			// 게임을 정지한 뒤 들어온 이벤트면 시간도 늘리지 않음
 			if (isStopped)
 				return;
 			elapsedSeconds++;
 			sidePanel.setElapsedSeconds(elapsedSeconds);
 		});
-
-		// 1.5초 뒤 레벨 메시지 제거
+		// 1.5초 뒤 레벨 메세지를 지우고 화면 갱신
 		levelTimer = new Timer(1500, e -> {
 			levelMessage = "";
 			repaint();
@@ -192,7 +192,9 @@ public class Board extends JPanel implements ActionListener {
 		}
 		wasStarted = engine.isStarted();
 
-		if (engine.isPaused()) {
+		if (engine.isItemMode() && !engine.getLastItemName().isEmpty()) {
+			statusbar.setText("아이템 발동: " + engine.getLastItemName());
+		} else if (engine.isPaused()) {
 			statusbar.setText("일시정지");
 		} else if (!engine.isStarted()) {
 			statusbar.setText(scoreSaveStatus.isEmpty() ? "게임 종료" : scoreSaveStatus);
@@ -338,7 +340,6 @@ public class Board extends JPanel implements ActionListener {
 	}
 
 	class TAdapter extends KeyAdapter {
-
 		public void keyPressed(KeyEvent e) {
 			// 1PC 2인용에서 키 입력 막기위한 코드
 
