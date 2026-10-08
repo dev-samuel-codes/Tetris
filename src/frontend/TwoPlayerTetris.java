@@ -134,7 +134,7 @@ public class TwoPlayerTetris extends JFrame {
                 player1Board.getEngine().rotateLeft();
                 break;
             case KeyEvent.VK_S:
-                player1Board.getEngine().oneLineDown();
+                player1Board.getEngine().rotateRight();
                 break;
             case KeyEvent.VK_SPACE:
                 player1Board.getEngine().dropDown();
@@ -151,7 +151,7 @@ public class TwoPlayerTetris extends JFrame {
                 player2Board.getEngine().rotateLeft();
                 break;
             case KeyEvent.VK_DOWN:
-                player2Board.getEngine().oneLineDown();
+                player2Board.getEngine().rotateRight();
                 break;
             case KeyEvent.VK_ENTER:
                 player2Board.getEngine().dropDown();
