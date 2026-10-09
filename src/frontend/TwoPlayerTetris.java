@@ -15,6 +15,13 @@ public class TwoPlayerTetris extends JFrame {
     private Timer gameCheckTimer;
     private boolean gameFinished = false;
 
+    // 1PC 2인용 공격 효과 종류
+    private enum BattleEffect {
+        ROTATION_LOCK,
+        SCORE_PENALTY,
+        COLUMN_CLEAR
+    }
+
     //방금 어떤 플레이어가 칸을 지웠는지
     private int previousPlayer1Lines = 0;
     private int previousPlayer2Lines = 0;
@@ -54,6 +61,10 @@ public class TwoPlayerTetris extends JFrame {
         // 2인용에서는 Board의 기본 키 입력 비활성화
         player1Board.disableDefaultKeys();
         player2Board.disableDefaultKeys();
+
+        // 2인용에서는 두 플레이어의 낙하 속도를 고정
+        player1Board.setBattleMode(true);
+        player2Board.setBattleMode(true);
 
         root.add(gameArea, BorderLayout.CENTER);
 
@@ -96,24 +107,55 @@ public class TwoPlayerTetris extends JFrame {
         setResizable(false);
     }
 
-    // 두 플레이어가 새로 지운 줄 수를 확인
+    // 두 플레이어가 누적 2줄을 제거할 때마다 공격
     private void checkAttack() {
         int player1Lines = player1Board.getEngine().getNumLinesRemoved();
         int player2Lines = player2Board.getEngine().getNumLinesRemoved();
 
-        int player1Cleared = player1Lines - previousPlayer1Lines;
-        int player2Cleared = player2Lines - previousPlayer2Lines;
+        int player1Attacks = player1Lines / 2 - previousPlayer1Lines / 2;
+        int player2Attacks = player2Lines / 2 - previousPlayer2Lines / 2;
 
-        if (player1Cleared > 0) {
-            System.out.println("PLAYER 1이 " + player1Cleared + "줄 제거");
+        for (int i = 0; i < player1Attacks; i++) {
+            applyBattleEffect(player2Board);
         }
 
-        if (player2Cleared > 0) {
-            System.out.println("PLAYER 2가 " + player2Cleared + "줄 제거");
+        for (int i = 0; i < player2Attacks; i++) {
+            applyBattleEffect(player1Board);
         }
 
         previousPlayer1Lines = player1Lines;
         previousPlayer2Lines = player2Lines;
+    }
+
+    // 세 가지 공격 효과 중 하나를 랜덤으로 선택
+    private BattleEffect getRandomBattleEffect() {
+        BattleEffect[] effects = BattleEffect.values();
+        int index = (int) (Math.random() * effects.length);
+        return effects[index];
+    }
+
+    // 선택된 공격 효과를 상대 플레이어에게 적용
+    private void applyBattleEffect(Board targetBoard) {
+        BattleEffect effect = getRandomBattleEffect();
+
+        switch (effect) {
+            case ROTATION_LOCK:
+                targetBoard.getEngine().applyBattleRotationLock();
+                targetBoard.showBattleMessage("다음 2블럭동안 회전 금지!");
+                break;
+
+            case SCORE_PENALTY:
+                targetBoard.getEngine().applyBattleScorePenalty();
+                targetBoard.showBattleMessage("점수 -20");
+                break;
+
+            case COLUMN_CLEAR:
+                targetBoard.getEngine().applyBattleColumnClear();
+                targetBoard.showBattleMessage("랜덤 열 제거!");
+                break;
+        }
+
+        targetBoard.repaint();
     }
 
     // 두 플레이어의 게임오버 상태를 확인하고 승자를 결정

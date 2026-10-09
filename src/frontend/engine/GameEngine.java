@@ -346,6 +346,22 @@ public class GameEngine {
         return rotationLocked;
     }
 
+    // private인 함수 꺼내쓰기
+    // 1PC 2인용 공격으로 다음 2개 블록 회전 금지
+    public void applyBattleRotationLock() {
+        rotationLockRemaining += 2;
+    }
+
+    // 1PC 2인용 공격으로 점수 20점 감소
+    public void applyBattleScorePenalty() {
+        score = Math.max(0, score - 20);
+    }
+
+    // 1PC 2인용 공격으로 랜덤 한 열 제거
+    public void applyBattleColumnClear() {
+        clearRandomColumn();
+    }
+
     private void activateSingleRandomItem() {
         ItemType item = ItemType.values()[(int) (Math.random() * ItemType.values().length)];
         if (item == ItemType.BOMB_CLEAR) {
