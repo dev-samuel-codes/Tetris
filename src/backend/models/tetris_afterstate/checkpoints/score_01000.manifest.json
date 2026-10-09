@@ -1,0 +1,307 @@
+{
+  "schema_version": 1,
+  "rules_version": "java-iid-placement40-timed-v1",
+  "observation_version": "afterstate-candidates40x7-v1",
+  "engine_sha256": "b37b7c9929f5ee99c43002747ee3e685469e13bced613be2d540ff8699b8120d",
+  "policy_class": "CandidateActorCriticPolicy",
+  "config": {
+    "schema_version": 1,
+    "env": {
+      "duration_ticks": 3600,
+      "gravity_ticks": 8,
+      "think_ticks": 4,
+      "tick_ms": 50
+    },
+    "reward": "score",
+    "observation": "afterstate",
+    "train": {
+      "n_envs": 4,
+      "n_steps": 512,
+      "batch_size": 256,
+      "n_epochs": 10,
+      "learning_rate": 0.0003,
+      "gamma": 1.0,
+      "gae_lambda": 0.95,
+      "clip_range": 0.2,
+      "ent_coef": 0.01,
+      "net_arch": [
+        256,
+        256
+      ],
+      "seed": 11,
+      "device": "cuda",
+      "torch_threads": 1,
+      "eval_freq": 25000,
+      "eval_episodes": 20,
+      "checkpoint_freq": 25000,
+      "score_checkpoint_interval": 100,
+      "target_score": 10000
+    },
+    "evaluation": {
+      "validation_seed_start": 1000000,
+      "test_seed_start": 2000000,
+      "test_episodes": 500
+    }
+  },
+  "device": "cuda",
+  "requested_additional_steps": 2000000,
+  "initial_env_stream_offset": 0,
+  "resume_from": null,
+  "python_version": "3.12.13",
+  "packages": {
+    "torch": "2.11.0+cu128",
+    "gymnasium": "1.3.0",
+    "stable-baselines3": "2.9.0",
+    "sb3-contrib": "2.9.0",
+    "numpy": "2.5.3"
+  },
+  "initial_timesteps": 0,
+  "rollout_size": 2048,
+  "best_mean_score": 1850.0,
+  "last_mean_score": 1850.0,
+  "last_validation_timesteps": 25000,
+  "highest_score_milestone": 900,
+  "target_score": 10000,
+  "target_reached": false,
+  "stopping_reason": null,
+  "num_timesteps": 25000,
+  "score_milestone": 1000,
+  "validation": {
+    "agent": "ppo",
+    "seed_start": 1000000,
+    "episode_count": 20,
+    "episodes": [
+      {
+        "seed": 1000000,
+        "score": 1200,
+        "lines": 12,
+        "ticks": 616,
+        "pieces_placed": 70,
+        "survival_seconds": 30.8,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000001,
+        "score": 3100,
+        "lines": 31,
+        "ticks": 1084,
+        "pieces_placed": 122,
+        "survival_seconds": 54.2,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000002,
+        "score": 3000,
+        "lines": 30,
+        "ticks": 976,
+        "pieces_placed": 113,
+        "survival_seconds": 48.8,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000003,
+        "score": 2100,
+        "lines": 20,
+        "ticks": 796,
+        "pieces_placed": 89,
+        "survival_seconds": 39.8,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000004,
+        "score": 2200,
+        "lines": 22,
+        "ticks": 859,
+        "pieces_placed": 96,
+        "survival_seconds": 42.95,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000005,
+        "score": 2100,
+        "lines": 21,
+        "ticks": 830,
+        "pieces_placed": 94,
+        "survival_seconds": 41.5,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000006,
+        "score": 1800,
+        "lines": 18,
+        "ticks": 732,
+        "pieces_placed": 82,
+        "survival_seconds": 36.6,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000007,
+        "score": 1400,
+        "lines": 14,
+        "ticks": 664,
+        "pieces_placed": 75,
+        "survival_seconds": 33.2,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000008,
+        "score": 2300,
+        "lines": 23,
+        "ticks": 902,
+        "pieces_placed": 98,
+        "survival_seconds": 45.1,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000009,
+        "score": 1200,
+        "lines": 12,
+        "ticks": 626,
+        "pieces_placed": 71,
+        "survival_seconds": 31.3,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000010,
+        "score": 1100,
+        "lines": 11,
+        "ticks": 599,
+        "pieces_placed": 67,
+        "survival_seconds": 29.95,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000011,
+        "score": 2700,
+        "lines": 27,
+        "ticks": 940,
+        "pieces_placed": 108,
+        "survival_seconds": 47.0,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000012,
+        "score": 500,
+        "lines": 5,
+        "ticks": 491,
+        "pieces_placed": 54,
+        "survival_seconds": 24.55,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000013,
+        "score": 1000,
+        "lines": 10,
+        "ticks": 554,
+        "pieces_placed": 64,
+        "survival_seconds": 27.7,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000014,
+        "score": 1200,
+        "lines": 12,
+        "ticks": 596,
+        "pieces_placed": 69,
+        "survival_seconds": 29.8,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000015,
+        "score": 1600,
+        "lines": 16,
+        "ticks": 724,
+        "pieces_placed": 82,
+        "survival_seconds": 36.2,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000016,
+        "score": 3300,
+        "lines": 32,
+        "ticks": 1049,
+        "pieces_placed": 117,
+        "survival_seconds": 52.45,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000017,
+        "score": 2200,
+        "lines": 20,
+        "ticks": 802,
+        "pieces_placed": 91,
+        "survival_seconds": 40.1,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000018,
+        "score": 1300,
+        "lines": 12,
+        "ticks": 601,
+        "pieces_placed": 70,
+        "survival_seconds": 30.05,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000019,
+        "score": 1700,
+        "lines": 16,
+        "ticks": 707,
+        "pieces_placed": 82,
+        "survival_seconds": 35.35,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      }
+    ],
+    "aggregate": {
+      "mean_score": 1850.0,
+      "std_score": 750.0,
+      "min_score": 500,
+      "max_score": 3300,
+      "mean_lines": 18.2,
+      "mean_ticks": 757.4,
+      "mean_survival_seconds": 37.870000000000005,
+      "timeout_survival_rate": 0.0,
+      "invalid_actions": 0
+    }
+  }
+}
