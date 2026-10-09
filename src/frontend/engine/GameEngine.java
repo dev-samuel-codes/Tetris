@@ -1,4 +1,4 @@
-package frontend.engine;
+﻿package frontend.engine;
 
 import frontend.Shape;
 import frontend.Tetrominoes;
@@ -13,7 +13,6 @@ public class GameEngine {
         BOMB_CLEAR("폭탄 제거", "주변 3x3 범위를 제거합니다."),
         BOTTOM_CLEAR("하단 제거", "하단 2줄을 제거합니다."),
         ROTATION_LOCK("회전 금지", "다음 2개 블록은 회전할 수 없습니다."),
-        EARTHQUAKE("지진", "맨 아래에 구멍이 있는 방해 줄 2~4줄을 올려보냅니다."),
         SCORE_BOOST("점수 업", "점수를 30점 추가합니다.");
 
         private final String label;
@@ -375,9 +374,6 @@ public class GameEngine {
             case ROTATION_LOCK:
                 rotationLockRemaining += 2;
                 break;
-            case EARTHQUAKE:
-                spawnTrashLines(randomBetween(2, 4));
-                break;
             case SCORE_BOOST:
                 score += 30;
                 break;
@@ -434,26 +430,6 @@ public class GameEngine {
         }
 
         System.arraycopy(compactedBoard, 0, board, 0, board.length);
-    }
-
-    private void spawnTrashLines(int rowCount) {
-        if (rowCount <= 0) {
-            return;
-        }
-
-        int actualRowCount = Math.min(rowCount, BOARD_HEIGHT);
-        for (int i = 0; i < actualRowCount; i++) {
-            int rowIndex = BOARD_HEIGHT - 1 - i;
-            int holeColumn = randomBetween(0, BOARD_WIDTH - 1);
-
-            for (int x = 0; x < BOARD_WIDTH; x++) {
-                if (x == holeColumn) {
-                    board[(rowIndex * BOARD_WIDTH) + x] = Tetrominoes.NoShape;
-                } else {
-                    board[(rowIndex * BOARD_WIDTH) + x] = Tetrominoes.LineShape;
-                }
-            }
-        }
     }
 
     private int randomBetween(int min, int max) {
