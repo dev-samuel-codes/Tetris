@@ -12,6 +12,8 @@ public class TwoPlayerTetris extends JFrame {
 
     private Board player1Board;
     private Board player2Board;
+    private Timer gameCheckTimer;
+    private boolean gameFinished = false;
 
     // 1PC 2인용 게임 창 생성
     public TwoPlayerTetris() {
@@ -65,6 +67,10 @@ public class TwoPlayerTetris extends JFrame {
         player1Board.start();
         player2Board.start();
 
+        // 두 플레이어의 게임오버 여부 확인
+        gameCheckTimer = new Timer(200, e -> checkGameOver());
+        gameCheckTimer.start();
+
         // BGM 시작
         SoundManager.playBgm();
 
@@ -81,6 +87,28 @@ public class TwoPlayerTetris extends JFrame {
         setSize(1100, 750);
         setLocationRelativeTo(null);
         setResizable(false);
+    }
+
+    // 두 플레이어의 게임오버 상태를 확인하고 승자를 결정
+    private void checkGameOver() {
+        if (gameFinished)
+            return;
+
+        boolean player1Alive = player1Board.getEngine().isStarted();
+        boolean player2Alive = player2Board.getEngine().isStarted();
+
+        if (!player1Alive || !player2Alive) {
+            gameFinished = true;
+            gameCheckTimer.stop();
+
+            if (!player1Alive && !player2Alive) {
+                JOptionPane.showMessageDialog(this, "무승부입니다.");
+            } else if (!player1Alive) {
+                JOptionPane.showMessageDialog(this, "PLAYER 2 승리!");
+            } else {
+                JOptionPane.showMessageDialog(this, "PLAYER 1 승리!");
+            }
+        }
     }
 
     // 각 플레이어의 게임판과 사이드패널 생성
@@ -188,9 +216,12 @@ public class TwoPlayerTetris extends JFrame {
         menu.setVisible(true);
     }
 
-    // 창을 닫을 때 두 게임판의 타이머도 정지
+    // 창을 닫을 때 두 게임판과 승패 확인 타이머 정지
     @Override
     public void dispose() {
+        if (gameCheckTimer != null)
+            gameCheckTimer.stop();
+
         if (player1Board != null)
             player1Board.stop();
 
