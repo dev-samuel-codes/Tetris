@@ -226,3 +226,157 @@ def test_soft_drop_respects_think_window_and_advances_one_tick():
         match.human.y -= 1
     match.step("SOFT_DROP")
     assert match.human.pieces_placed == 1 and match.human.ticks == 6
+
+
+def drive_human_intervals(match, intervals):
+    ai_intervals = []
+    last_ai_lock = 0
+    for interval in intervals:
+        next_lock = match.last_human_lock_tick + interval
+        while match.elapsed_ticks < next_lock:
+            previous_ai_placed = match.ai.pieces_placed
+            match.step("HARD_DROP" if match.elapsed_ticks + 1 == next_lock else "WAIT")
+            if match.ai.pieces_placed != previous_ai_placed:
+                ai_intervals.append(match.elapsed_ticks - last_ai_lock)
+                last_ai_lock = match.elapsed_ticks
+            match.human.board.fill(0)
+            match.ai.board.fill(0)
+    return ai_intervals
+
+
+@pytest.mark.parametrize("human_ticks, human_pace, ai_pace", [(5, 10, 9), (80, 80, 68), (150, 120, 102)])
+def test_ai_tracks_fast_slow_and_clamped_human_pace(human_ticks, human_pace, ai_pace):
+    match = service.Match(NearPolicy(), {"observation": "board"}, 9821)
+    measured = drive_human_intervals(match, [human_ticks] * 20)
+    assert match.human_intervals == service.deque([human_ticks] * 8, maxlen=8)
+    assert match.human_pace_ticks == human_pace
+    assert match.ai_target_ticks == ai_pace
+    assert measured[-3:] == [ai_pace] * 3
+
+
+@pytest.mark.parametrize("human_ticks, ai_ticks", [(40, 34), (20, 17), (60, 51), (10, 9), (120, 102)])
+def test_ai_pace_is_85_percent_rounded_up(human_ticks, ai_ticks):
+    assert service.ai_pace_ticks(human_ticks) == ai_ticks
+
+
+@pytest.mark.parametrize("human_ticks, ai_ticks", [(40, 30), (20, 15), (60, 45), (10, 8), (120, 90)])
+def test_hell_pace_is_75_percent_rounded_up(human_ticks, ai_ticks):
+    assert service.ai_pace_ticks(human_ticks, "hell") == ai_ticks
+
+
+@pytest.mark.parametrize("difficulty_id, expected_ticks", [("easy", 34), ("normal", 34), ("hard", 34), ("very_hard", 34), ("hell", 30)])
+def test_start_passes_difficulty_pace_and_restart_resets_measurements(difficulty_id, expected_ticks):
+    def loader(selected):
+        return NearPolicy(), {"observation": service.DIFFICULTIES[selected].observation}
+    controller = service.MatchService(loader)
+    controller.request(f"START\t{difficulty_id}\t9821")
+    match = controller.match
+    assert match.difficulty_id == difficulty_id and match.ai_target_ticks == expected_ticks
+    drive_human_intervals(match, [80] * 3)
+    assert match.human_pace_ticks == 80
+    assert match.ai_target_ticks == (60 if difficulty_id == "hell" else 68)
+    controller.request(f"START\t{difficulty_id}\t9821")
+    restarted = controller.match
+    assert restarted is not match and restarted.difficulty_id == difficulty_id
+    assert restarted.elapsed_ticks == restarted.last_human_lock_tick == restarted.ai_spawn_tick == 0
+    assert not restarted.human_intervals and not restarted.ai_path
+    assert restarted.human_pace_ticks == 40 and restarted.ai_target_ticks == expected_ticks
+    other = "normal" if difficulty_id == "hell" else "hell"
+    controller.request(f"START\t{other}\t9821")
+    assert controller.match.ai_target_ticks == (34 if other == "normal" else 30)
+
+
+def test_hell_minimum_pace_keeps_reaction_and_current_piece_target():
+    match = service.Match(NearPolicy(), {"observation": "afterstate"}, 9821, "hell")
+    drive_human_intervals(match, [5])
+    assert match.human_pace_ticks == 10 and match.ai_target_ticks == 30
+    assert match.policy.calls == 0 and match.ai.pieces_placed == 0
+    match.step("WAIT")
+    assert match.policy.calls == 0
+    match.step("WAIT")
+    assert match.policy.calls == 1
+    measured = drive_human_intervals(match, [5] * 30)
+    assert match.human_pace_ticks == 10 and match.ai_target_ticks == 8
+    assert measured[-3:] == [8] * 3
+
+
+def test_recent_eight_median_updates_only_next_ai_piece_and_ignores_scores():
+    match = service.Match(NearPolicy(), {"observation": "board"}, 79)
+    drive_human_intervals(match, [5])
+    assert match.human_pace_ticks == 10
+    assert match.ai_target_ticks == 34 and match.ai.pieces_placed == 0
+    match.human.score = 100000
+    match.ai.score = 1
+    drive_human_intervals(match, [80] * 4 + [20] * 5)
+    assert len(match.human_intervals) == 8
+    assert list(match.human_intervals) == [80] * 3 + [20] * 5
+    assert match.human_pace_ticks == 20
+
+
+def test_reaction_wait_has_same_gravity_without_inference():
+    match = make_match()
+    for _ in range(service.AI_REACTION_TICKS):
+        match.step("WAIT")
+        assert (match.ai.x, match.ai.y, match.ai.rotation, match.ai.gravity_remaining, match.ai.think_remaining) == (match.human.x, match.human.y, match.human.rotation, match.human.gravity_remaining, match.human.think_remaining)
+    assert match.policy.calls == 0
+    match.step("WAIT")
+    assert match.policy.calls == 1
+
+
+def test_last_hard_drop_waits_without_consuming_path_or_moving_target():
+    match = service.Match(NearPolicy(), {"observation": "board"}, 123)
+    while not match.ai_path or match.ai_path[0] != "HARD_DROP":
+        match.step("WAIT")
+    assert match.elapsed_ticks < match.ai_target_ticks
+    position = match.ai.x, match.ai.rotation
+    y = match.ai.y
+    while match.elapsed_ticks + 1 < match.ai_target_ticks:
+        match.step("WAIT")
+        assert list(match.ai_path) == ["HARD_DROP"]
+        assert (match.ai.x, match.ai.rotation) == position
+        assert match.ai.pieces_placed == 0 and match.policy.calls == 1
+    assert match.ai.y < y
+    match.step("WAIT")
+    assert match.elapsed_ticks == 34 and match.ai.pieces_placed == 1
+    assert not match.ai_path
+
+
+@pytest.mark.parametrize("during_reaction", [True, False])
+def test_gravity_lock_discards_stale_path_and_restarts_reaction(during_reaction):
+    match = service.Match(NearPolicy(), {"observation": "board"}, 123)
+    if not during_reaction:
+        while not match.ai_path or match.ai_path[0] != "HARD_DROP":
+            match.step("WAIT")
+    while match.ai._fits(match.ai.x, match.ai.y - 1, match.ai.rotation):
+        match.ai.y -= 1
+    match.ai.think_remaining = 0
+    match.ai.gravity_remaining = 1
+    previous_calls = match.policy.calls
+    match.step("WAIT")
+    assert match.ai.pieces_placed == 1
+    assert not match.ai_path and match.ai_spawn_tick == match.elapsed_ticks
+    assert match.human_pace_ticks == 40 and match.ai_target_ticks == 34
+    for _ in range(service.AI_REACTION_TICKS):
+        match.step("WAIT")
+    assert match.policy.calls == previous_calls
+    match.step("WAIT")
+    assert match.policy.calls == previous_calls + 1
+
+
+def test_ai_continues_at_last_human_pace_after_human_topout():
+    match = service.Match(NearPolicy(), {"observation": "board"}, 9821)
+    drive_human_intervals(match, [60] * 10)
+    match.human._finish("top_out")
+    frozen_ticks = match.human.ticks
+    measured = []
+    last_lock = match.ai_spawn_tick
+    for _ in range(255):
+        previous = match.ai.pieces_placed
+        match.step("WAIT")
+        if match.ai.pieces_placed != previous:
+            measured.append(match.elapsed_ticks - last_lock)
+            last_lock = match.elapsed_ticks
+        match.ai.board.fill(0)
+    assert measured == [51] * 5
+    assert match.human.ticks == frozen_ticks and match.human_pace_ticks == 60
+    assert match.ended is False
