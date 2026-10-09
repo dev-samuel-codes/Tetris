@@ -169,3 +169,161 @@ def board_string(engine: TetrisEngine) -> str:
         for dx, dy in engine._offsets():
             visible[engine.y - dy, engine.x + dx] = engine.piece
     return "".join(str(int(value)) for value in visible.ravel())
+
+
+class Match:
+    def __init__(self, policy, config: dict, seed: int, difficulty_id: str = "normal"):
+        if difficulty_id not in DIFFICULTIES:
+            raise ValueError(f"Unknown difficulty: {difficulty_id}")
+        self.difficulty_id = difficulty_id
+        self.config = validate_config(config)
+        if self.config["env"] != RULE_SETTINGS or self.config["reward"] != "score":
+            raise ValueError("Match requires the 180 second score-race rules")
+        self.policy = policy
+        self.ai_env = TetrisEnv(self.config)
+        self.ai_env.engine = UntimedTetrisEngine(self.ai_env.engine.rules, seed=seed)
+        self.ai_env.reset(seed=seed)
+        self.ai = self.ai_env.engine
+        self.human = UntimedTetrisEngine(self.ai.rules, seed=seed)
+        self.elapsed_ticks = 0
+        self.ai_path: deque[str] = deque()
+        self.human_intervals: deque[int] = deque(maxlen=8)
+        self.last_human_lock_tick = 0
+        self.human_pace_ticks = DEFAULT_PACE_TICKS
+        self.ai_spawn_tick = 0
+        self.ai_target_ticks = ai_pace_ticks(DEFAULT_PACE_TICKS, self.difficulty_id)
+
+    @property
+    def ended(self) -> bool:
+        if self.human.terminated and self.ai.terminated:
+            return True
+        if self.human.terminated:
+            return self.ai.score > self.human.score
+        if self.ai.terminated:
+            return self.human.score > self.ai.score
+        return False
+
+    @property
+    def winner(self) -> str:
+        if not self.ended:
+            return "NONE"
+        return "HUMAN" if self.human.score > self.ai.score else "AI" if self.ai.score > self.human.score else "DRAW"
+
+    def _ai_command(self) -> str:
+        age = self.elapsed_ticks - self.ai_spawn_tick
+        if age < AI_REACTION_TICKS:
+            return "WAIT"
+        if not self.ai_path:
+            candidates = self.ai.candidates()
+            action, _ = self.policy.predict(self.ai_env._observation(), deterministic=True, action_masks=self.ai.action_masks())
+            action = int(np.asarray(action).item())
+            if action not in candidates:
+                raise ValueError("AI predicted a masked or invalid action")
+            self.ai_path.extend(candidates[action].path)
+            if not self.ai_path:
+                raise ValueError("AI candidate has no executable path")
+        # 목표 위치까지 이동한 뒤 사람의 배치 속도에 맞춰 낙하 대기
+        if self.ai_path[0] == "HARD_DROP" and age + 1 < self.ai_target_ticks:
+            return "WAIT"
+        return self.ai_path.popleft()
+
+    def step(self, command: str) -> str:
+        if command not in HUMAN_COMMANDS:
+            raise ValueError(f"Unknown human command: {command}")
+        if self.ended:
+            return self.frame()
+        # 추론 오류가 나면 양쪽 보드와 시간을 진행하지 않음
+        ai_command = self._ai_command() if not self.ai.terminated else None
+        if not self.human.terminated:
+            previous_human_placed = self.human.pieces_placed
+            if command == "SOFT_DROP":
+                command = "WAIT"
+                if not self.human.think_remaining:
+                    if self.human._fits(self.human.x, self.human.y - 1, self.human.rotation):
+                        self.human.y -= 1
+                    else:
+                        command = "HARD_DROP"
+            self.human._tick(command)
+            if self.human.pieces_placed != previous_human_placed:
+                lock_tick = self.elapsed_ticks + 1
+                self.human_intervals.append(lock_tick - self.last_human_lock_tick)
+                self.last_human_lock_tick = lock_tick
+                # 최근 8개 배치 간격의 중앙값을 0.5~6초 범위로 제한
+                median = int(np.ceil(np.median(self.human_intervals)))
+                self.human_pace_ticks = min(MAX_PACE_TICKS, max(MIN_PACE_TICKS, median))
+        if ai_command is not None:
+            previous_placed = self.ai.pieces_placed
+            self.ai._tick(ai_command)
+            if self.ai.terminated or self.ai.pieces_placed != previous_placed:
+                self.ai_path.clear()
+                # 새 블록은 생성 시점의 속도를 끝까지 유지
+                self.ai_spawn_tick = self.elapsed_ticks + 1
+                self.ai_target_ticks = ai_pace_ticks(self.human_pace_ticks, self.difficulty_id)
+        self.elapsed_ticks += 1
+        return self.frame()
+
+    def frame(self) -> str:
+        fields = ["FRAME", str(self.elapsed_ticks), str(int(self.ended)), self.winner]
+        for engine in (self.human, self.ai):
+            fields.extend((str(engine.score), str(engine.lines), str(int(engine.terminated)), engine.end_reason or "-", board_string(engine)))
+        return "\t".join(fields)
+
+
+class MatchService:
+    def __init__(self, policy_loader=load_policy):
+        self.policy_loader = policy_loader
+        self.match: Match | None = None
+        self.loaded: dict[str, tuple] = {}
+
+    def request(self, line: str) -> str | None:
+        fields = line.rstrip("\r\n").split("\t")
+        if fields == ["QUIT"]:
+            return None
+        if len(fields) == 3 and fields[0] == "START":
+            difficulty_id = fields[1]
+            if difficulty_id not in DIFFICULTIES:
+                raise ValueError(f"Unknown difficulty: {difficulty_id}")
+            try:
+                seed = int(fields[2])
+            except ValueError as exc:
+                raise ValueError("Seed must be an integer") from exc
+            if difficulty_id not in self.loaded:
+                self.loaded[difficulty_id] = self.policy_loader(difficulty_id)
+            policy, config = self.loaded[difficulty_id]
+            new_match = Match(policy, config, seed, difficulty_id)
+            self.match = new_match
+            return new_match.frame()
+        if len(fields) == 2 and fields[0] == "STEP":
+            if self.match is None:
+                raise ValueError("START is required before STEP")
+            return self.match.step(fields[1])
+        raise ValueError("Expected START with difficulty and seed, STEP with command, or QUIT")
+
+
+def serve(input_stream: TextIO, output_stream: TextIO, service: MatchService | None = None) -> None:
+    service = service or MatchService()
+    output_stream.write(f"READY\t{PROTOCOL_VERSION}\n")
+    output_stream.flush()
+    for line in input_stream:
+        try:
+            response = service.request(line)
+            if response is None:
+                break
+        except Exception as exc:
+            logging.exception("Match request failed")
+            reason = " ".join(str(exc).split()) or type(exc).__name__
+            response = f"ERROR\t{reason}"
+        output_stream.write(response + "\n")
+        output_stream.flush()
+
+
+def main() -> None:
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
+    logging.basicConfig(stream=sys.stderr, level=logging.ERROR)
+    serve(sys.stdin, sys.stdout)
+
+
+if __name__ == "__main__":
+    main()
