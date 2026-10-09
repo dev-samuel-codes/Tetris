@@ -11,7 +11,7 @@ public class ItemModeEngineTest {
             throw new AssertionError("3줄을 지울 때 아이템이 발동해야 합니다.");
         }
 
-        if (engine.getLastItemName() == null || engine.getLastItemName().isBlank()) {
+        if (engine.getLastItemName() == null || engine.getLastItemName().trim().isEmpty()) {
             throw new AssertionError("발동된 아이템 이름이 비어 있으면 안 됩니다.");
         }
 

@@ -15,7 +15,7 @@ public class SoundManager {
     }
 
     private static URL resolveSoundUrl(String path) {
-        if (path == null || path.isBlank()) {
+        if (path == null || path.trim().isEmpty()) {
             return null;
         }
 
