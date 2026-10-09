@@ -1,5 +1,6 @@
 package frontend;
 
+import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -38,9 +39,14 @@ public class Board extends JPanel implements ActionListener {
 	private String scoreSaveStatus = "";
 
 	public Board(Tetris parent, SidePanel sidePanel) {
+		this(parent, sidePanel, false);
+	}
+
+	public Board(Tetris parent, SidePanel sidePanel, boolean itemMode) {
 		setFocusable(true);
 		setBackground(Style.BACKGROUND);
 		this.sidePanel = sidePanel;
+		this.engine.setItemMode(itemMode);
 		playerNickname = ScoreManager.getNickname();
 		timer = new Timer(400, this);
 
@@ -153,6 +159,7 @@ public class Board extends JPanel implements ActionListener {
 			timer.stop();
 			clockTimer.stop();
 		}
+		sidePanel.setActiveItem(engine.isItemMode() && engine.hasActiveItem() ? engine.getActiveItemName() : "없음");
 		// 이전보다 제거된 줄 수가 증가했으면 줄 삭제 효과음 재생
 		int currentLinesRemoved = engine.getNumLinesRemoved();
 		if (currentLinesRemoved > previousLinesRemoved) {
@@ -181,6 +188,8 @@ public class Board extends JPanel implements ActionListener {
 			statusbar.setText("일시정지");
 		} else if (!engine.isStarted()) {
 			statusbar.setText(scoreSaveStatus.isEmpty() ? "게임 종료" : scoreSaveStatus);
+		} else if (engine.isItemMode() && engine.hasActiveItem()) {
+			statusbar.setText("아이템: " + engine.getActiveItemName() + " · 제거한 줄: " + currentLinesRemoved);
 		} else {
 			statusbar.setText("제거한 줄: " + currentLinesRemoved);
 		}
@@ -215,6 +224,11 @@ public class Board extends JPanel implements ActionListener {
 			graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 			drawGrid(graphics, left, top, size);
 			drawPieces(graphics, left, top, size);
+			if (engine.isItemMode() && engine.getBlindRows() > 0) {
+				int blindHeight = engine.getBlindRows() * size;
+				graphics.setColor(new Color(0, 0, 0, 150));
+				graphics.fillRect(left, top + (BOARD_HEIGHT - engine.getBlindRows()) * size, BOARD_WIDTH * size, blindHeight);
+			}
 
 			// 일시정지와 게임 종료 안내를 레벨 알림보다 먼저 표시
 			if (engine.isPaused()) {
@@ -336,6 +350,8 @@ public class Board extends JPanel implements ActionListener {
 			}
 
 			if (engine.isPaused())
+				return;
+			if ((keycode == KeyEvent.VK_UP || keycode == KeyEvent.VK_DOWN) && engine.isRotationLocked())
 				return;
 
 			switch (keycode) {

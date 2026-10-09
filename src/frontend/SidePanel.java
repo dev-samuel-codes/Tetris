@@ -23,6 +23,7 @@ public class SidePanel extends JPanel {
     private int elapsedSeconds;
     private int linesRemoved;
     private int level = 1;
+    private String activeItem = "없음";
     private Tetrominoes nextShape = Tetrominoes.NoShape;
 
     public SidePanel() {
@@ -54,6 +55,11 @@ public class SidePanel extends JPanel {
         repaint();
     }
 
+    public void setActiveItem(String item) {
+        activeItem = item == null || item.isBlank() ? "없음" : item;
+        repaint();
+    }
+
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
@@ -69,6 +75,7 @@ public class SidePanel extends JPanel {
             drawDivider(graphics, size, 4.0);
             drawDivider(graphics, size, 13.8);
             drawStats(graphics, size);
+            drawItemStatus(graphics, size);
             drawNextShape(graphics, size);
             drawControls(graphics, size);
         } finally {
@@ -125,10 +132,28 @@ public class SidePanel extends JPanel {
                 (int) (size * baseline));
     }
 
+    private void drawItemStatus(Graphics2D g, double size) {
+        g.setFont(Style.MONO_FONT.deriveFont((float) (size * .4)));
+        g.setColor(Style.MUTED_TEXT);
+        g.drawString("ITEM", (int) (size * .6), (int) (size * 9.12));
+        int inset = (int) (size * .6);
+        int boxX = inset;
+        int boxY = (int) (size * 9.42);
+        int boxWidth = getWidth() - inset * 2;
+        int boxHeight = (int) (size * 1.2);
+        g.setColor(new Color(Style.ACCENT.getRed(), Style.ACCENT.getGreen(), Style.ACCENT.getBlue(), 30));
+        g.fillRoundRect(boxX, boxY, boxWidth, boxHeight, (int) (size * .4), (int) (size * .4));
+        g.setColor(Style.ACCENT);
+        g.drawRoundRect(boxX, boxY, boxWidth, boxHeight, (int) (size * .4), (int) (size * .4));
+        fitFont(g, Style.BODY_FONT, activeItem, size * .42, boxWidth - (int) (size * 1.2));
+        g.setColor(Style.TEXT);
+        g.drawString(activeItem, boxX + (int) (size * .35), boxY + (int) (size * .86));
+    }
+
     private void drawNextShape(Graphics2D g, double size) {
         g.setFont(Style.MONO_FONT.deriveFont((float) (size * .43)));
         g.setColor(Style.MUTED_TEXT);
-        g.drawString("NEXT", (int) (size * .6), (int) (size * 9.12));
+        g.drawString("NEXT", (int) (size * .6), (int) (size * 11.15));
         int cell = Math.max(1, (int) size);
         int boxLeft = (getWidth() - 4 * cell) / 2;
         int boxTop = (int) (size * 9.5);
