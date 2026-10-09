@@ -37,8 +37,12 @@ public class Board extends JPanel implements ActionListener {
 	private String levelMessage = "";
 	private String scoreSaveStatus = "";
 	private boolean defaultKeysEnabled = true;
+	private String battleMessage = "";
+	private final Timer battleMessageTimer;
+	private boolean battleMode = false;
 
-    // 상태바와 사이드패널, 아이템 모드 여부를 받아 게임판 생성
+
+	// 상태바와 사이드패널, 아이템 모드 여부를 받아 게임판 생성
     public Board(JLabel statusbar, SidePanel sidePanel, boolean itemMode) {
         setFocusable(true);
         setBackground(Style.BACKGROUND);
@@ -65,7 +69,15 @@ public class Board extends JPanel implements ActionListener {
 
 		levelTimer.setRepeats(false); // 반복하지 말고 한번만 실행
 		addKeyListener(new TAdapter());
+
+		battleMessageTimer = new Timer(3000, e -> {
+			battleMessage = "";
+			repaint();
+		});
+		battleMessageTimer.setRepeats(false);
 	}
+
+
 
 	public void actionPerformed(ActionEvent e) {
 		// 정지 전에 들어온 타이머 이벤트도 무시
@@ -143,6 +155,11 @@ public class Board extends JPanel implements ActionListener {
 		clockTimer.stop();
 		levelTimer.stop();
 		levelMessage = "";
+		battleMessageTimer.stop();
+	}
+	//1pc2인 모드인지 여부 설정
+	public void setBattleMode(boolean battleMode) {
+		this.battleMode = battleMode;
 	}
 
 	// 현재 점수에 따라 블록 낙하 속도 변경
@@ -179,6 +196,12 @@ public class Board extends JPanel implements ActionListener {
 			}
 
 			levelTimer.restart(); // 레벨이 다시 바뀌면 표시 시간도 처음부터 계산
+		}
+		// 1pc 2인게임이면 속도 고정
+		if (battleMode) {
+			timer.setDelay(250);
+			currentLevel = 1;
+			return;
 		}
 	}
 
@@ -248,6 +271,18 @@ public class Board extends JPanel implements ActionListener {
 		}
 	}
 
+	// 보드 중앙에 대전 공격 메시지 표시
+	private void drawBattleMessage(Graphics2D g, int left, int top, int size) {
+		int centerX = left + BOARD_WIDTH * size / 2;
+		int centerY = top + BOARD_HEIGHT * size / 2;
+
+		g.setFont(Style.DISPLAY_FONT.deriveFont((float) (size * 1.1)));
+		g.setColor(Style.GOLD);
+
+		int textWidth = g.getFontMetrics().stringWidth(battleMessage);
+		g.drawString(battleMessage, centerX - textWidth / 2, centerY);
+	}
+
 	@Override
 	protected void paintComponent(Graphics g) {
 		super.paintComponent(g);
@@ -265,6 +300,10 @@ public class Board extends JPanel implements ActionListener {
 			graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 			drawGrid(graphics, left, top, size);
 			drawPieces(graphics, left, top, size);
+			//메세지가 들어있을 때 띄우기
+			if (!battleMessage.isEmpty()) {
+				drawBattleMessage(graphics, left, top, size);
+			}
 
 			// 일시정지와 게임 종료 안내를 레벨 알림보다 먼저 표시
 			if (engine.isPaused()) {
@@ -371,6 +410,14 @@ public class Board extends JPanel implements ActionListener {
 		FontMetrics fm = g.getFontMetrics();
 		g.drawString(text, centerX - fm.stringWidth(text) / 2, baselineY);
 	}
+
+	// 1PC 2인용 공격 메시지를 3초 동안 표시
+	public void showBattleMessage(String message) {
+		battleMessage = message;
+		battleMessageTimer.restart();
+		repaint();
+	}
+
 
 	class TAdapter extends KeyAdapter {
 		public void keyPressed(KeyEvent e) {

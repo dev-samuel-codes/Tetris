@@ -62,6 +62,10 @@ public class TwoPlayerTetris extends JFrame {
         player1Board.disableDefaultKeys();
         player2Board.disableDefaultKeys();
 
+        // 2인용에서는 두 플레이어의 낙하 속도를 고정
+        player1Board.setBattleMode(true);
+        player2Board.setBattleMode(true);
+
         root.add(gameArea, BorderLayout.CENTER);
 
         JButton menuButton = new JButton("메뉴로 돌아가기");
@@ -103,19 +107,19 @@ public class TwoPlayerTetris extends JFrame {
         setResizable(false);
     }
 
-    // 두 플레이어가 새로 지운 줄 수를 확인
+    // 두 플레이어가 누적 2줄을 제거할 때마다 공격
     private void checkAttack() {
         int player1Lines = player1Board.getEngine().getNumLinesRemoved();
         int player2Lines = player2Board.getEngine().getNumLinesRemoved();
 
-        int player1Cleared = player1Lines - previousPlayer1Lines;
-        int player2Cleared = player2Lines - previousPlayer2Lines;
+        int player1Attacks = player1Lines / 2 - previousPlayer1Lines / 2;
+        int player2Attacks = player2Lines / 2 - previousPlayer2Lines / 2;
 
-        if (player1Cleared > 0) {
+        for (int i = 0; i < player1Attacks; i++) {
             applyBattleEffect(player2Board);
         }
 
-        if (player2Cleared > 0) {
+        for (int i = 0; i < player2Attacks; i++) {
             applyBattleEffect(player1Board);
         }
 
@@ -137,14 +141,17 @@ public class TwoPlayerTetris extends JFrame {
         switch (effect) {
             case ROTATION_LOCK:
                 targetBoard.getEngine().applyBattleRotationLock();
+                targetBoard.showBattleMessage("다음 2블럭동안 회전 금지!");
                 break;
 
             case SCORE_PENALTY:
                 targetBoard.getEngine().applyBattleScorePenalty();
+                targetBoard.showBattleMessage("점수 -20");
                 break;
 
             case COLUMN_CLEAR:
                 targetBoard.getEngine().applyBattleColumnClear();
+                targetBoard.showBattleMessage("랜덤 열 제거!");
                 break;
         }
 
