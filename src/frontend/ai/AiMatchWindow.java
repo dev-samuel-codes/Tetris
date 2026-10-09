@@ -250,6 +250,7 @@ public final class AiMatchWindow extends JFrame {
         root.setPreferredSize(new Dimension(2 * BOARD_WIDTH * resolution.getCellSize() + 120,
                 BOARD_HEIGHT * resolution.getCellSize() + 240));
         installContent(root);
+        bindKeys(root);
     }
 
     private Runnable requestFrame(Session current) throws IOException {
@@ -360,6 +361,49 @@ public final class AiMatchWindow extends JFrame {
             current.pacer.setPaused(paused);
         clearInput();
         updateStatus();
+    }
+
+    private void bindKeys(JComponent root) {
+        bind(root, "LEFT", "LEFT", true);
+        bind(root, "RIGHT", "RIGHT", true);
+        bind(root, "UP", "ROTATE_LEFT", false);
+        bind(root, "DOWN", "ROTATE_RIGHT", false);
+        bind(root, "SPACE", "HARD_DROP", false);
+        bind(root, "D", "SOFT_DROP", true);
+        bind(root, "P", "PAUSE", false);
+    }
+
+    private void bind(JComponent root, final String key, final String command, final boolean repeat) {
+        String pressed = "press-" + key;
+        String released = "release-" + key;
+        root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("pressed " + key), pressed);
+        root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("released " + key), released);
+        root.getActionMap().put(pressed, new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                if (!repeat && !pressedKeys.add(key))
+                    return;
+                if ("PAUSE".equals(command)) {
+                    togglePause();
+                    pressedKeys.add(key);
+                    return;
+                }
+                Session current = session;
+                if (current == null || !current.playing || current.paused || latestFrame == null
+                        || latestFrame.getHuman().isEnded())
+                    return;
+                // 입력이 다음 블록까지 쌓이지 않도록 한 개씩 보관
+                if ("HARD_DROP".equals(command))
+                    current.commands.clear();
+                current.commands.offer(command);
+            }
+        });
+        root.getActionMap().put(released, new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                pressedKeys.remove(key);
+            }
+        });
     }
 
     private void clearInput() {
