@@ -15,6 +15,10 @@ public class TwoPlayerTetris extends JFrame {
     private Timer gameCheckTimer;
     private boolean gameFinished = false;
 
+    //방금 어떤 플레이어가 칸을 지웠는지
+    private int previousPlayer1Lines = 0;
+    private int previousPlayer2Lines = 0;
+
     // 1PC 2인용 게임 창 생성
     public TwoPlayerTetris() {
         setTitle("Tetris - 1PC 2인");
@@ -68,7 +72,10 @@ public class TwoPlayerTetris extends JFrame {
         player2Board.start();
 
         // 두 플레이어의 게임오버 여부 확인
-        gameCheckTimer = new Timer(200, e -> checkGameOver());
+        gameCheckTimer = new Timer(200, e -> {
+            checkGameOver();
+            checkAttack();
+        });
         gameCheckTimer.start();
 
         // BGM 시작
@@ -87,6 +94,26 @@ public class TwoPlayerTetris extends JFrame {
         setSize(1100, 750);
         setLocationRelativeTo(null);
         setResizable(false);
+    }
+
+    // 두 플레이어가 새로 지운 줄 수를 확인
+    private void checkAttack() {
+        int player1Lines = player1Board.getEngine().getNumLinesRemoved();
+        int player2Lines = player2Board.getEngine().getNumLinesRemoved();
+
+        int player1Cleared = player1Lines - previousPlayer1Lines;
+        int player2Cleared = player2Lines - previousPlayer2Lines;
+
+        if (player1Cleared > 0) {
+            System.out.println("PLAYER 1이 " + player1Cleared + "줄 제거");
+        }
+
+        if (player2Cleared > 0) {
+            System.out.println("PLAYER 2가 " + player2Cleared + "줄 제거");
+        }
+
+        previousPlayer1Lines = player1Lines;
+        previousPlayer2Lines = player2Lines;
     }
 
     // 두 플레이어의 게임오버 상태를 확인하고 승자를 결정
@@ -130,15 +157,15 @@ public class TwoPlayerTetris extends JFrame {
         if (isPlayer1) {
             controls = new String[][] {
                     { "A D", "이동" },
-                    { "W", "오른쪽 회전" },
-                    { "S", "왼쪽 회전" },
+                    { "W", "왼쪽 회전" },
+                    { "S", "오른쪽 회전" },
                     { "SPACE", "즉시 낙하" }
             };
         } else {
             controls = new String[][] {
                     { "← →", "이동" },
-                    { "↑", "오른쪽 회전" },
-                    { "↓", "왼쪽 하강" },
+                    { "↑", "왼쪽 회전" },
+                    { "↓", "오른쪽 회전" },
                     { "ENTER", "즉시 낙하" }
             };
         }
