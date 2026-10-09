@@ -1,5 +1,7 @@
 package frontend.engine;
 
+import frontend.Tetrominoes;
+
 public class ItemModeEngineTest {
     public static void main(String[] args) {
         GameEngine engine = new GameEngine();
@@ -11,6 +13,12 @@ public class ItemModeEngineTest {
 
         if (engine.getLastItemName() == null || engine.getLastItemName().isBlank()) {
             throw new AssertionError("발동된 아이템 이름이 비어 있으면 안 됩니다.");
+        }
+
+        engine.triggerBombItem();
+        engine.start();
+        if (engine.getCurrentShape() != Tetrominoes.BombShape) {
+            throw new AssertionError("폭탄 아이템은 폭탄 블록으로 등장해야 합니다.");
         }
 
         engine.setItemMode(false);

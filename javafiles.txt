@@ -21,5 +21,7 @@ C:\git\Tetris\Tetris\src\frontend\style\Style.java
 C:\git\Tetris\Tetris\src\frontend\ui\ModeCard.java
 C:\git\Tetris\Tetris\src\frontend\ui\PixelLogo.java
 C:\git\Tetris\Tetris\src\kr\ac\jbnu\se\tetris\game\Board.java
+C:\git\Tetris\Tetris\src\kr\ac\jbnu\se\tetris\game\Shape.java
+C:\git\Tetris\Tetris\src\kr\ac\jbnu\se\tetris\game\Tetrominoes.java
 C:\git\Tetris\Tetris\src\kr\ac\jbnu\se\tetris\ui\Tetris.java
 C:\git\Tetris\Tetris\tests\frontend\engine\ItemModeEngineTest.java
