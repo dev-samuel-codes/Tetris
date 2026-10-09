@@ -15,6 +15,13 @@ public class TwoPlayerTetris extends JFrame {
     private Timer gameCheckTimer;
     private boolean gameFinished = false;
 
+    // 1PC 2인용 공격 효과 종류
+    private enum BattleEffect {
+        ROTATION_LOCK,
+        SCORE_PENALTY,
+        COLUMN_CLEAR
+    }
+
     //방금 어떤 플레이어가 칸을 지웠는지
     private int previousPlayer1Lines = 0;
     private int previousPlayer2Lines = 0;
@@ -105,15 +112,43 @@ public class TwoPlayerTetris extends JFrame {
         int player2Cleared = player2Lines - previousPlayer2Lines;
 
         if (player1Cleared > 0) {
-            System.out.println("PLAYER 1이 " + player1Cleared + "줄 제거");
+            applyBattleEffect(player2Board);
         }
 
         if (player2Cleared > 0) {
-            System.out.println("PLAYER 2가 " + player2Cleared + "줄 제거");
+            applyBattleEffect(player1Board);
         }
 
         previousPlayer1Lines = player1Lines;
         previousPlayer2Lines = player2Lines;
+    }
+
+    // 세 가지 공격 효과 중 하나를 랜덤으로 선택
+    private BattleEffect getRandomBattleEffect() {
+        BattleEffect[] effects = BattleEffect.values();
+        int index = (int) (Math.random() * effects.length);
+        return effects[index];
+    }
+
+    // 선택된 공격 효과를 상대 플레이어에게 적용
+    private void applyBattleEffect(Board targetBoard) {
+        BattleEffect effect = getRandomBattleEffect();
+
+        switch (effect) {
+            case ROTATION_LOCK:
+                targetBoard.getEngine().applyBattleRotationLock();
+                break;
+
+            case SCORE_PENALTY:
+                targetBoard.getEngine().applyBattleScorePenalty();
+                break;
+
+            case COLUMN_CLEAR:
+                targetBoard.getEngine().applyBattleColumnClear();
+                break;
+        }
+
+        targetBoard.repaint();
     }
 
     // 두 플레이어의 게임오버 상태를 확인하고 승자를 결정
