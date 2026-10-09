@@ -40,3 +40,10 @@ scores.txt
 ### Tetris local profile and server scores ###
 .tetris/
 server-data/
+
+### Local AI inference environment ###
+.venv-ai/
+__pycache__/
+.pytest_cache/
+src/backend/models/tetris_afterstate/runtime/build/
+src/backend/models/tetris_afterstate/runtime/src/*.egg-info/

@@ -21,7 +21,7 @@ public class Shape {
 				{ { 0, -1 }, { 0, 0 }, { -1, 0 }, { -1, 1 } }, { { 0, -1 }, { 0, 0 }, { 1, 0 }, { 1, 1 } },
 				{ { 0, -1 }, { 0, 0 }, { 0, 1 }, { 0, 2 } }, { { -1, 0 }, { 0, 0 }, { 1, 0 }, { 0, 1 } },
 				{ { 0, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 } }, { { -1, -1 }, { 0, -1 }, { 0, 0 }, { 0, 1 } },
-				{ { 1, -1 }, { 0, -1 }, { 0, 0 }, { 0, 1 } } };
+				{ { 1, -1 }, { 0, -1 }, { 0, 0 }, { 0, 1 } }, { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } } };
 
 		for (int i = 0; i < 4; i++) {
 			for (int j = 0; j < 2; ++j) {
@@ -76,7 +76,7 @@ public class Shape {
 	}
 
 	public Shape rotateLeft() {
-		if (pieceShape == Tetrominoes.SquareShape)
+		if (pieceShape == Tetrominoes.SquareShape || pieceShape == Tetrominoes.BombShape)
 			return this;
 
 		Shape result = new Shape();
@@ -90,7 +90,7 @@ public class Shape {
 	}
 
 	public Shape rotateRight() {
-		if (pieceShape == Tetrominoes.SquareShape)
+		if (pieceShape == Tetrominoes.SquareShape || pieceShape == Tetrominoes.BombShape)
 			return this;
 
 		Shape result = new Shape();

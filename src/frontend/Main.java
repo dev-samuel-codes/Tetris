@@ -4,6 +4,7 @@ package frontend;
 import frontend.style.Style;
 import frontend.ui.ModeCard;
 import frontend.ui.PixelLogo;
+import frontend.ai.AiMatchWindow;
 import frontend.network.ScoreClient.RankingEntry;
 import frontend.network.ScoreClient.RankingPage;
 
@@ -122,11 +123,16 @@ public class Main extends JFrame {
             game.setVisible(true);
             dispose();
         });
-        ModeCard itemButton = new ModeCard("아이템", new String[] { "아이템을 사용하는 게임 모드" }, "준비 중", "준비 중",
+        ModeCard itemButton = new ModeCard("아이템", new String[] { "아이템을 사용하는 게임 모드" }, "게임 시작", "아이템 모드 시작",
                 Style.ITEM_BUTTON, Style.TEXT, Style.GREEN, 1);
         ModeCard multiplayerButton = new ModeCard("멀티플레이", new String[] { "1PC 2인 · AI · 네트워크 대전" }, "모드 보기", "준비 중",
                 Style.MULTIPLAYER_BUTTON, Style.TEXT, Style.PINK, 2);
-        itemButton.addActionListener(e -> showComingSoon("아이템 모드"));
+        itemButton.addActionListener(e -> {
+            Tetris game = new Tetris(GameSettings.getResolution(), "아이템");
+            game.setLocationRelativeTo(Main.this);
+            game.setVisible(true);
+            dispose();
+        });
         multiplayerButton.addActionListener(e -> showMultiplayerMenu());
         modes.add(classicButton);
         modes.add(itemButton);
@@ -166,20 +172,24 @@ public class Main extends JFrame {
     }
 
     private void showMultiplayerMenu() {
-        JPanel container = createPage("멀티플레이", "대전 기능은 준비 중입니다");
+        JPanel container = createPage("멀티플레이", "한 컴퓨터에서 함께 플레이하거나 AI와 점수 대결");
         JPanel content = transparent(new GridBagLayout());
-        JButton twoPlayerButton = createModeButton("1PC 2인 게임", "한 컴퓨터에서 두 명이 플레이 · 준비 중", Style.ACCENT);
-        JButton aiButton = createModeButton("AI 대전", "AI 상대와 대결하는 게임 · 준비 중", Style.ACCENT);
+        JButton twoPlayerButton = createModeButton("1PC 2인 게임", "한 컴퓨터에서 두 명이 함께 플레이", Style.ACCENT);
+        JButton aiButton = createModeButton("AI 대전", "5단계 난이도 · 같은 블록 · 시간 제한 없음", Style.ACCENT);
         JButton networkButton = createModeButton("네트워크 대전", "온라인 상대와 대결하는 게임 · 준비 중", Style.ACCENT);
-        // 나중에 각 대전 기능이 구현되면 안내창 대신 게임 화면으로 연결
-        // 1PC 2인용 모드로 이동
+        // 구현된 대전 모드는 각각의 게임 화면으로 연결
         twoPlayerButton.addActionListener(e -> {
             TwoPlayerTetris game = new TwoPlayerTetris();
             game.setLocationRelativeTo(Main.this);
             game.setVisible(true);
             dispose();
         });
-        aiButton.addActionListener(e -> showComingSoon("AI 대전"));
+        aiButton.addActionListener(e -> {
+            AiMatchWindow game = new AiMatchWindow(GameSettings.getResolution());
+            game.setLocationRelativeTo(Main.this);
+            game.setVisible(true);
+            dispose();
+        });
         networkButton.addActionListener(e -> showComingSoon("네트워크 대전"));
         GridBagConstraints row = new GridBagConstraints();
         row.gridx = 0;
@@ -193,7 +203,7 @@ public class Main extends JFrame {
         }
         row.gridy = 3;
         row.insets = new java.awt.Insets(10, 0, 0, 0);
-        content.add(label("현재 클래식 모드를 플레이할 수 있습니다.", Style.MUTED_TEXT, Style.BODY_FONT), row);
+        content.add(label("2인 게임을 시작하거나 AI 대전의 난이도를 선택하세요.", Style.MUTED_TEXT, Style.BODY_FONT), row);
         row.gridy = 4;
         row.weighty = 1;
         row.fill = GridBagConstraints.BOTH;

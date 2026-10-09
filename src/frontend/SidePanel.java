@@ -21,6 +21,10 @@ public class SidePanel extends JPanel {
     private int linesRemoved;
     private int level = 1;
     private Tetrominoes nextShape = Tetrominoes.NoShape;
+    private int linesUntilItem = 3;
+    private String itemName = "아이템 준비";
+    private String itemDescription = "3줄 누적 시 랜덤 아이템 발동";
+    private boolean itemMode = false;
 
     // 클래식 모드 기본 조작키를 사용하는 사이드패널 생성
     public SidePanel() {
@@ -64,6 +68,18 @@ public class SidePanel extends JPanel {
         repaint();
     }
 
+    public void setItemStatus(int linesUntilItem, String itemName, String itemDescription) {
+        this.linesUntilItem = Math.max(0, linesUntilItem);
+        this.itemName = itemName == null || itemName.isBlank() ? "아이템 준비" : itemName;
+        this.itemDescription = itemDescription == null || itemDescription.isBlank() ? "3줄 누적 시 랜덤 아이템 발동" : itemDescription;
+        repaint();
+    }
+
+    public void setItemMode(boolean itemMode) {
+        this.itemMode = itemMode;
+        repaint();
+    }
+
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
@@ -80,7 +96,10 @@ public class SidePanel extends JPanel {
             drawDivider(graphics, size, 13.8);
             drawStats(graphics, size);
             drawNextShape(graphics, size);
-            drawControls(graphics, size);
+            drawItemStatus(graphics, size);
+            if (!itemMode) {
+                drawControls(graphics, size);
+            }
         } finally {
             graphics.dispose();
         }
@@ -178,6 +197,35 @@ public class SidePanel extends JPanel {
         for (int i = 0; i < 4; i++)
             BlockPainter.drawSquare(g, startX + (preview.x(i) - minX) * cell,
                     startY + (preview.y(i) - minY) * cell, cell, nextShape);
+    }
+
+    private void drawItemStatus(Graphics2D g, double size) {
+        g.setFont(Style.MONO_FONT.deriveFont((float) (size * .38)));
+        g.setColor(Style.MUTED_TEXT);
+        g.drawString("ITEM", (int) (size * .6), (int) (size * 13.8));
+
+        int boxLeft = (int) (size * .55);
+        int boxTop = (int) (size * 14.2);
+        int boxWidth = getWidth() - boxLeft * 2;
+        int boxHeight = (int) (size * 3.2);
+        g.setColor(Style.PANEL);
+        g.fillRoundRect(boxLeft, boxTop, boxWidth, boxHeight, 6, 6);
+        g.setColor(Style.BORDER);
+        g.drawRoundRect(boxLeft, boxTop, boxWidth - 1, boxHeight - 1, 6, 6);
+
+        String chargeText = "다음 발동까지 " + linesUntilItem + "줄";
+        fitFont(g, Style.MONO_FONT, chargeText, size * .42, boxWidth - 12);
+        g.setColor(Style.TEXT);
+        g.drawString(chargeText, boxLeft + 6, boxTop + (int) (size * .95));
+
+        g.setFont(Style.MONO_FONT.deriveFont((float) (size * .35)));
+        g.setColor(Style.ACCENT);
+        fitFont(g, Style.MONO_FONT, itemName, size * .45, boxWidth - 12);
+        g.drawString(itemName, boxLeft + 6, boxTop + (int) (size * 1.8));
+
+        g.setColor(Style.MUTED_TEXT);
+        fitFont(g, Style.BODY_FONT, itemDescription, size * .38, boxWidth - 12);
+        g.drawString(itemDescription, boxLeft + 6, boxTop + (int) (size * 2.56));
     }
 
     // 나중에 키 설정 기능이 생기면 입력 처리와 안내 문구를 함께 관리해도 괜찮을 것 같음
