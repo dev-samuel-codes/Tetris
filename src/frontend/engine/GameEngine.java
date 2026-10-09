@@ -12,7 +12,8 @@ public class GameEngine {
         COLUMN_CLEAR("열 제거"),
         BOMB_CLEAR("폭탄 제거"),
         BOTTOM_CLEAR("하단 제거"),
-        SCORE_BOOST("점수 업");
+        SCORE_BOOST("점수 업"),
+        ROTATION_LOCK("회전 금지");
 
         private final String label;
 
@@ -42,6 +43,7 @@ public class GameEngine {
 	private boolean isPaused = false;
     private boolean itemMode = false;
     private boolean pendingBombItem = false;
+    private int rotationLockTurns = 0;
 	private int numLinesRemoved = 0;
 	private int score = 0;
 	private int combo = 0;
@@ -66,6 +68,7 @@ public class GameEngine {
 		score = 0;
 		combo = 0;
         lastItemName = "";
+        rotationLockTurns = 0;
 		clearBoard();
 		nextPiece.setRandomShape(); // 다음 블록을 먼저 뽑기
 		newPiece();
@@ -104,14 +107,16 @@ public class GameEngine {
      
     // 좌우 회전
 	public void rotateLeft() {
-		if (canControlPiece())
-			tryMove(curPiece.rotateLeft(), curX, curY); // 좌우 회전
+		if (!canControlPiece() || isRotationLocked())
+			return;
+		tryMove(curPiece.rotateLeft(), curX, curY); // 좌우 회전
 	}
 
     // 좌우 회전
-	public void rotateRight() {
-		if (canControlPiece())
-			tryMove(curPiece.rotateRight(), curX, curY);
+    public void rotateRight() {
+		if (!canControlPiece() || isRotationLocked())
+			return;
+		tryMove(curPiece.rotateRight(), curX, curY);
 	}
 
     // 좌표에 따른 move
@@ -190,6 +195,9 @@ public class GameEngine {
             curPiece.setShape(nextPiece.getShape()); // 미리 뽑아 둔 블록을 현재 블록으로
             nextPiece.setRandomShape();               // 다음 블록 만들기
         }
+        if (rotationLockTurns > 0) {
+            rotationLockTurns--;
+        }
         // 떨어지는 위치 설정; 현재 10칸이라 curX는 으로 설정되어 있음
 		curX = BOARD_WIDTH / 2 + 1;
 		curY = BOARD_HEIGHT - 1 + curPiece.minY();
@@ -265,11 +273,16 @@ public class GameEngine {
         this.itemMode = itemMode;
         if (!itemMode) {
             lastItemName = "";
+            rotationLockTurns = 0;
         }
     }
 
     public boolean isItemMode() {
         return itemMode;
+    }
+
+    private boolean isRotationLocked() {
+        return rotationLockTurns > 0;
     }
 
     public void triggerBombItem() {
@@ -280,6 +293,14 @@ public class GameEngine {
         lastItemName = ItemType.BOMB_CLEAR.getLabel();
     }
 
+    public void triggerRotationLockItem() {
+        if (!itemMode) {
+            return;
+        }
+        rotationLockTurns = 2;
+        lastItemName = ItemType.ROTATION_LOCK.getLabel();
+    }
+
     public boolean activateRandomItemForClearedLines(int linesCleared) {
         if (!itemMode || linesCleared < 3) {
             return false;
@@ -288,6 +309,8 @@ public class GameEngine {
         ItemType item = ItemType.values()[(int) (Math.random() * ItemType.values().length)];
         if (item == ItemType.BOMB_CLEAR) {
             triggerBombItem();
+        } else if (item == ItemType.ROTATION_LOCK) {
+            triggerRotationLockItem();
         } else {
             applyItem(item);
             lastItemName = item.getLabel();
@@ -315,6 +338,9 @@ public class GameEngine {
                 break;
             case SCORE_BOOST:
                 score += 30;
+                break;
+            case ROTATION_LOCK:
+                triggerRotationLockItem();
                 break;
             default:
                 break;
