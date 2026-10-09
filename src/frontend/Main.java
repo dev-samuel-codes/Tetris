@@ -127,7 +127,6 @@ public class Main extends JFrame {
                 Style.ITEM_BUTTON, Style.TEXT, Style.GREEN, 1);
         ModeCard multiplayerButton = new ModeCard("멀티플레이", new String[] { "1PC 2인 · AI · 네트워크 대전" }, "모드 보기", "준비 중",
                 Style.MULTIPLAYER_BUTTON, Style.TEXT, Style.PINK, 2);
-        // 나중에 아이템 게임이 구현되면 해당 화면으로 연결
         itemButton.addActionListener(e -> showComingSoon("아이템 모드"));
         multiplayerButton.addActionListener(e -> showMultiplayerMenu());
         modes.add(classicButton);

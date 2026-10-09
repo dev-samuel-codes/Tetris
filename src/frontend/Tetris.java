@@ -17,8 +17,14 @@ public class Tetris extends JFrame {
 
 	JLabel statusbar;
 	private final Board board; // 메뉴로 돌아갈 때 게임 정지에 사용
+	private final String modeName;
 
 	public Tetris(Resolution resolution) {
+		this(resolution, "클래식");
+	}
+
+	public Tetris(Resolution resolution, String modeName) {
+		this.modeName = modeName;
 		JPanel root = Style.createBackground(new BorderLayout(0, 16));
 		root.setBorder(BorderFactory.createEmptyBorder(18, 22, 18, 22));
 		setContentPane(root);
@@ -30,7 +36,7 @@ public class Tetris extends JFrame {
 		JLabel title = new JLabel(new PixelLogo(3));
 		title.setHorizontalAlignment(SwingConstants.LEFT);
 		title.getAccessibleContext().setAccessibleName("Tetris");
-		JLabel mode = new JLabel("클래식");
+		JLabel mode = new JLabel(modeName);
 		mode.setFont(Style.SMALL_FONT);
 		mode.setForeground(Style.MUTED_TEXT);
 		header.add(title, BorderLayout.CENTER);
@@ -62,7 +68,7 @@ public class Tetris extends JFrame {
 		sidePanel.setMinimumSize(new Dimension(SidePanel.COLS * MIN_CELL_SIZE, Board.BOARD_HEIGHT * MIN_CELL_SIZE));
 
 		// 게임판
-		board = new Board(this, sidePanel);
+		board = new Board(statusbar, sidePanel, "아이템".equals(modeName));
 		board.setMinimumSize(new Dimension(Board.BOARD_WIDTH * MIN_CELL_SIZE, Board.BOARD_HEIGHT * MIN_CELL_SIZE));
 		// 게임판과 정보 패널을 같은 배율로 확대
 		JPanel background = new JPanel(new GameAreaLayout(board, sidePanel, resolution.getCellSize()));

@@ -36,13 +36,18 @@ public class Board extends JPanel implements ActionListener {
 	private int currentLevel = 1;
 	private String levelMessage = "";
 	private String scoreSaveStatus = "";
+	private boolean defaultKeysEnabled = true;
 
-	public Board(Tetris parent, SidePanel sidePanel) {
-		setFocusable(true);
-		setBackground(Style.BACKGROUND);
-		this.sidePanel = sidePanel;
-		playerNickname = ScoreManager.getNickname();
-		timer = new Timer(400, this);
+    // 상태바와 사이드패널, 아이템 모드 여부를 받아 게임판 생성
+    public Board(JLabel statusbar, SidePanel sidePanel, boolean itemMode) {
+        setFocusable(true);
+        setBackground(Style.BACKGROUND);
+        this.sidePanel = sidePanel;
+        this.statusbar = statusbar;
+        this.engine.setItemMode(itemMode);
+        playerNickname = ScoreManager.getNickname();
+        timer = new Timer(400, this);
+
 
 		// 1초(1000ms)마다 경과 시간 사이드패널에 표시
 		clockTimer = new Timer(1000, e -> {
@@ -57,8 +62,8 @@ public class Board extends JPanel implements ActionListener {
 			levelMessage = "";
 			repaint();
 		});
-		levelTimer.setRepeats(false); // 반복하지 않고 한 번만 실행
-		statusbar = parent.getStatusBar();
+
+		levelTimer.setRepeats(false); // 반복하지 말고 한번만 실행
 		addKeyListener(new TAdapter());
 	}
 
@@ -84,6 +89,16 @@ public class Board extends JPanel implements ActionListener {
 
 	int boardTop() {
 		return (getHeight() - BOARD_HEIGHT * squareSize()) / 2;
+	}
+
+	// 기본 키 입력 비활성화 -> 1pc 2인 때문에
+	public void disableDefaultKeys() {
+		defaultKeysEnabled = false;
+	}
+
+	// Board가 사용하는 게임 엔진 반환 1pc2인게임에서 게임엔진 사용하기 위해서
+	public GameEngine getEngine() {
+		return engine;
 	}
 
 	public void start() {
@@ -177,7 +192,9 @@ public class Board extends JPanel implements ActionListener {
 		}
 		wasStarted = engine.isStarted();
 
-		if (engine.isPaused()) {
+		if (engine.isItemMode() && !engine.getLastItemName().isEmpty()) {
+			statusbar.setText("아이템 발동: " + engine.getLastItemName());
+		} else if (engine.isPaused()) {
 			statusbar.setText("일시정지");
 		} else if (!engine.isStarted()) {
 			statusbar.setText(scoreSaveStatus.isEmpty() ? "게임 종료" : scoreSaveStatus);
@@ -324,6 +341,11 @@ public class Board extends JPanel implements ActionListener {
 
 	class TAdapter extends KeyAdapter {
 		public void keyPressed(KeyEvent e) {
+			// 1PC 2인용에서 키 입력 막기위한 코드
+
+			if (!defaultKeysEnabled)
+				return;
+
 			// 메뉴로 돌아간 보드나 조작할 블록이 없는 상태면 입력 무시
 			if (isStopped || !engine.isStarted() || engine.getCurrentShape() == Tetrominoes.NoShape)
 				return;
