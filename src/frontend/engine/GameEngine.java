@@ -253,6 +253,9 @@ public class GameEngine {
 					for (int j = 0; j < BOARD_WIDTH; ++j)
 						board[(k * BOARD_WIDTH) + j] = shapeAt(j, k + 1);
 				}
+				for (int j = 0; j < BOARD_WIDTH; ++j) {
+					board[((BOARD_HEIGHT - 1) * BOARD_WIDTH) + j] = Tetrominoes.NoShape;
+				}
 			}
 		}
 
@@ -384,12 +387,27 @@ public class GameEngine {
     }
 
     private void clearBottomRows(int rowsToClear) {
-        // 보드 좌표는 y=0부터 하단이므로 낮은 행부터 제거
-        for (int y = 0; y < rowsToClear; y++) {
-            for (int x = 0; x < BOARD_WIDTH; x++) {
-                board[y * BOARD_WIDTH + x] = Tetrominoes.NoShape;
+        if (rowsToClear <= 0 || rowsToClear >= BOARD_HEIGHT) {
+            return;
+        }
+
+        Tetrominoes[] compactedBoard = new Tetrominoes[BOARD_WIDTH * BOARD_HEIGHT];
+        for (int i = 0; i < compactedBoard.length; i++) {
+            compactedBoard[i] = Tetrominoes.NoShape;
+        }
+
+        for (int x = 0; x < BOARD_WIDTH; x++) {
+            int writeIndex = x;
+            for (int y = rowsToClear; y < BOARD_HEIGHT; y++) {
+                Tetrominoes shape = board[(y * BOARD_WIDTH) + x];
+                if (shape != Tetrominoes.NoShape && shape != null) {
+                    compactedBoard[writeIndex] = shape;
+                    writeIndex += BOARD_WIDTH;
+                }
             }
         }
+
+        System.arraycopy(compactedBoard, 0, board, 0, board.length);
     }
 
     private int randomBetween(int min, int max) {
