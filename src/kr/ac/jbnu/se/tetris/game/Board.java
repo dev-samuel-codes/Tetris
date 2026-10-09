@@ -29,6 +29,7 @@ public class Board extends JPanel implements ActionListener {
 	int numLinesRemoved = 0;
 	int curX = 0;
 	int curY = 0;
+	boolean bombItemReady = false;
 	JLabel statusbar;
 	Shape curPiece;
 	Tetrominoes[] board;
@@ -220,7 +221,12 @@ public class Board extends JPanel implements ActionListener {
 	}
 
 	private void newPiece() {
-		curPiece.setRandomShape();
+		if (bombItemReady) {
+			curPiece.setShape(Tetrominoes.BombShape);
+			bombItemReady = false;
+		} else {
+			curPiece.setRandomShape();
+		}
 		curX = BoardWidth / 2 + 1;
 		curY = BoardHeight - 1 + curPiece.minY();
 
@@ -230,6 +236,11 @@ public class Board extends JPanel implements ActionListener {
 			isStarted = false;
 			statusbar.setText("game over");
 		}
+	}
+
+	public void activateBombItem() {
+		bombItemReady = true;
+		statusbar.setText("Bomb item ready");
 	}
 
 	private boolean tryMove(Shape newPiece, int newX, int newY) {
@@ -347,6 +358,10 @@ public class Board extends JPanel implements ActionListener {
 				break;
 			case 'D':
 				oneLineDown();
+				break;
+			case 'b':
+			case 'B':
+				activateBombItem();
 				break;
 			}
 
