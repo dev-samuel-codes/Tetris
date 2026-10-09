@@ -41,6 +41,7 @@ public class GameEngine {
 	private boolean isStarted = false;
 	private boolean isPaused = false;
     private boolean itemMode = false;
+    private boolean pendingBombItem = false;
 	private int numLinesRemoved = 0;
 	private int score = 0;
 	private int combo = 0;
@@ -150,14 +151,45 @@ public class GameEngine {
 			board[(y * BOARD_WIDTH) + x] = curPiece.getShape();
 		}
 
+        if (curPiece.getShape() == Tetrominoes.BombShape) {
+            explodeBomb();
+            return;
+        }
+
 		removeFullLines(); // 블록 고정 후 줄 검사 (꽉 찼는 지)
 		if (!isFallingFinished)
 			newPiece();
 	}
 
+    private void explodeBomb() {
+        int centerX = curX;
+        int centerY = curY;
+
+        for (int y = centerY - 1; y <= centerY + 1; y++) {
+            for (int x = centerX - 1; x <= centerX + 1; x++) {
+                if (x < 0 || x >= BOARD_WIDTH || y < 0 || y >= BOARD_HEIGHT)
+                    continue;
+                board[(y * BOARD_WIDTH) + x] = Tetrominoes.NoShape;
+            }
+        }
+
+        curPiece.setShape(Tetrominoes.NoShape);
+        isFallingFinished = true;
+        nextPiece.setRandomShape();
+        if (itemMode) {
+            lastItemName = "폭탄 제거";
+        }
+    }
+
 	private void newPiece() {
-		curPiece.setShape(nextPiece.getShape()); // 미리 뽑아 둔 블록을 현재 블록으로
-		nextPiece.setRandomShape();               // 다음 블록 만들기
+        if (pendingBombItem) {
+            curPiece.setShape(Tetrominoes.BombShape);
+            pendingBombItem = false;
+            nextPiece.setRandomShape();
+        } else {
+            curPiece.setShape(nextPiece.getShape()); // 미리 뽑아 둔 블록을 현재 블록으로
+            nextPiece.setRandomShape();               // 다음 블록 만들기
+        }
         // 떨어지는 위치 설정; 현재 10칸이라 curX는 으로 설정되어 있음
 		curX = BOARD_WIDTH / 2 + 1;
 		curY = BOARD_HEIGHT - 1 + curPiece.minY();
@@ -240,14 +272,26 @@ public class GameEngine {
         return itemMode;
     }
 
+    public void triggerBombItem() {
+        if (!itemMode) {
+            return;
+        }
+        pendingBombItem = true;
+        lastItemName = ItemType.BOMB_CLEAR.getLabel();
+    }
+
     public boolean activateRandomItemForClearedLines(int linesCleared) {
         if (!itemMode || linesCleared < 3) {
             return false;
         }
 
         ItemType item = ItemType.values()[(int) (Math.random() * ItemType.values().length)];
-        applyItem(item);
-        lastItemName = item.getLabel();
+        if (item == ItemType.BOMB_CLEAR) {
+            triggerBombItem();
+        } else {
+            applyItem(item);
+            lastItemName = item.getLabel();
+        }
         return true;
     }
 
