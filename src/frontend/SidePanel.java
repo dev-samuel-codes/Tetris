@@ -14,10 +14,7 @@ public class SidePanel extends JPanel {
 
     // 보드 옆 정보 패널은 가로 6칸 기준으로 표시
     public static final int COLS = 6;
-    private static final String[][] CONTROLS = {
-            { "← →", "이동" }, { "↑ ↓", "회전" }, { "D", "한 칸 하강" },
-            { "SPACE", "즉시 낙하" }, { "P", "일시정지" }
-    };
+    private final String[][] controls;
 
     private int score;
     private int elapsedSeconds;
@@ -25,7 +22,20 @@ public class SidePanel extends JPanel {
     private int level = 1;
     private Tetrominoes nextShape = Tetrominoes.NoShape;
 
+    // 클래식 모드 기본 조작키를 사용하는 사이드패널 생성
     public SidePanel() {
+        this(new String[][] {
+                { "← →", "이동" },
+                { "↑ ↓", "회전" },
+                { "D", "한 칸 하강" },
+                { "SPACE", "즉시 낙하" },
+                { "P", "일시정지" }
+        });
+    }
+
+    // 전달받은 조작키를 표시하는 사이드패널 생성
+    public SidePanel(String[][] controls) {
+        this.controls = controls;
         setBackground(Style.BACKGROUND);
     }
 
@@ -178,20 +188,20 @@ public class SidePanel extends JPanel {
         int left = (int) (size * .55);
         int keyWidth = (int) (size * 1.8);
         int keyHeight = (int) (size * .78);
-        for (int i = 0; i < CONTROLS.length; i++) {
+        for (int i = 0; i < controls.length; i++) {
             int y = (int) (size * (15.82 + i * 1.15));
             // 실제 키 반전 처리는 Board에서 하고 여기서는 바뀐 조작 방법만 표시
             boolean reversed = i == 0 && level == 5;
-            String label = reversed ? "좌우 반전" : CONTROLS[i][1];
+            String label = reversed ? "좌우 반전" : controls[i][1];
             Color accent = reversed ? Style.GOLD : Style.TEXT;
             // 키 안내는 작은 직각 표식으로 표시하고 실제 입력 처리는 Board가 담당
             g.setColor(Style.PANEL);
             g.fillRect(left, y, keyWidth, keyHeight);
             g.setColor(Style.BORDER);
             g.drawRect(left, y, keyWidth, keyHeight);
-            fitFont(g, Style.MONO_FONT, CONTROLS[i][0], size * .41, keyWidth - 6);
+            fitFont(g, Style.MONO_FONT, controls[i][0], size * .41, keyWidth - 6);
             int keyBaseline = y + (keyHeight - g.getFontMetrics().getHeight()) / 2 + g.getFontMetrics().getAscent();
-            drawCentered(g, CONTROLS[i][0], left + keyWidth / 2, keyBaseline, accent);
+            drawCentered(g, controls[i][0], left + keyWidth / 2, keyBaseline, accent);
             int labelRight = getWidth() - left;
             fitFont(g, Style.BODY_FONT, label, size * .43, labelRight - left - keyWidth - (int) (size * .35));
             g.setColor(reversed ? Style.GOLD : Style.MUTED_TEXT);

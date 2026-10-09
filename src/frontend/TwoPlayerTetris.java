@@ -97,7 +97,25 @@ public class TwoPlayerTetris extends JFrame {
         statusbar.setFont(Style.BODY_FONT);
         statusbar.setForeground(Style.MUTED_TEXT);
 
-        SidePanel sidePanel = new SidePanel();
+        String[][] controls;
+
+        if (isPlayer1) {
+            controls = new String[][] {
+                    { "A D", "이동" },
+                    { "W", "오른쪽 회전" },
+                    { "S", "왼쪽 회전" },
+                    { "SPACE", "즉시 낙하" }
+            };
+        } else {
+            controls = new String[][] {
+                    { "← →", "이동" },
+                    { "↑", "오른쪽 회전" },
+                    { "↓", "왼쪽 하강" },
+                    { "ENTER", "즉시 낙하" }
+            };
+        }
+
+        SidePanel sidePanel = new SidePanel(controls);
         sidePanel.setPreferredSize(new Dimension(150, 0));
 
         Board board = new Board(statusbar, sidePanel, false);
@@ -146,7 +164,7 @@ public class TwoPlayerTetris extends JFrame {
                 break;
             case KeyEvent.VK_RIGHT:
                 player2Board.getEngine().moveRight();
-                break;
+                break;  
             case KeyEvent.VK_UP:
                 player2Board.getEngine().rotateLeft();
                 break;
