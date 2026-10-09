@@ -8,20 +8,26 @@ import frontend.style.Style;
 public class GameEngine {
 
     public enum ItemType {
-        ROW_CLEAR("한 줄 제거"),
-        COLUMN_CLEAR("열 제거"),
-        BOMB_CLEAR("폭탄 제거"),
-        BOTTOM_CLEAR("하단 제거"),
-        SCORE_BOOST("점수 업");
+        ROW_CLEAR("한 줄 제거", "랜덤 한 줄을 제거합니다."),
+        COLUMN_CLEAR("열 제거", "랜덤 열을 제거합니다."),
+        BOMB_CLEAR("폭탄 제거", "주변 3x3 범위를 제거합니다."),
+        BOTTOM_CLEAR("하단 제거", "하단 2줄을 제거합니다."),
+        SCORE_BOOST("점수 업", "점수를 30점 추가합니다.");
 
         private final String label;
+        private final String description;
 
-        ItemType(String label) {
+        ItemType(String label, String description) {
             this.label = label;
+            this.description = description;
         }
 
         public String getLabel() {
             return label;
+        }
+
+        public String getDescription() {
+            return description;
         }
     }
 
@@ -37,6 +43,8 @@ public class GameEngine {
 	// 콤보 점수 10점 추가
 	private static final int COMBO_BONUS = 10;
 
+	private static final int ITEM_TRIGGER_LINES = 3;
+
 	private boolean isFallingFinished = false;  // 현재 코드에서는 줄 제거 후 다음 블록 생성을 기다리는 상태 변수
 	private boolean isStarted = false;
 	private boolean isPaused = false;
@@ -47,10 +55,12 @@ public class GameEngine {
 	private int combo = 0;
 	private int curX = 0;
 	private int curY = 0;
+	private int accumulatedItemLines = 0;
 	private Shape curPiece = new Shape();
 	private final Shape nextPiece = new Shape(); // 다음에 나올 블록 (미리보기용)
 	private final Tetrominoes[] board = new Tetrominoes[BOARD_WIDTH * BOARD_HEIGHT];
     private String lastItemName = "";
+    private String lastItemDescription = "";
 
 	public GameEngine() {
 		clearBoard();
@@ -65,7 +75,9 @@ public class GameEngine {
 		numLinesRemoved = 0;
 		score = 0;
 		combo = 0;
+        accumulatedItemLines = 0;
         lastItemName = "";
+        lastItemDescription = "";
 		clearBoard();
 		nextPiece.setRandomShape(); // 다음 블록을 먼저 뽑기
 		newPiece();
@@ -177,7 +189,8 @@ public class GameEngine {
         isFallingFinished = true;
         nextPiece.setRandomShape();
         if (itemMode) {
-            lastItemName = "폭탄 제거";
+            lastItemName = ItemType.BOMB_CLEAR.getLabel();
+            lastItemDescription = ItemType.BOMB_CLEAR.getDescription();
         }
     }
 
@@ -253,7 +266,7 @@ public class GameEngine {
 			}
 			isFallingFinished = true;
 			curPiece.setShape(Tetrominoes.NoShape);
-            if (itemMode && numFullLines >= 3) {
+            if (itemMode) {
                 activateRandomItemForClearedLines(numFullLines);
             }
 		} else {
@@ -263,8 +276,10 @@ public class GameEngine {
 
     public void setItemMode(boolean itemMode) {
         this.itemMode = itemMode;
+        accumulatedItemLines = 0;
         if (!itemMode) {
             lastItemName = "";
+            lastItemDescription = "";
         }
     }
 
@@ -278,25 +293,46 @@ public class GameEngine {
         }
         pendingBombItem = true;
         lastItemName = ItemType.BOMB_CLEAR.getLabel();
+        lastItemDescription = ItemType.BOMB_CLEAR.getDescription();
     }
 
     public boolean activateRandomItemForClearedLines(int linesCleared) {
-        if (!itemMode || linesCleared < 3) {
+        if (!itemMode || linesCleared <= 0) {
             return false;
         }
 
+        int totalCharge = accumulatedItemLines + linesCleared;
+        int triggerCount = totalCharge / ITEM_TRIGGER_LINES;
+        accumulatedItemLines = totalCharge % ITEM_TRIGGER_LINES;
+
+        boolean triggered = triggerCount > 0;
+        for (int i = 0; i < triggerCount; i++) {
+            activateSingleRandomItem();
+        }
+        return triggered;
+    }
+
+    public int getLinesUntilItemActivation() {
+        return itemMode ? (ITEM_TRIGGER_LINES - accumulatedItemLines) : 0;
+    }
+
+    public String getLastItemName() {
+        return lastItemName;
+    }
+
+    public String getLastItemDescription() {
+        return lastItemDescription;
+    }
+
+    private void activateSingleRandomItem() {
         ItemType item = ItemType.values()[(int) (Math.random() * ItemType.values().length)];
         if (item == ItemType.BOMB_CLEAR) {
             triggerBombItem();
         } else {
             applyItem(item);
             lastItemName = item.getLabel();
+            lastItemDescription = item.getDescription();
         }
-        return true;
-    }
-
-    public String getLastItemName() {
-        return lastItemName;
     }
 
     private void applyItem(ItemType item) {
