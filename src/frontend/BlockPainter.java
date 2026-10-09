@@ -12,7 +12,7 @@ public final class BlockPainter {
     // 나중에 블록 색까지 테마별로 바꾸려면 이 색상표를 Style로 옮겨도 괜찮을 것 같음
     private static final Color[] COLORS = { Color.BLACK, new Color(0xC8736C), new Color(0x86A66F),
             new Color(0x7395C5), new Color(0xC5B468), new Color(0xA986BB),
-            new Color(0x6CA9A5), new Color(0xC9975E) };
+            new Color(0x6CA9A5), new Color(0xC9975E), new Color(0xFF6B57) };
 
     // 생성 방지
     private BlockPainter() {
@@ -23,7 +23,12 @@ public final class BlockPainter {
         if (size <= 0 || shape == Tetrominoes.NoShape)
             return;
 
-        Color color = COLORS[shape.ordinal()];
+        int index = shape.ordinal();
+        if (index < 0 || index >= COLORS.length) {
+            return;
+        }
+
+        Color color = COLORS[index];
         int inset = size > 1 ? 1 : 0; // 붙어 있는 블록 사이에 1픽셀 여백 적용
         int blockSize = Math.max(1, size - inset);
 
