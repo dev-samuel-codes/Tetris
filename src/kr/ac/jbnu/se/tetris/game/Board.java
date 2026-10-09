@@ -192,10 +192,31 @@ public class Board extends JPanel implements ActionListener {
 			board[(y * BoardWidth) + x] = curPiece.getShape();
 		}
 
+		if (curPiece.getShape() == Tetrominoes.BombShape) {
+			explodeBomb();
+			return;
+		}
+
 		removeFullLines();
 
 		if (!isFallingFinished)
 			newPiece();
+	}
+
+	private void explodeBomb() {
+		int centerX = curX;
+		int centerY = curY;
+		for (int y = centerY - 1; y <= centerY + 1; ++y) {
+			for (int x = centerX - 1; x <= centerX + 1; ++x) {
+				if (x < 0 || x >= BoardWidth || y < 0 || y >= BoardHeight)
+					continue;
+				board[(y * BoardWidth) + x] = Tetrominoes.NoShape;
+			}
+		}
+		curPiece.setShape(Tetrominoes.NoShape);
+		isFallingFinished = true;
+		repaint();
+		newPiece();
 	}
 
 	private void newPiece() {
@@ -268,7 +289,8 @@ public class Board extends JPanel implements ActionListener {
 				new Color(255, 204, 92),
 				new Color(183, 115, 255),
 				new Color(66, 211, 220),
-				new Color(255, 145, 82)
+				new Color(255, 145, 82),
+				new Color(255, 92, 71)
 		};
 
 		Color color = colors[shape.ordinal()];
