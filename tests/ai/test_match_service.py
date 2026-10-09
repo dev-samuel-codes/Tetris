@@ -380,3 +380,182 @@ def test_ai_continues_at_last_human_pace_after_human_topout():
     assert measured == [51] * 5
     assert match.human.ticks == frozen_ticks and match.human_pace_ticks == 60
     assert match.ended is False
+
+
+def test_restart_bad_command_and_protocol_recovery():
+    policy = FakePolicy()
+    loader_calls = []
+    def loader(difficulty):
+        loader_calls.append(difficulty)
+        return policy, {"observation": "board"}
+    controller = service.MatchService(loader)
+    start = controller.request("START\teasy\t42")
+    controller.request("STEP\tWAIT")
+    before = controller.match.frame()
+    with pytest.raises(ValueError, match="Unknown human command"):
+        controller.request("STEP\tINVALID")
+    assert controller.match.frame() == before
+    assert controller.request("START\teasy\t42") == start
+    assert controller.match.human_intervals == service.deque([], maxlen=8)
+    assert controller.match.last_human_lock_tick == controller.match.ai_spawn_tick == 0
+    assert controller.match.human_pace_ticks == 40 and controller.match.ai_target_ticks == 34
+    assert loader_calls == ["easy"]
+    output = StringIO()
+    service.serve(StringIO("STEP\tWAIT\nSTART\teasy\t42\nSTEP\tINVALID\nSTEP\tWAIT\nQUIT\n"), output, service.MatchService(loader))
+    lines = output.getvalue().splitlines()
+    assert lines[0] == "READY\t2"
+    assert lines[1].startswith("ERROR\t") and lines[3].startswith("ERROR\t")
+    assert fields(lines[4])[1] == "1"
+    assert len(lines) == 5
+
+
+@pytest.mark.parametrize("line", ["START\teasy\tx", "START\tunknown\t42", "START\teasy", "STEP", "QUIT\textra"])
+def test_bad_protocol_request(line):
+    with pytest.raises(ValueError):
+        service.MatchService().request(line)
+
+
+def test_manifest_rejects_incompatible_rules_and_identity():
+    path = service.MODEL_ROOT / "best.manifest.json"
+    manifest = service.json.loads(path.read_text())
+    difficulty = service.DIFFICULTIES["hell"]
+    assert service.validate_manifest(manifest, difficulty)["observation"] == "afterstate"
+    for key, value, error in (("rules_version", "wrong", "rules"), ("engine_sha256", "wrong", "hash"), ("target_score", 500, "10000"), ("observation_version", "wrong", "observation")):
+        changed = deepcopy(manifest)
+        changed[key] = value
+        with pytest.raises(ValueError, match=error):
+            service.validate_manifest(changed, difficulty)
+    changed = deepcopy(manifest)
+    changed["config"]["env"]["gravity_ticks"] = 7
+    with pytest.raises(ValueError, match="180 second"):
+        service.validate_manifest(changed, difficulty)
+
+
+@pytest.mark.parametrize("difficulty_id, score, checkpoint, observation", [
+    ("easy", 200, "checkpoints/score_00200.zip", "board"),
+    ("normal", 500, "checkpoints/score_00500.zip", "board"),
+    ("hard", 1000, "checkpoints/score_01000.zip", "afterstate"),
+    ("very_hard", 5000, "checkpoints/score_05000.zip", "afterstate"),
+    ("hell", 10000, "best.zip", "afterstate"),
+])
+def test_difficulty_checkpoint_mapping(difficulty_id, score, checkpoint, observation):
+    assert service.DIFFICULTIES[difficulty_id] == service.Difficulty(score, checkpoint, observation)
+
+
+@pytest.mark.parametrize("difficulty_id", ["easy", "normal", "hard", "very_hard"])
+def test_milestone_models_accept_unreached_target_but_reject_wrong_milestone(difficulty_id):
+    difficulty = service.DIFFICULTIES[difficulty_id]
+    manifest = service.json.loads((service.MODEL_ROOT / "best.manifest.json").read_text())
+    manifest["config"]["observation"] = difficulty.observation
+    manifest["observation_version"] = service.OBSERVATION_VERSIONS[difficulty.observation]
+    manifest["policy_class"] = "CandidateActorCriticPolicy" if difficulty.observation == "afterstate" else "MaskableActorCriticPolicy"
+    manifest["target_reached"] = False
+    manifest["score_milestone"] = difficulty.score
+    assert manifest["target_score"] == 10000
+    assert service.validate_manifest(manifest, difficulty)["observation"] == difficulty.observation
+    manifest["score_milestone"] += 100
+    with pytest.raises(ValueError, match=f"milestone must be {difficulty.score}"):
+        service.validate_manifest(manifest, difficulty)
+
+
+def test_missing_checkpoint_and_wrong_model_shape_fail_clearly(tmp_path, monkeypatch):
+    with pytest.raises(ValueError, match="Missing checkpoint"):
+        service.load_policy("easy", tmp_path)
+    from sb3_contrib import MaskablePPO
+    class WrongModel:
+        observation_space = None
+        action_space = None
+    monkeypatch.setattr(MaskablePPO, "load", lambda *args, **kwargs: WrongModel())
+    with pytest.raises(ValueError, match="shape is incompatible"):
+        service.load_policy("hell")
+
+
+def test_candidate_observation_does_not_consume_future_stream():
+    match = service.Match(FakePolicy(), {"observation": "afterstate"}, 79)
+    before = match.ai._rng.getstate()
+    for _ in range(2):
+        observation = match.ai_env._observation()
+        assert observation["candidates"].shape == (40, 7)
+        match.ai.action_masks()
+    assert match.ai._rng.getstate() == before
+
+
+def test_candidate_path_crosses_training_deadline_without_spawning_future_piece():
+    engine = service.UntimedTetrisEngine(seed=123)
+    engine.ticks = 3599
+    rng_before = engine._rng.getstate()
+    candidates = engine.candidates()
+    candidate = candidates[min(candidates)]
+    assert candidate.ticks > 1
+    assert candidate.path[-1] == "HARD_DROP"
+    simulated = engine._simulation()
+    assert isinstance(simulated, service.UntimedTetrisEngine)
+    for command in candidate.path:
+        simulated._tick(command, spawn=False)
+    assert simulated.ticks > 3600
+    assert simulated.pieces_placed == 1
+    assert simulated.piece == 0 and simulated.terminated is False
+    assert simulated._rng.getstate() == engine._rng.getstate() == rng_before
+    for command in candidate.path:
+        engine._tick(command)
+    assert engine.ticks == simulated.ticks and engine.pieces_placed == 1
+    assert engine.piece != 0 and engine.terminated is False
+    assert engine.observation()[245] == 1.0
+
+
+def test_afterstate_tick_normalization_keeps_training_scale():
+    match = service.Match(FakePolicy(), {"observation": "afterstate"}, 79)
+    match.ai.ticks = 3599
+    observation = match.ai_env._observation()
+    assert observation["state"].shape == (248,)
+    assert observation["state"][245] == 1.0
+    assert observation["candidates"].shape == (40, 7)
+    for action, candidate in match.ai.candidates().items():
+        assert observation["candidates"][action, 6] == pytest.approx(candidate.ticks / 3600)
+
+
+@pytest.mark.parametrize("difficulty_id", list(service.DIFFICULTIES))
+def test_real_checkpoint_smoke(difficulty_id):
+    difficulty = service.DIFFICULTIES[difficulty_id]
+    if not (service.MODEL_ROOT / difficulty.checkpoint).is_file():
+        pytest.skip("Checkpoint not downloaded")
+    model, config = service.load_policy(difficulty_id)
+    match = service.Match(model, config, 1000003, difficulty_id)
+    for _ in range(50):
+        fields(match.step("WAIT"))
+    assert match.ai.ticks == match.human.ticks == 50
+    assert str(model.device) == "cpu"
+    assert match.ai.pieces_placed >= 1
+    # 같은 실제 모델로 학습 기한 경계를 넘어 새 블록도 실행합니다.
+    match = service.Match(model, config, 1000003, difficulty_id)
+    match.ai.ticks = match.human.ticks = match.elapsed_ticks = 3599
+    match.ai_spawn_tick = 3599
+    for _ in range(50):
+        fields(match.step("WAIT"))
+    assert match.elapsed_ticks == 3649 and match.ended is False
+    assert match.ai.pieces_placed >= 1
+    # 한쪽 블록 생성 실패 후에도 다른 보드가 계속 진행합니다.
+    match.human.board.fill(7)
+    match.human._spawn()
+    human_ticks = match.human.ticks
+    match.step("WAIT")
+    assert match.human.end_reason == "top_out" and match.human.ticks == human_ticks
+    assert match.ended is False
+    match.ai.board.fill(7)
+    match.ai._spawn()
+    final = fields(match.frame())
+    assert final[2:4] == ["1", "DRAW"]
+    assert final[7] == final[12] == "top_out"
+
+
+def test_real_service_very_hard_and_hell_first_lock_pace():
+    controller = service.MatchService()
+    measured = {}
+    for difficulty_id in ("very_hard", "hell"):
+        fields(controller.request(f"START\t{difficulty_id}\t1000003"))
+        for _ in range(40):
+            frame = fields(controller.request("STEP\tWAIT"))
+            if controller.match.ai.pieces_placed:
+                measured[difficulty_id] = int(frame[1])
+                break
+    assert measured == {"very_hard": 34, "hell": 30}
