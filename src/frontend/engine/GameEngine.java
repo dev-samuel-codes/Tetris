@@ -348,7 +348,8 @@ public class GameEngine {
     }
 
     private void clearBottomRows(int rowsToClear) {
-        for (int y = BOARD_HEIGHT - rowsToClear; y < BOARD_HEIGHT; y++) {
+        // 보드 좌표는 y=0부터 하단이므로 낮은 행부터 제거
+        for (int y = 0; y < rowsToClear; y++) {
             for (int x = 0; x < BOARD_WIDTH; x++) {
                 board[y * BOARD_WIDTH + x] = Tetrominoes.NoShape;
             }
