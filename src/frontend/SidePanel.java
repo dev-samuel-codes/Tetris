@@ -96,8 +96,9 @@ public class SidePanel extends JPanel {
             drawDivider(graphics, size, 13.8);
             drawStats(graphics, size);
             drawNextShape(graphics, size);
-            drawItemStatus(graphics, size);
-            if (!itemMode) {
+            if (itemMode) {
+                drawItemStatus(graphics, size);
+            } else {
                 drawControls(graphics, size);
             }
         } finally {
