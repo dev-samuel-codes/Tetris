@@ -1,4 +1,4 @@
-﻿package frontend.engine;
+package frontend.engine;
 
 import frontend.Shape;
 import frontend.Tetrominoes;
