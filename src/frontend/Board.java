@@ -230,6 +230,16 @@ public class Board extends JPanel implements ActionListener {
 		updateDropSpeed();
 		// 점수에 따른 레벨 계산을 마친 뒤 정보 패널에도 같은 레벨 표시
 		sidePanel.setLevel(currentLevel);
+		sidePanel.setItemMode(engine.isItemMode());
+		if (engine.isItemMode()) {
+			String itemName = engine.getLastItemName().isEmpty() ? "아이템 준비" : engine.getLastItemName();
+			String itemDescription = engine.getLastItemDescription().isEmpty()
+					? "3줄 누적 시 랜덤 아이템 발동"
+					: engine.getLastItemDescription();
+			sidePanel.setItemStatus(engine.getLinesUntilItemActivation(), itemName, itemDescription);
+		} else {
+			sidePanel.setItemStatus(0, "클래식 모드", "아이템 없음");
+		}
 		// 4레벨이상 사이드 패널에 다음 모양 숨김
 		if (currentLevel >= 4) {
 			sidePanel.setNextShape(Tetrominoes.NoShape);
