@@ -125,11 +125,11 @@ public class TwoPlayerTetris extends JFrame {
         switch (key) {
             // PLAYER 1
             case KeyEvent.VK_A:
-                player1Board.getEngine().moveLeft();
-                break;
+                player1Board.moveLeft();
+                return;
             case KeyEvent.VK_D:
-                player1Board.getEngine().moveRight();
-                break;
+                player1Board.moveRight();
+                return;
             case KeyEvent.VK_W:
                 player1Board.getEngine().rotateLeft();
                 break;
@@ -142,11 +142,11 @@ public class TwoPlayerTetris extends JFrame {
 
             // PLAYER 2
             case KeyEvent.VK_LEFT:
-                player2Board.getEngine().moveLeft();
-                break;
+                player2Board.moveLeft();
+                return;
             case KeyEvent.VK_RIGHT:
-                player2Board.getEngine().moveRight();
-                break;
+                player2Board.moveRight();
+                return;
             case KeyEvent.VK_UP:
                 player2Board.getEngine().rotateLeft();
                 break;

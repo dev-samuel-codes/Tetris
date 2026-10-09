@@ -101,6 +101,29 @@ public class Board extends JPanel implements ActionListener {
 		return engine;
 	}
 
+	// 클래식과 1PC 2인용에서 같은 레벨 반전 규칙과 입력 차단 사용
+	// 나중에 회전·낙하 입력도 같은 경로로 모아도 괜찮을 것 같음
+	public void moveLeft() {
+		moveHorizontally(true);
+	}
+
+	public void moveRight() {
+		moveHorizontally(false);
+	}
+
+	private void moveHorizontally(boolean left) {
+		// 메뉴로 돌아간 보드, 일시정지, 게임 종료, 블록 생성 대기 중 입력 무시
+		if (isStopped || !engine.isStarted() || engine.isPaused()
+				|| engine.getCurrentShape() == Tetrominoes.NoShape)
+			return;
+
+		if (left != (currentLevel == 5))
+			engine.moveLeft();
+		else
+			engine.moveRight();
+		updateView();
+	}
+
 	public void start() {
 		isStopped = false; // 게임 시작 시 다시 입력과 타이머 처리 허용
 		engine.start();
@@ -361,23 +384,12 @@ public class Board extends JPanel implements ActionListener {
 				return;
 
 			switch (keycode) {
-				// 5레벨 일때 좌우반전
 			case KeyEvent.VK_LEFT:
-				if (currentLevel ==5){
-					engine.moveRight();
-				}
-				else {
-					engine.moveLeft();
-				}
-				break;
+				moveLeft();
+				return;
 			case KeyEvent.VK_RIGHT:
-				if (currentLevel ==5){
-					engine.moveLeft();
-				}
-				else {
-					engine.moveRight();
-				}
-				break;
+				moveRight();
+				return;
 			case KeyEvent.VK_DOWN:
 				engine.rotateRight();
 				break;
