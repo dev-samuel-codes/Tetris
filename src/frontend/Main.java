@@ -4,6 +4,7 @@ package frontend;
 import frontend.style.Style;
 import frontend.ui.ModeCard;
 import frontend.ui.PixelLogo;
+import frontend.ai.AiMatchWindow;
 import frontend.network.ScoreClient.RankingEntry;
 import frontend.network.ScoreClient.RankingPage;
 
@@ -167,14 +168,19 @@ public class Main extends JFrame {
     }
 
     private void showMultiplayerMenu() {
-        JPanel container = createPage("멀티플레이", "대전 기능은 준비 중입니다");
+        JPanel container = createPage("멀티플레이", "AI와 같은 블록으로 시간 제한 없이 점수 대결");
         JPanel content = transparent(new GridBagLayout());
         JButton twoPlayerButton = createModeButton("1PC 2인 게임", "한 컴퓨터에서 두 명이 플레이 · 준비 중", Style.ACCENT);
-        JButton aiButton = createModeButton("AI 대전", "AI 상대와 대결하는 게임 · 준비 중", Style.ACCENT);
+        JButton aiButton = createModeButton("AI 대전", "5단계 난이도 · 같은 블록 · 시간 제한 없음", Style.ACCENT);
         JButton networkButton = createModeButton("네트워크 대전", "온라인 상대와 대결하는 게임 · 준비 중", Style.ACCENT);
-        // 나중에 각 대전 기능이 구현되면 안내창 대신 게임 화면으로 연결
+        // AI 대전은 게임 화면으로 연결하고 준비 중인 모드는 안내 표시
         twoPlayerButton.addActionListener(e -> showComingSoon("1PC 2인 게임"));
-        aiButton.addActionListener(e -> showComingSoon("AI 대전"));
+        aiButton.addActionListener(e -> {
+            AiMatchWindow game = new AiMatchWindow(GameSettings.getResolution());
+            game.setLocationRelativeTo(Main.this);
+            game.setVisible(true);
+            dispose();
+        });
         networkButton.addActionListener(e -> showComingSoon("네트워크 대전"));
         GridBagConstraints row = new GridBagConstraints();
         row.gridx = 0;
@@ -188,7 +194,7 @@ public class Main extends JFrame {
         }
         row.gridy = 3;
         row.insets = new java.awt.Insets(10, 0, 0, 0);
-        content.add(label("현재 클래식 모드를 플레이할 수 있습니다.", Style.MUTED_TEXT, Style.BODY_FONT), row);
+        content.add(label("AI 대전에서 난이도를 선택하고 시작하세요.", Style.MUTED_TEXT, Style.BODY_FONT), row);
         row.gridy = 4;
         row.weighty = 1;
         row.fill = GridBagConstraints.BOTH;
