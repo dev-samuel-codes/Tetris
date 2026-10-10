@@ -49,11 +49,13 @@ public final class BlockPainter {
             graphics.drawRect(x + inset, y + inset, blockSize - 1, blockSize - 1);
 
             if (itemCell && blockSize > 3) {
-                int dotSize = Math.max(2, blockSize / 4);
-                int dotX = x + inset + blockSize - dotSize - 2;
-                int dotY = y + inset + 2;
+                int dotSize = Math.max(3, Math.min(blockSize - 2, blockSize / 3));
+                int dotX = x + inset + (blockSize - dotSize) / 2;
+                int dotY = y + inset + (blockSize - dotSize) / 2;
                 graphics.setColor(new Color(0xFF, 0xF3, 0x9C));
                 graphics.fillOval(dotX, dotY, dotSize, dotSize);
+                graphics.setColor(new Color(0xFF, 0xD1, 0x3D));
+                graphics.drawOval(dotX, dotY, dotSize - 1, dotSize - 1);
             }
         } finally {
             graphics.dispose();

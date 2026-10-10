@@ -4,7 +4,6 @@ import java.util.Random;
 
 import frontend.Shape;
 import frontend.Tetrominoes;
-import java.util.Random;
 
 // 화면과 독립적으로 게임 상태와 블록 이동, 충돌, 줄 제거를 관리
 public class GameEngine {
@@ -13,13 +12,9 @@ public class GameEngine {
         ROW_CLEAR("한 줄 제거", "랜덤 한 줄을 제거합니다."),
         COLUMN_CLEAR("열 제거", "랜덤 열을 제거합니다."),
         BOMB_CLEAR("폭탄 제거", "주변 3x3 범위를 제거합니다."),
-<<<<<<< Updated upstream
         BOTTOM_CLEAR("하단 제거", "하단 2줄을 제거합니다."),
         ROTATION_LOCK("회전 금지", "다음 2개 블록은 회전할 수 없습니다."),
         SCORE_BOOST("점수 업", "점수를 30점 추가합니다.");
-=======
-        BOTTOM_CLEAR("하단 제거", "하단 2줄을 제거합니다.");
->>>>>>> Stashed changes
 
         private final String label;
         private final String description;
@@ -38,59 +33,81 @@ public class GameEngine {
         }
     }
 
-    // 테트리스 가로·세로 칸 수
     public static final int BOARD_WIDTH = 10;
     public static final int BOARD_HEIGHT = 22;
 
-    // 1줄 점수 : 10
-    // 연속 점수 : 2줄 : 보너스 +5 -> 25
-    // 연속 점수 : 3줄 : 보너스 + 10 -> 40
-    // 연속 점수 : 4줄 : 보너스 + 20 -> 60
     private static final int[] LINE_SCORES = { 0, 10, 25, 40, 60 };
-    // 콤보 점수 10점 추가
     private static final int COMBO_BONUS = 10;
     private static final int ITEM_SPAWN_MIN = 1;
     private static final int ITEM_SPAWN_MAX = 5;
+    private static final int ITEM_ACTIVATION_LINES = 3;
 
-	private static final int ITEM_TRIGGER_LINES = 3;
-
-	private boolean isFallingFinished = false;  // 현재 코드에서는 줄 제거 후 다음 블록 생성을 기다리는 상태 변수
-	private boolean isStarted = false;
-	private boolean isPaused = false;
+    private boolean isFallingFinished = false;
+    private boolean isStarted = false;
+    private boolean isPaused = false;
     private boolean itemMode = false;
     private boolean pendingBombItem = false;
-	private int numLinesRemoved = 0;
-	private int score = 0;
-	private int combo = 0;
-	private int curX = 0;
-	private int curY = 0;
-	private int accumulatedItemLines = 0;
-	private int rotationLockRemaining = 0;
-	private boolean rotationLocked = false;
-	private Shape curPiece = new Shape();
-	private final Shape nextPiece = new Shape(); // 다음에 나올 블록 (미리보기용)
-	private final Tetrominoes[] board = new Tetrominoes[BOARD_WIDTH * BOARD_HEIGHT];
-    // 온라인 엔진마다 독립적인 난수 상태를 가져 같은 순번의 블록을 공유합니다.
-    private final Random pieceRandom;
+    private int numLinesRemoved = 0;
+    private int score = 0;
+    private int combo = 0;
+    private int curX = 0;
+    private int curY = 0;
+    private int rotationLockRemaining = 0;
+    private boolean rotationLocked = false;
+    private int accumulatedItemLines = 0;
+    private Shape curPiece = new Shape();
+    private final Shape nextPiece = new Shape();
+    private final Tetrominoes[] board = new Tetrominoes[BOARD_WIDTH * BOARD_HEIGHT];
+    private final ItemType[] boardItemTypes = new ItemType[BOARD_WIDTH * BOARD_HEIGHT];
+    private final Random random;
+    private int piecesSinceLastItem = 0;
+    private int nextItemSpawnInterval = ITEM_SPAWN_MIN;
+    private ItemType currentItemType = null;
     private String lastItemName = "";
     private String lastItemDescription = "";
 
-	public GameEngine() {
-        this.pieceRandom = null; // 기존 모드는 Shape의 난수 선택 동작을 유지
-		clearBoard();
-	}
+    public GameEngine() {
+        this(new Random());
+    }
 
     public GameEngine(long seed) {
-        this.pieceRandom = new Random(seed);
+        this(new Random(seed));
+    }
+
+    private GameEngine(Random random) {
+        this.random = random;
         clearBoard();
     }
 
     private void chooseNextPiece() {
-        if (pieceRandom == null) {
-            nextPiece.setRandomShape();
-        } else {
-            nextPiece.setShape(Tetrominoes.values()[pieceRandom.nextInt(7) + 1]);
+        Tetrominoes[] values = Tetrominoes.values();
+        int index;
+        do {
+            index = randomBetween(1, values.length - 1);
+        } while (values[index] == Tetrominoes.BombShape);
+        nextPiece.setShape(values[index]);
+    }
+
+    public boolean activateRandomItemForClearedLines(int linesCleared) {
+        if (!itemMode || linesCleared <= 0)
+            return false;
+
+        accumulatedItemLines += linesCleared;
+        if (accumulatedItemLines >= ITEM_ACTIVATION_LINES) {
+            ItemType itemType = randomItemType();
+            triggerItemEffect(itemType);
+            lastItemName = itemType.getLabel();
+            lastItemDescription = itemType.getDescription();
+            accumulatedItemLines = 0;
+            return true;
         }
+        return false;
+    }
+
+    public void triggerBombItem() {
+        pendingBombItem = true;
+        lastItemName = ItemType.BOMB_CLEAR.getLabel();
+        lastItemDescription = ItemType.BOMB_CLEAR.getDescription();
     }
 
     public void start() {
@@ -102,15 +119,18 @@ public class GameEngine {
         numLinesRemoved = 0;
         score = 0;
         combo = 0;
-        rotationLockTurns = 0;
+        rotationLockRemaining = 0;
+        rotationLocked = false;
+        accumulatedItemLines = 0;
         piecesSinceLastItem = 0;
         nextItemSpawnInterval = randomBetween(ITEM_SPAWN_MIN, ITEM_SPAWN_MAX);
+        currentItemType = null;
         lastItemName = "";
         lastItemDescription = "";
-		clearBoard();
-		chooseNextPiece(); // 다음 블록을 먼저 뽑기
-		newPiece();
-	}
+        clearBoard();
+        chooseNextPiece();
+        newPiece();
+    }
 
     public void pause() {
         if (isStarted)
@@ -140,12 +160,12 @@ public class GameEngine {
     }
 
     public void rotateLeft() {
-        if (canControlPiece() && rotationLockTurns <= 0)
+        if (canControlPiece() && rotationLockRemaining <= 0)
             tryMove(curPiece.rotateLeft(), curX, curY);
     }
 
     public void rotateRight() {
-        if (canControlPiece() && rotationLockTurns <= 0)
+        if (canControlPiece() && rotationLockRemaining <= 0)
             tryMove(curPiece.rotateRight(), curX, curY);
     }
 
@@ -187,48 +207,49 @@ public class GameEngine {
             boardItemTypes[index] = (curPiece.hasItem() && curPiece.getItemCellIndex() == i) ? currentItemType : null;
         }
 
+        currentItemType = null;
         removeFullLines();
         if (!isFallingFinished)
             newPiece();
     }
 
-    private void explodeBomb() {
-        int centerX = curX;
-        int centerY = curY;
+    private void newPiece() {
+        if (!isStarted)
+            return;
 
-        for (int y = centerY - 1; y <= centerY + 1; y++) {
-            for (int x = centerX - 1; x <= centerX + 1; x++) {
-                if (x < 0 || x >= BOARD_WIDTH || y < 0 || y >= BOARD_HEIGHT)
-                    continue;
-                board[(y * BOARD_WIDTH) + x] = Tetrominoes.NoShape;
-            }
-        }
-
-        curPiece.setShape(Tetrominoes.NoShape);
-        isFallingFinished = true;
-        chooseNextPiece();
-        if (itemMode) {
+        if (pendingBombItem) {
+            pendingBombItem = false;
+            clearAreaAroundCenter();
             lastItemName = ItemType.BOMB_CLEAR.getLabel();
             lastItemDescription = ItemType.BOMB_CLEAR.getDescription();
         }
-    }
 
-	private void newPiece() {
-        if (pendingBombItem) {
-            curPiece.setShape(Tetrominoes.BombShape);
-            pendingBombItem = false;
-            chooseNextPiece();
+        curPiece.setShape(nextPiece.getShape());
+        chooseNextPiece();
+
+        currentItemType = null;
+        if (itemMode) {
+            piecesSinceLastItem++;
+            if (piecesSinceLastItem >= nextItemSpawnInterval) {
+                currentItemType = randomItemType();
+                piecesSinceLastItem = 0;
+                nextItemSpawnInterval = randomBetween(ITEM_SPAWN_MIN, ITEM_SPAWN_MAX);
+                int itemCell = randomBetween(0, 3);
+                curPiece.setItemCell(itemCell);
+            } else {
+                curPiece.clearItem();
+            }
         } else {
-            curPiece.setShape(nextPiece.getShape()); // 미리 뽑아 둔 블록을 현재 블록으로
-            chooseNextPiece();               // 다음 블록 만들기
+            curPiece.clearItem();
         }
+
         rotationLocked = rotationLockRemaining > 0;
         if (rotationLockRemaining > 0) {
             rotationLockRemaining--;
         }
-        // 떨어지는 위치 설정; 현재 10칸이라 curX는 으로 설정되어 있음
-		curX = BOARD_WIDTH / 2 + 1;
-		curY = BOARD_HEIGHT - 1 + curPiece.minY();
+
+        curX = BOARD_WIDTH / 2 + 1;
+        curY = BOARD_HEIGHT - 1 + curPiece.minY();
 
         if (!tryMove(curPiece, curX, curY)) {
             curPiece.setShape(Tetrominoes.NoShape);
@@ -255,46 +276,81 @@ public class GameEngine {
 
     private void removeFullLines() {
         int numFullLines = 0;
-
-        for (int y = BOARD_HEIGHT - 1; y >= 0; --y) {
+        for (int y = BOARD_HEIGHT - 1; y >= 0; y--) {
             boolean lineIsFull = true;
-            for (int x = 0; x < BOARD_WIDTH; ++x) {
+            for (int x = 0; x < BOARD_WIDTH; x++) {
                 if (shapeAt(x, y) == Tetrominoes.NoShape) {
                     lineIsFull = false;
                     break;
                 }
             }
+            if (!lineIsFull)
+                continue;
 
-            // 가득 찬 줄을 위쪽 줄로 덮어씀
-			if (lineIsFull) {
-				++numFullLines;
-				for (int k = i; k < BOARD_HEIGHT - 1; ++k) {
-					for (int j = 0; j < BOARD_WIDTH; ++j)
-						board[(k * BOARD_WIDTH) + j] = shapeAt(j, k + 1);
-				}
-                // 위쪽에서 복사한 뒤 마지막 행을 비워 중복 블록과 유령 줄을 방지
-                for (int j = 0; j < BOARD_WIDTH; ++j)
-                    board[((BOARD_HEIGHT - 1) * BOARD_WIDTH) + j] = Tetrominoes.NoShape;
-			}
-		}
+            numFullLines++;
+            for (int x = 0; x < BOARD_WIDTH; x++) {
+                ItemType removedItem = boardItemTypeAt(x, y);
+                if (removedItem != null) {
+                    handleRemovedItemCell(removedItem);
+                }
+            }
+            for (int clearY = y; clearY < BOARD_HEIGHT - 1; clearY++) {
+                for (int x = 0; x < BOARD_WIDTH; x++) {
+                    Tetrominoes shape = shapeAt(x, clearY + 1);
+                    ItemType itemType = boardItemTypeAt(x, clearY + 1);
+                    setBoardCell(x, clearY, shape, itemType);
+                }
+            }
+            for (int x = 0; x < BOARD_WIDTH; x++) {
+                setBoardCell(x, BOARD_HEIGHT - 1, Tetrominoes.NoShape, null);
+            }
+            y++;
+        }
 
-		// 콤보 보너스 점수, 연속 보너스 점수 추가
-		if (numFullLines > 0) {
-			numLinesRemoved += numFullLines;
-			combo++;
-			score += LINE_SCORES[numFullLines];
-			if ((combo > 1)) {
-				score += COMBO_BONUS;
-			}
-			isFallingFinished = true;
-			curPiece.setShape(Tetrominoes.NoShape);
+        if (numFullLines > 0) {
+            numLinesRemoved += numFullLines;
+            combo++;
+            score += LINE_SCORES[numFullLines];
+            if (combo > 1) {
+                score += COMBO_BONUS;
+            }
+            isFallingFinished = true;
+            curPiece.setShape(Tetrominoes.NoShape);
             if (itemMode) {
                 activateRandomItemForClearedLines(numFullLines);
             }
-		} else {
-			combo = 0;
-		}
-	}
+        } else {
+            combo = 0;
+        }
+    }
+
+    private void triggerItemEffect(ItemType itemType) {
+        if (itemType == null || itemType == ItemType.BOTTOM_CLEAR)
+            return;
+
+        switch (itemType) {
+            case ROW_CLEAR:
+                clearRandomRow();
+                break;
+            case COLUMN_CLEAR:
+                clearRandomColumn();
+                break;
+            case BOMB_CLEAR:
+                clearAreaAroundCenter();
+                break;
+            case BOTTOM_CLEAR:
+                break;
+            case ROTATION_LOCK:
+                rotationLockRemaining += 2;
+                rotationLocked = true;
+                break;
+            case SCORE_BOOST:
+                score += 30;
+                break;
+            default:
+                break;
+        }
+    }
 
     public boolean isItemCell(int x, int y) {
         if (x < 0 || x >= BOARD_WIDTH || y < 0 || y >= BOARD_HEIGHT)
@@ -315,15 +371,19 @@ public class GameEngine {
     }
 
     public boolean isItemMode() {
-        return currentItemType != null || curPiece.hasItem();
+        return itemMode || currentItemType != null || curPiece.hasItem();
     }
 
     public void setItemMode(boolean itemMode) {
-        // Legacy item-mode flag is intentionally ignored; item behavior is driven by item cells on the active tetromino.
+        this.itemMode = itemMode;
+        if (!itemMode)
+            accumulatedItemLines = 0;
     }
 
     public int getLinesUntilItemActivation() {
-        return 0;
+        if (!itemMode)
+            return 0;
+        return Math.max(0, ITEM_ACTIVATION_LINES - accumulatedItemLines);
     }
 
     public String getLastItemName() {
@@ -342,59 +402,24 @@ public class GameEngine {
         return rotationLocked;
     }
 
-    // private인 함수 꺼내쓰기
-    // 1PC 2인용 공격으로 다음 2개 블록 회전 금지
     public void applyBattleRotationLock() {
         rotationLockRemaining += 2;
+        rotationLocked = true;
     }
 
-    // 1PC 2인용 공격으로 점수 20점 감소
     public void applyBattleScorePenalty() {
         score = Math.max(0, score - 20);
     }
 
-    // 1PC 2인용 공격으로 랜덤 한 열 제거
     public void applyBattleColumnClear() {
-        clearRandomColumn();
-    }
-
-    private void activateSingleRandomItem() {
-        ItemType item = ItemType.values()[(int) (Math.random() * ItemType.values().length)];
-        if (item == ItemType.BOMB_CLEAR) {
-            triggerBombItem();
-        } else {
-            applyItem(item);
-            lastItemName = item.getLabel();
-            lastItemDescription = item.getDescription();
+        int column = randomBetween(0, BOARD_WIDTH - 1);
+        for (int y = 0; y < BOARD_HEIGHT; y++) {
+            clearBoardCell(column, y);
         }
     }
 
-    private void applyItem(ItemType item) {
-        switch (item) {
-            case ROW_CLEAR:
-                clearRandomRow();
-                break;
-            case COLUMN_CLEAR:
-                clearRandomColumn();
-                break;
-            case BOMB_CLEAR:
-                clearAreaAroundCenter();
-                break;
-            case BOTTOM_CLEAR:
-                clearBottomRows(2);
-                break;
-<<<<<<< Updated upstream
-            case ROTATION_LOCK:
-                rotationLockRemaining += 2;
-                break;
-            case SCORE_BOOST:
-                score += 30;
-                break;
-=======
->>>>>>> Stashed changes
-            default:
-                break;
-        }
+    private void applyItem(ItemType itemType) {
+        triggerItemEffect(itemType);
     }
 
     private void clearBoardCell(int x, int y) {
@@ -409,6 +434,15 @@ public class GameEngine {
         if (removedItem != null) {
             handleRemovedItemCell(removedItem);
         }
+    }
+
+    private void handleRemovedItemCell(ItemType itemType) {
+        if (itemType == null)
+            return;
+
+        triggerItemEffect(itemType);
+        lastItemName = itemType.getLabel();
+        lastItemDescription = itemType.getDescription();
     }
 
     private void setBoardCell(int x, int y, Tetrominoes shape, ItemType itemType) {
@@ -444,41 +478,44 @@ public class GameEngine {
         int centerY = BOARD_HEIGHT / 2;
         for (int y = centerY - 1; y <= centerY + 1; y++) {
             for (int x = centerX - 1; x <= centerX + 1; x++) {
-                clearBoardCell(x, y);
+                if (x >= 0 && x < BOARD_WIDTH && y >= 0 && y < BOARD_HEIGHT)
+                    clearBoardCell(x, y);
             }
         }
     }
 
     private void clearBottomRows(int rowsToClear) {
-        if (rowsToClear <= 0 || rowsToClear >= BOARD_HEIGHT) {
+        if (rowsToClear <= 0 || rowsToClear >= BOARD_HEIGHT)
             return;
-        }
-
-<<<<<<< Updated upstream
-        Tetrominoes[] compactedBoard = new Tetrominoes[BOARD_WIDTH * BOARD_HEIGHT];
-        for (int i = 0; i < compactedBoard.length; i++) {
-            compactedBoard[i] = Tetrominoes.NoShape;
-        }
 
         for (int x = 0; x < BOARD_WIDTH; x++) {
-            int writeIndex = x;
-            for (int y = rowsToClear; y < BOARD_HEIGHT; y++) {
-                Tetrominoes shape = board[(y * BOARD_WIDTH) + x];
-                if (shape != Tetrominoes.NoShape && shape != null) {
-                    compactedBoard[writeIndex] = shape;
-                    writeIndex += BOARD_WIDTH;
+            for (int y = BOARD_HEIGHT - rowsToClear; y < BOARD_HEIGHT; y++) {
+                ItemType removedItem = boardItemTypeAt(x, y);
+                if (removedItem != null) {
+                    handleRemovedItemCell(removedItem);
                 }
             }
         }
 
-        System.arraycopy(compactedBoard, 0, board, 0, board.length);
-=======
-        for (int y = BOARD_HEIGHT - rowsToClear; y < BOARD_HEIGHT; y++) {
-            for (int x = 0; x < BOARD_WIDTH; x++) {
-                clearBoardCell(x, y);
+        for (int x = 0; x < BOARD_WIDTH; x++) {
+            int writeY = BOARD_HEIGHT - 1;
+            for (int y = BOARD_HEIGHT - 1; y >= 0; y--) {
+                if (y >= BOARD_HEIGHT - rowsToClear) {
+                    continue;
+                }
+
+                Tetrominoes shape = shapeAt(x, y);
+                ItemType itemType = boardItemTypeAt(x, y);
+                if (shape != Tetrominoes.NoShape) {
+                    setBoardCell(x, writeY, shape, itemType);
+                    writeY--;
+                }
+            }
+
+            for (int y = writeY; y >= 0; y--) {
+                setBoardCell(x, y, Tetrominoes.NoShape, null);
             }
         }
->>>>>>> Stashed changes
     }
 
     private int randomBetween(int min, int max) {
@@ -486,22 +523,14 @@ public class GameEngine {
     }
 
     private ItemType randomItemType() {
-        return ItemType.values()[randomBetween(0, ItemType.values().length - 1)];
-    }
-
-    public void applyBattleRotationLock() {
-        rotationLockTurns = 2;
-    }
-
-    public void applyBattleScorePenalty() {
-        score = Math.max(0, score - 20);
-    }
-
-    public void applyBattleColumnClear() {
-        int column = randomBetween(0, BOARD_WIDTH - 1);
-        for (int y = 0; y < BOARD_HEIGHT; y++) {
-            clearBoardCell(column, y);
-        }
+        ItemType[] pool = {
+            ItemType.ROW_CLEAR,
+            ItemType.COLUMN_CLEAR,
+            ItemType.BOMB_CLEAR,
+            ItemType.ROTATION_LOCK,
+            ItemType.SCORE_BOOST
+        };
+        return pool[randomBetween(0, pool.length - 1)];
     }
 
     private int toIndex(int x, int y) {

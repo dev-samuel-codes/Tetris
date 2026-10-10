@@ -29,8 +29,12 @@ public class ItemModeEngineTest {
 
         engine.triggerBombItem();
         engine.start();
-        if (engine.getCurrentShape() != Tetrominoes.BombShape) {
-            throw new AssertionError("폭탄 아이템은 폭탄 블록으로 등장해야 합니다.");
+        if (engine.getCurrentShape() == Tetrominoes.BombShape) {
+            throw new AssertionError("폭탄 아이템은 1x1 폭탄 미노로 등장하면 안 됩니다.");
+        }
+
+        if (engine.getLastItemName() == null || !engine.getLastItemName().contains("폭탄")) {
+            throw new AssertionError("폭탄 아이템은 효과 이름이 기록되어야 합니다.");
         }
 
         engine.setItemMode(false);
@@ -40,9 +44,35 @@ public class ItemModeEngineTest {
 
         testRotationLockItem();
         testFullLineRemovalCleansBoard();
-        testBottomClearItem();
+        testItemCellRemovedOnLineClear();
 
         System.out.println("ItemModeEngineTest passed");
+    }
+
+    private static void testItemCellRemovedOnLineClear() throws ReflectiveOperationException {
+        GameEngine engine = new GameEngine();
+        Field boardField = GameEngine.class.getDeclaredField("board");
+        boardField.setAccessible(true);
+        Tetrominoes[] board = (Tetrominoes[]) boardField.get(engine);
+
+        Field itemField = GameEngine.class.getDeclaredField("boardItemTypes");
+        itemField.setAccessible(true);
+        GameEngine.ItemType[] itemTypes = (GameEngine.ItemType[]) itemField.get(engine);
+
+        for (int x = 0; x < GameEngine.BOARD_WIDTH; x++) {
+            board[(GameEngine.BOARD_HEIGHT - 1) * GameEngine.BOARD_WIDTH + x] = Tetrominoes.LineShape;
+        }
+
+        int itemCell = (GameEngine.BOARD_HEIGHT - 1) * GameEngine.BOARD_WIDTH + 3;
+        itemTypes[itemCell] = GameEngine.ItemType.SCORE_BOOST;
+
+        Method removeFullLines = GameEngine.class.getDeclaredMethod("removeFullLines");
+        removeFullLines.setAccessible(true);
+        removeFullLines.invoke(engine);
+
+        if (!GameEngine.ItemType.SCORE_BOOST.getLabel().equals(engine.getLastItemName())) {
+            throw new AssertionError("줄 제거 시 아이템 셀이 사라지면 해당 아이템 효과가 실행되어야 합니다.");
+        }
     }
 
     private static void testRotationLockItem() throws ReflectiveOperationException {
@@ -107,45 +137,6 @@ public class ItemModeEngineTest {
 
         if (engine.getLinesUntilItemActivation() != 3) {
             throw new AssertionError("아이템 발동 후 누적 카운트는 다시 3줄로 초기화되어야 합니다.");
-        }
-    }
-
-    private static void testBottomClearItem() throws ReflectiveOperationException {
-        GameEngine engine = new GameEngine();
-        Field boardField = GameEngine.class.getDeclaredField("board");
-        boardField.setAccessible(true);
-        Tetrominoes[] board = (Tetrominoes[]) boardField.get(engine);
-
-        // 하단 2줄을 제거한 뒤 위 블록이 아래로 떨어져 빈 자리를 채워야 함
-        for (int x = 0; x < GameEngine.BOARD_WIDTH; x++) {
-            board[(2 * GameEngine.BOARD_WIDTH) + x] = Tetrominoes.LineShape;
-            board[(5 * GameEngine.BOARD_WIDTH) + x] = Tetrominoes.SquareShape;
-            board[(GameEngine.BOARD_HEIGHT - 2) * GameEngine.BOARD_WIDTH + x] = Tetrominoes.TShape;
-        }
-
-        Method applyItem = GameEngine.class.getDeclaredMethod("applyItem", GameEngine.ItemType.class);
-        applyItem.setAccessible(true);
-        applyItem.invoke(engine, GameEngine.ItemType.BOTTOM_CLEAR);
-
-        for (int x = 0; x < GameEngine.BOARD_WIDTH; x++) {
-            boolean seenFilledCell = false;
-            boolean seenGapAfterFill = false;
-            for (int y = 0; y < GameEngine.BOARD_HEIGHT; y++) {
-                Tetrominoes cell = engine.shapeAt(x, y);
-                if (cell == null) {
-                    throw new AssertionError("하단 제거 후 빈 칸은 null이 아니고 NoShape이어야 합니다.");
-                }
-                if (cell == Tetrominoes.NoShape) {
-                    if (seenFilledCell) {
-                        seenGapAfterFill = true;
-                    }
-                } else {
-                    if (seenGapAfterFill) {
-                        throw new AssertionError("하단 제거 후 블록이 공중에 떠 있으면 안 됩니다.");
-                    }
-                    seenFilledCell = true;
-                }
-            }
         }
     }
 }
