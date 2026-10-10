@@ -1,12 +1,24 @@
 package backend.network;
 
+import backend.score.ScoreRepository;
 import frontend.engine.GameEngine;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStreamWriter;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 import shared.network.OnlineFrame;
@@ -16,13 +28,18 @@ public final class OnlineMatchService implements AutoCloseable {
     private static final long COUNTDOWN = TimeUnit.SECONDS.toNanos(3);
     private static final long GRAVITY = TimeUnit.MILLISECONDS.toNanos(400);
     private static final long WAIT_EXPIRY = TimeUnit.MINUTES.toNanos(10);
+    private static final long IDLE_TIMEOUT = TimeUnit.SECONDS.toNanos(15);
     private static final int MAX_ROOMS = 16;
+    private static final int MAX_MESSAGE_BYTES = 160;
     private static final int INPUTS_PER_SECOND = 25;
 
     private final Object stateLock = new Object();
     private final Map<String, Room> rooms = new HashMap<String, Room>();
+    private final Map<Socket, Activity> sockets = new ConcurrentHashMap<Socket, Activity>();
     private final SecureRandom random = new SecureRandom();
     private final LongSupplier clock;
+    private final ThreadPoolExecutor clients = new ThreadPoolExecutor(
+            0, 32, 30, TimeUnit.SECONDS, new SynchronousQueue<Runnable>());
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private boolean closed;
 
@@ -35,6 +52,79 @@ public final class OnlineMatchService implements AutoCloseable {
         this.clock = clock;
         if (automatic)
             scheduler.scheduleAtFixedRate(this::advance, 50, 50, TimeUnit.MILLISECONDS);
+    }
+
+    /** true이면 ScoreServer가 소켓을 닫지 않아야 합니다. 이후 소유권은 이 서비스에 있습니다. */
+    public boolean handoff(Socket socket, String firstMessage) {
+        if (!firstMessage.startsWith("ONLINE/1"))
+            return false;
+        Activity activity = new Activity(clock.getAsLong());
+        sockets.put(socket, activity);
+        try {
+            clients.execute(() -> handle(socket, firstMessage, activity));
+        } catch (RejectedExecutionException e) {
+            // 전용 풀 포화 시 짧은 응답도 watchdog 대상이며 다른 방 lock을 잡지 않습니다.
+            try {
+                respond(socket, "ERROR SERVER_FULL", activity);
+            } catch (IOException ignored) {
+                // 상대가 먼저 종료한 경우도 아래에서 소켓을 회수
+            } finally {
+                sockets.remove(socket);
+                closeSocket(socket);
+            }
+        }
+        return true;
+    }
+
+    private void handle(Socket socket, String firstMessage, Activity activity) {
+        Connection connection = null;
+        try {
+            socket.setTcpNoDelay(true);
+            String[] parts = firstMessage.split(" ", -1);
+            if (parts.length == 3 && "ONLINE/1".equals(parts[0]) && "CREATE".equals(parts[1])) {
+                connection = enter(null, nickname(parts[2]), socket);
+            } else if (parts.length == 4 && "ONLINE/1".equals(parts[0]) && "JOIN".equals(parts[1])) {
+                if (!parts[2].matches("[A-Z0-9]{6}"))
+                    throw new RequestException("BAD_REQUEST");
+                connection = enter(parts[2], nickname(parts[3]), socket);
+            } else {
+                throw new RequestException("BAD_REQUEST");
+            }
+            respond(socket, request(connection, "POLL"), activity);
+            while (true) {
+                String message = readMessage(socket);
+                String response;
+                try {
+                    response = request(connection, message);
+                } catch (RequestException e) {
+                    response = "ERROR " + e.code;
+                }
+                respond(socket, response, activity);
+                if ("ONLINE/1 BYE".equals(response))
+                    break;
+            }
+        } catch (RequestException e) {
+            try {
+                respond(socket, "ERROR " + e.code, activity);
+            } catch (IOException ignored) {
+                // 형식 오류에 대한 응답을 못 보내도 자원은 회수
+            }
+        } catch (IOException ignored) {
+            // 읽기/쓰기/연결 오류를 동일한 이탈 규칙으로 처리
+        } finally {
+            if (connection != null)
+                depart(connection, "DISCONNECT");
+            sockets.remove(socket);
+            closeSocket(socket);
+        }
+    }
+
+    private String nickname(String token) throws RequestException {
+        try {
+            return ScoreRepository.decodeNicknameToken(token);
+        } catch (IllegalArgumentException e) {
+            throw new RequestException("INVALID_NICKNAME");
+        }
     }
 
     Connection enter(String code, String nickname, Socket socket) throws RequestException {
@@ -134,11 +224,19 @@ public final class OnlineMatchService implements AutoCloseable {
 
     // 모든 방의 시간 진행은 네트워크 작업 풀과 독립적인 scheduler에서 수행합니다.
     void advance() {
+        List<Socket> expired = new ArrayList<Socket>();
         long now = clock.getAsLong();
         synchronized (stateLock) {
             for (Room room : rooms.values())
                 advanceRoom(room, now);
         }
+        for (Map.Entry<Socket, Activity> entry : sockets.entrySet()) {
+            if (now - entry.getValue().lastCompleted >= IDLE_TIMEOUT)
+                expired.add(entry.getKey());
+        }
+        // close가 블록된 writer를 깨워도 상태 lock을 보유하지 않습니다.
+        for (Socket socket : expired)
+            closeSocket(socket);
     }
 
     private void advanceRoom(Room room, long now) {
@@ -233,6 +331,45 @@ public final class OnlineMatchService implements AutoCloseable {
                 engine.getNumLinesRemoved(), engine.isStarted(), engine.getNextShape().ordinal(), cells);
     }
 
+    private static String readMessage(Socket socket) throws IOException {
+        InputStream input = socket.getInputStream();
+        long deadline = System.nanoTime() + IDLE_TIMEOUT;
+        StringBuilder line = new StringBuilder();
+        while (true) {
+            long remaining = deadline - System.nanoTime();
+            if (remaining <= 0)
+                throw new IOException("온라인 요청 시간이 초과되었습니다.");
+            socket.setSoTimeout((int) Math.max(1, TimeUnit.NANOSECONDS.toMillis(remaining)));
+            int value = input.read();
+            if (value < 0)
+                throw new IOException("접속이 종료되었습니다.");
+            if (value == '\n') {
+                if (line.length() > 0 && line.charAt(line.length() - 1) == '\r')
+                    line.setLength(line.length() - 1);
+                return line.toString();
+            }
+            if (value > 127 || line.length() >= MAX_MESSAGE_BYTES)
+                throw new IOException("요청 형식 또는 길이 오류입니다.");
+            line.append((char) value);
+        }
+    }
+
+    private void respond(Socket socket, String response, Activity activity) throws IOException {
+        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
+        writer.write(response);
+        writer.write('\n');
+        writer.flush();
+        activity.lastCompleted = clock.getAsLong();
+    }
+
+    private static void closeSocket(Socket socket) {
+        try {
+            socket.close();
+        } catch (IOException ignored) {
+            // 이미 닫힌 소켓도 동일하게 처리
+        }
+    }
+
     @Override
     public void close() {
         synchronized (stateLock) {
@@ -240,6 +377,9 @@ public final class OnlineMatchService implements AutoCloseable {
             rooms.clear();
         }
         scheduler.shutdownNow();
+        for (Socket socket : sockets.keySet())
+            closeSocket(socket);
+        clients.shutdownNow();
     }
 
     // 나중에 방 저장소와 소켓 전송을 별도 클래스로 나누어도 괜찮을 것 같음
@@ -287,5 +427,10 @@ public final class OnlineMatchService implements AutoCloseable {
         private static final long serialVersionUID = 1L;
         final String code;
         RequestException(String code) { this.code = code; }
+    }
+
+    private static final class Activity {
+        volatile long lastCompleted;
+        Activity(long now) { lastCompleted = now; }
     }
 }
