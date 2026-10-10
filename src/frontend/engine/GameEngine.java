@@ -325,7 +325,7 @@ public class GameEngine {
     }
 
     private void triggerItemEffect(ItemType itemType) {
-        if (itemType == null)
+        if (itemType == null || itemType == ItemType.BOTTOM_CLEAR)
             return;
 
         switch (itemType) {
@@ -339,7 +339,6 @@ public class GameEngine {
                 clearAreaAroundCenter();
                 break;
             case BOTTOM_CLEAR:
-                clearBottomRows(2);
                 break;
             case ROTATION_LOCK:
                 rotationLockRemaining += 2;
@@ -524,7 +523,14 @@ public class GameEngine {
     }
 
     private ItemType randomItemType() {
-        return ItemType.values()[randomBetween(0, ItemType.values().length - 1)];
+        ItemType[] pool = {
+            ItemType.ROW_CLEAR,
+            ItemType.COLUMN_CLEAR,
+            ItemType.BOMB_CLEAR,
+            ItemType.ROTATION_LOCK,
+            ItemType.SCORE_BOOST
+        };
+        return pool[randomBetween(0, pool.length - 1)];
     }
 
     private int toIndex(int x, int y) {

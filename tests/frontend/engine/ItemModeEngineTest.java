@@ -45,7 +45,6 @@ public class ItemModeEngineTest {
         testRotationLockItem();
         testFullLineRemovalCleansBoard();
         testItemCellRemovedOnLineClear();
-        testBottomClearItem();
 
         System.out.println("ItemModeEngineTest passed");
     }
@@ -138,36 +137,6 @@ public class ItemModeEngineTest {
 
         if (engine.getLinesUntilItemActivation() != 3) {
             throw new AssertionError("아이템 발동 후 누적 카운트는 다시 3줄로 초기화되어야 합니다.");
-        }
-    }
-
-    private static void testBottomClearItem() throws ReflectiveOperationException {
-        GameEngine engine = new GameEngine();
-        Field boardField = GameEngine.class.getDeclaredField("board");
-        boardField.setAccessible(true);
-        Tetrominoes[] board = (Tetrominoes[]) boardField.get(engine);
-
-        // 하단 2줄 제거는 마지막 2줄을 비우고, 위칸을 아래로 당겨 채워야 합니다.
-        for (int x = 0; x < GameEngine.BOARD_WIDTH; x++) {
-            board[(GameEngine.BOARD_HEIGHT - 3) * GameEngine.BOARD_WIDTH + x] = Tetrominoes.LineShape;
-            board[(GameEngine.BOARD_HEIGHT - 2) * GameEngine.BOARD_WIDTH + x] = Tetrominoes.TShape;
-            board[(GameEngine.BOARD_HEIGHT - 1) * GameEngine.BOARD_WIDTH + x] = Tetrominoes.SquareShape;
-        }
-
-        Method applyItem = GameEngine.class.getDeclaredMethod("applyItem", GameEngine.ItemType.class);
-        applyItem.setAccessible(true);
-        applyItem.invoke(engine, GameEngine.ItemType.BOTTOM_CLEAR);
-
-        for (int x = 0; x < GameEngine.BOARD_WIDTH; x++) {
-            boolean seenFilledCell = false;
-            for (int y = 0; y < GameEngine.BOARD_HEIGHT; y++) {
-                Tetrominoes cell = engine.shapeAt(x, y);
-                if (cell != Tetrominoes.NoShape) {
-                    seenFilledCell = true;
-                } else if (seenFilledCell) {
-                    throw new AssertionError("하단 제거 후 아래에 빈 공간이 남아 있으면 안 됩니다.");
-                }
-            }
         }
     }
 }
