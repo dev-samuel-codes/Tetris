@@ -14,11 +14,7 @@ public class SidePanel extends JPanel {
 
     // 보드 옆 정보 패널은 가로 6칸 기준으로 표시
     public static final int COLS = 6;
-    private static final String[][] CONTROLS = {
-            { "← →", "이동" }, { "↑ ↓", "회전" }, { "D", "한 칸 하강" },
-            { "SPACE", "즉시 낙하" }, { "P", "일시정지" }
-    };
-    private String[][] controls = CONTROLS;
+    private final String[][] controls;
 
     private int score;
     private int elapsedSeconds;
@@ -30,7 +26,20 @@ public class SidePanel extends JPanel {
     private String itemDescription = "3줄 누적 시 랜덤 아이템 발동";
     private boolean itemMode = false;
 
+    // 클래식 모드 기본 조작키를 사용하는 사이드패널 생성
     public SidePanel() {
+        this(new String[][] {
+                { "← →", "이동" },
+                { "↑ ↓", "회전" },
+                { "D", "한 칸 하강" },
+                { "SPACE", "즉시 낙하" },
+                { "P", "일시정지" }
+        });
+    }
+
+    // 전달받은 조작키를 표시하는 사이드패널 생성
+    public SidePanel(String[][] controls) {
+        this.controls = controls;
         setBackground(Style.BACKGROUND);
     }
 
@@ -68,12 +77,6 @@ public class SidePanel extends JPanel {
 
     public void setItemMode(boolean itemMode) {
         this.itemMode = itemMode;
-        repaint();
-    }
-
-    // 1PC 2인 화면에서는 플레이어가 실제로 사용하는 키를 전달받아 표시
-    public void setControls(String[][] controls) {
-        this.controls = controls;
         repaint();
     }
 
