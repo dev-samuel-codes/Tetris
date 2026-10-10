@@ -2,7 +2,7 @@ package frontend.engine;
 
 import frontend.Shape;
 import frontend.Tetrominoes;
-import frontend.style.Style;
+import java.util.Random;
 
 // 화면과 독립적으로 게임 상태와 블록 이동, 충돌, 줄 제거를 관리
 public class GameEngine {
@@ -62,12 +62,28 @@ public class GameEngine {
 	private Shape curPiece = new Shape();
 	private final Shape nextPiece = new Shape(); // 다음에 나올 블록 (미리보기용)
 	private final Tetrominoes[] board = new Tetrominoes[BOARD_WIDTH * BOARD_HEIGHT];
+    // 온라인 엔진마다 독립적인 난수 상태를 가져 같은 순번의 블록을 공유합니다.
+    private final Random pieceRandom;
     private String lastItemName = "";
     private String lastItemDescription = "";
 
 	public GameEngine() {
+        this.pieceRandom = null; // 기존 모드는 Shape의 난수 선택 동작을 유지
 		clearBoard();
 	}
+
+    public GameEngine(long seed) {
+        this.pieceRandom = new Random(seed);
+        clearBoard();
+    }
+
+    private void chooseNextPiece() {
+        if (pieceRandom == null) {
+            nextPiece.setRandomShape();
+        } else {
+            nextPiece.setShape(Tetrominoes.values()[pieceRandom.nextInt(7) + 1]);
+        }
+    }
 
 	public void start() {
 		if (isPaused)
@@ -84,7 +100,7 @@ public class GameEngine {
         lastItemName = "";
         lastItemDescription = "";
 		clearBoard();
-		nextPiece.setRandomShape(); // 다음 블록을 먼저 뽑기
+		chooseNextPiece(); // 다음 블록을 먼저 뽑기
 		newPiece();
 	}
 
@@ -192,7 +208,7 @@ public class GameEngine {
 
         curPiece.setShape(Tetrominoes.NoShape);
         isFallingFinished = true;
-        nextPiece.setRandomShape();
+        chooseNextPiece();
         if (itemMode) {
             lastItemName = ItemType.BOMB_CLEAR.getLabel();
             lastItemDescription = ItemType.BOMB_CLEAR.getDescription();
@@ -203,10 +219,10 @@ public class GameEngine {
         if (pendingBombItem) {
             curPiece.setShape(Tetrominoes.BombShape);
             pendingBombItem = false;
-            nextPiece.setRandomShape();
+            chooseNextPiece();
         } else {
             curPiece.setShape(nextPiece.getShape()); // 미리 뽑아 둔 블록을 현재 블록으로
-            nextPiece.setRandomShape();               // 다음 블록 만들기
+            chooseNextPiece();               // 다음 블록 만들기
         }
         rotationLocked = rotationLockRemaining > 0;
         if (rotationLockRemaining > 0) {
@@ -262,9 +278,9 @@ public class GameEngine {
 					for (int j = 0; j < BOARD_WIDTH; ++j)
 						board[(k * BOARD_WIDTH) + j] = shapeAt(j, k + 1);
 				}
-				for (int j = 0; j < BOARD_WIDTH; ++j) {
-					board[((BOARD_HEIGHT - 1) * BOARD_WIDTH) + j] = Tetrominoes.NoShape;
-				}
+                // 위쪽에서 복사한 뒤 마지막 행을 비워 중복 블록과 유령 줄을 방지
+                for (int j = 0; j < BOARD_WIDTH; ++j)
+                    board[((BOARD_HEIGHT - 1) * BOARD_WIDTH) + j] = Tetrominoes.NoShape;
 			}
 		}
 

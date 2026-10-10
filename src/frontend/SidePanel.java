@@ -70,8 +70,8 @@ public class SidePanel extends JPanel {
 
     public void setItemStatus(int linesUntilItem, String itemName, String itemDescription) {
         this.linesUntilItem = Math.max(0, linesUntilItem);
-        this.itemName = itemName == null || itemName.isBlank() ? "아이템 준비" : itemName;
-        this.itemDescription = itemDescription == null || itemDescription.isBlank() ? "3줄 누적 시 랜덤 아이템 발동" : itemDescription;
+        this.itemName = itemName == null || itemName.trim().isEmpty() ? "아이템 준비" : itemName;
+        this.itemDescription = itemDescription == null || itemDescription.trim().isEmpty() ? "3줄 누적 시 랜덤 아이템 발동" : itemDescription;
         repaint();
     }
 
