@@ -129,7 +129,7 @@ public class Board extends JPanel implements ActionListener {
 				|| engine.getCurrentShape() == Tetrominoes.NoShape)
 			return;
 
-		if (left != (currentLevel == 5))
+		if (left)
 			engine.moveLeft();
 		else
 			engine.moveRight();
@@ -187,13 +187,7 @@ public class Board extends JPanel implements ActionListener {
 		// 1.5초 동안 떴다가 사라지는 코드
 		if (newLevel != currentLevel) {
 			currentLevel = newLevel;
-			if (currentLevel == 4) {
-				levelMessage = "LEVEL 4 - NEXT 블록 숨김";
-			} else if (currentLevel == 5) {
-				levelMessage = "LEVEL 5 - 좌우키 반전";
-			} else {
-				levelMessage = "LEVEL " + currentLevel;
-			}
+			levelMessage = "LEVEL " + currentLevel;
 
 			levelTimer.restart(); // 레벨이 다시 바뀌면 표시 시간도 처음부터 계산
 		}
@@ -264,11 +258,7 @@ public class Board extends JPanel implements ActionListener {
 			sidePanel.setItemStatus(0, "클래식 모드", "아이템 없음");
 		}
 		// 4레벨이상 사이드 패널에 다음 모양 숨김
-		if (currentLevel >= 4) {
-			sidePanel.setNextShape(Tetrominoes.NoShape);
-		} else {
-			sidePanel.setNextShape(engine.getNextShape());
-		}
+		sidePanel.setNextShape(engine.getNextShape());
 	}
 
 	// 보드 중앙에 대전 공격 메시지 표시
@@ -401,8 +391,7 @@ public class Board extends JPanel implements ActionListener {
 		drawCentered(g, "LEVEL " + currentLevel, centerX, top + (int) (2.15 * size));
 		g.setFont(Style.BODY_FONT.deriveFont(size * 0.43f));
 		g.setColor(Style.TEXT);
-		String description = currentLevel == 5 ? "좌우 이동 키가 반전됩니다"
-				: currentLevel == 4 ? "다음 블록이 숨겨집니다" : "블록이 조금 더 빠르게 떨어집니다";
+		String description = "블록이 더 빠르게 떨어집니다";
 		drawCentered(g, description, centerX, top + (int) (3.15 * size));
 	}
 

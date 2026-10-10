@@ -169,16 +169,7 @@ public class SidePanel extends JPanel {
         g.fillRect(frameInset, boxTop, getWidth() - frameInset * 2, frameHeight);
         g.setColor(Style.BORDER);
         g.drawRect(frameInset, boxTop, getWidth() - frameInset * 2 - 1, frameHeight - 1);
-        if (level >= 4) {
-            // 숨긴 블록이 빈 화면이나 오류처럼 보이지 않도록 난이도 효과 표시
-            g.setFont(Style.DISPLAY_FONT.deriveFont((float) size));
-            drawCentered(g, "—", getWidth() / 2, (int) (size * 10.05), Style.MUTED_TEXT);
-            fitFont(g, Style.BODY_FONT, "미리보기 숨김", size * .45, getWidth() - cell);
-            drawCentered(g, "미리보기 숨김", getWidth() / 2, (int) (size * 11.1), Style.TEXT);
-            g.setFont(Style.BODY_FONT.deriveFont((float) (size * .37)));
-            drawCentered(g, "레벨 4부터 적용", getWidth() / 2, (int) (size * 11.85), Style.MUTED_TEXT);
-            return;
-        }
+
         if (nextShape == Tetrominoes.NoShape)
             return;
 
@@ -243,10 +234,9 @@ public class SidePanel extends JPanel {
         int keyHeight = (int) (size * (itemMode ? .6 : .78));
         for (int i = 0; i < controls.length; i++) {
             int y = (int) (size * (firstRow + i * rowGap));
-            // 실제 키 반전 처리는 Board에서 하고 여기서는 바뀐 조작 방법만 표시
-            boolean reversed = i == 0 && level == 5;
-            String label = reversed ? "좌우 반전" : controls[i][1];
-            Color accent = reversed ? Style.GOLD : Style.TEXT;
+
+            String label = controls[i][1];
+            Color accent = Style.TEXT;
             // 키 안내는 작은 직각 표식으로 표시하고 실제 입력 처리는 Board가 담당
             g.setColor(Style.PANEL);
             g.fillRect(left, y, keyWidth, keyHeight);
@@ -257,7 +247,7 @@ public class SidePanel extends JPanel {
             drawCentered(g, controls[i][0], left + keyWidth / 2, keyBaseline, accent);
             int labelRight = getWidth() - left;
             fitFont(g, Style.BODY_FONT, label, size * (itemMode ? .38 : .43), labelRight - left - keyWidth - (int) (size * .35));
-            g.setColor(reversed ? Style.GOLD : Style.MUTED_TEXT);
+            g.setColor(Style.MUTED_TEXT);
             int baseline = y + (keyHeight - g.getFontMetrics().getHeight()) / 2 + g.getFontMetrics().getAscent();
             g.drawString(label, labelRight - g.getFontMetrics().stringWidth(label), baseline);
         }
