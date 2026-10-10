@@ -29,8 +29,12 @@ public class ItemModeEngineTest {
 
         engine.triggerBombItem();
         engine.start();
-        if (engine.getCurrentShape() != Tetrominoes.BombShape) {
-            throw new AssertionError("폭탄 아이템은 폭탄 블록으로 등장해야 합니다.");
+        if (engine.getCurrentShape() == Tetrominoes.BombShape) {
+            throw new AssertionError("폭탄 아이템은 1x1 폭탄 미노로 등장하면 안 됩니다.");
+        }
+
+        if (engine.getLastItemName() == null || !engine.getLastItemName().contains("폭탄")) {
+            throw new AssertionError("폭탄 아이템은 효과 이름이 기록되어야 합니다.");
         }
 
         engine.setItemMode(false);

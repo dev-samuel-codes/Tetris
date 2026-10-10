@@ -81,7 +81,11 @@ public class GameEngine {
 
     private void chooseNextPiece() {
         Tetrominoes[] values = Tetrominoes.values();
-        nextPiece.setShape(values[randomBetween(1, values.length - 1)]);
+        int index;
+        do {
+            index = randomBetween(1, values.length - 1);
+        } while (values[index] == Tetrominoes.BombShape);
+        nextPiece.setShape(values[index]);
     }
 
     public boolean activateRandomItemForClearedLines(int linesCleared) {
@@ -214,13 +218,14 @@ public class GameEngine {
             return;
 
         if (pendingBombItem) {
-            curPiece.setShape(Tetrominoes.BombShape);
             pendingBombItem = false;
-            chooseNextPiece();
-        } else {
-            curPiece.setShape(nextPiece.getShape());
-            chooseNextPiece();
+            clearAreaAroundCenter();
+            lastItemName = ItemType.BOMB_CLEAR.getLabel();
+            lastItemDescription = ItemType.BOMB_CLEAR.getDescription();
         }
+
+        curPiece.setShape(nextPiece.getShape());
+        chooseNextPiece();
 
         currentItemType = null;
         if (itemMode) {
