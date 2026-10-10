@@ -253,6 +253,9 @@ public class GameEngine {
 					for (int j = 0; j < BOARD_WIDTH; ++j)
 						board[(k * BOARD_WIDTH) + j] = shapeAt(j, k + 1);
 				}
+                // 위쪽에서 복사한 뒤 마지막 행을 비워 중복 블록과 유령 줄을 방지
+                for (int j = 0; j < BOARD_WIDTH; ++j)
+                    board[((BOARD_HEIGHT - 1) * BOARD_WIDTH) + j] = Tetrominoes.NoShape;
 			}
 		}
 
