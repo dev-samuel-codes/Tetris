@@ -91,6 +91,7 @@ public class SidePanel extends JPanel {
             drawDivider(graphics, size, 4.0);
             drawStats(graphics, size);
             drawNextShape(graphics, size);
+            drawItemStatus(graphics, size);
             drawControls(graphics, size);
         } finally {
             graphics.dispose();
@@ -176,6 +177,36 @@ public class SidePanel extends JPanel {
         for (int i = 0; i < 4; i++)
             BlockPainter.drawSquare(g, startX + (preview.x(i) - minX) * cell,
                     startY + (preview.y(i) - minY) * cell, cell, nextShape);
+    }
+
+    private void drawItemStatus(Graphics2D g, double size) {
+        int inset = (int) (size * .6);
+        g.setFont(Style.MONO_FONT.deriveFont((float) (size * .42)));
+        g.setColor(Style.MUTED_TEXT);
+        g.drawString("ITEM", inset, (int) (size * 13.5));
+
+        int boxX = inset;
+        int boxY = (int) (size * 14.0);
+        int boxWidth = getWidth() - inset * 2;
+        int boxHeight = (int) (size * 2.1);
+        g.setColor(Style.BOARD_BACKGROUND);
+        g.fillRect(boxX, boxY, boxWidth, boxHeight);
+        g.setColor(Style.BORDER);
+        g.drawRect(boxX, boxY, boxWidth - 1, boxHeight - 1);
+
+        String displayName = itemName == null || itemName.trim().isEmpty() ? "아이템 준비" : itemName;
+        g.setFont(Style.MONO_FONT.deriveFont((float) (size * .46)));
+        g.setColor(Style.TEXT);
+        int nameY = boxY + (int) (size * .82);
+        g.drawString(displayName, boxX + (int) (size * .32), nameY);
+
+        String descriptionText = itemDescription == null || itemDescription.trim().isEmpty()
+                ? "3줄 누적 시 랜덤 아이템 발동"
+                : itemDescription;
+        g.setFont(Style.BODY_FONT.deriveFont((float) (size * .28)));
+        g.setColor(Style.MUTED_TEXT);
+        int descY = boxY + (int) (size * 1.45);
+        g.drawString(descriptionText, boxX + (int) (size * .32), descY);
     }
 
     private void drawControls(Graphics2D g, double size) {

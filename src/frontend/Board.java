@@ -221,6 +221,10 @@ public class Board extends JPanel implements ActionListener {
         sidePanel.setLinesRemoved(currentLinesRemoved);
         updateDropSpeed();
         sidePanel.setLevel(currentLevel);
+        sidePanel.setItemStatus(
+                engine.getLinesUntilItemActivation(),
+                engine.getLastItemName(),
+                engine.getLastItemDescription());
         sidePanel.setItemMode(engine.isItemMode());
         sidePanel.setNextShape(engine.getNextShape());
         repaint();
