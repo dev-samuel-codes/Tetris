@@ -20,18 +20,22 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
 import java.awt.Toolkit;
+import java.awt.event.ActionEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.text.NumberFormat;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
+import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
+import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
 
 // 서버 스냅숏만 표시합니다. 낙하·점수·승패의 계산은 서버가 담당합니다.
@@ -198,6 +202,7 @@ public final class OnlineMatchWindow extends JFrame {
         actions.add(menu);
         footer.add(actions, BorderLayout.SOUTH);
         root.add(footer, BorderLayout.SOUTH);
+        bindKeys(root);
         install(root);
     }
 
@@ -236,6 +241,33 @@ public final class OnlineMatchWindow extends JFrame {
         return !frame.getPlayer(frame.getSeat()).isAlive() ? "게임오버 · 상대의 최종 점수를 기다립니다"
                 : !frame.getPlayer(1 - frame.getSeat()).isAlive() ? "상대 게임오버 · 상대 점수를 넘으면 승리합니다"
                 : "경기 중 · 같은 블록 순서 · 점수 대결";
+    }
+
+    private void bindKeys(JComponent root) {
+        bind(root, "LEFT", "LEFT", true);
+        bind(root, "RIGHT", "RIGHT", true);
+        bind(root, "UP", "ROTATE_LEFT", false);
+        bind(root, "DOWN", "ROTATE_RIGHT", false);
+        bind(root, "D", "SOFT_DROP", true);
+        bind(root, "SPACE", "HARD_DROP", false);
+    }
+
+    private void bind(JComponent root, String key, String command, boolean repeat) {
+        root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("pressed " + key), "press-" + key);
+        root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("released " + key), "release-" + key);
+        root.getActionMap().put("press-" + key, new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent event) {
+                if (session == null || latest == null || !"PLAYING".equals(latest.getPhase())
+                        || !latest.getPlayer(latest.getSeat()).isAlive())
+                    return;
+                if (!repeat && !pressedKeys.add(key))
+                    return;
+                session.input(command);
+            }
+        });
+        root.getActionMap().put("release-" + key, new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent event) { pressedKeys.remove(key); }
+        });
     }
 
     private void clearInput() {
