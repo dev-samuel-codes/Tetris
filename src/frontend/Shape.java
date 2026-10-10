@@ -9,6 +9,7 @@ public class Shape {
 	private Tetrominoes pieceShape;
 	private int coords[][];
 	private int[][][] coordsTable;
+	private int itemCellIndex = -1;
 
 	public Shape() {
 		coords = new int[4][2];
@@ -16,7 +17,6 @@ public class Shape {
 	}
 
 	public void setShape(Tetrominoes shape) {
-
 		coordsTable = new int[][][] { { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } },
 				{ { 0, -1 }, { 0, 0 }, { -1, 0 }, { -1, 1 } }, { { 0, -1 }, { 0, 0 }, { 1, 0 }, { 1, 1 } },
 				{ { 0, -1 }, { 0, 0 }, { 0, 1 }, { 0, 2 } }, { { -1, 0 }, { 0, 0 }, { 1, 0 }, { 0, 1 } },
@@ -29,7 +29,7 @@ public class Shape {
 			}
 		}
 		pieceShape = shape;
-
+		itemCellIndex = -1;
 	}
 
 	private void setX(int index, int x) {
@@ -50,6 +50,26 @@ public class Shape {
 
 	public Tetrominoes getShape() {
 		return pieceShape;
+	}
+
+	public boolean hasItem() {
+		return itemCellIndex >= 0 && itemCellIndex < 4;
+	}
+
+	public void setItemCell(int itemCellIndex) {
+		if (itemCellIndex < 0 || itemCellIndex >= 4) {
+			this.itemCellIndex = -1;
+			return;
+		}
+		this.itemCellIndex = itemCellIndex;
+	}
+
+	public int getItemCellIndex() {
+		return itemCellIndex;
+	}
+
+	public void clearItem() {
+		itemCellIndex = -1;
 	}
 
 	public void setRandomShape() {
@@ -76,11 +96,12 @@ public class Shape {
 	}
 
 	public Shape rotateLeft() {
-		if (pieceShape == Tetrominoes.SquareShape || pieceShape == Tetrominoes.BombShape)
+		if (pieceShape == Tetrominoes.SquareShape)
 			return this;
 
 		Shape result = new Shape();
 		result.pieceShape = pieceShape;
+		result.itemCellIndex = itemCellIndex;
 
 		for (int i = 0; i < 4; ++i) {
 			result.setX(i, y(i));
@@ -90,11 +111,12 @@ public class Shape {
 	}
 
 	public Shape rotateRight() {
-		if (pieceShape == Tetrominoes.SquareShape || pieceShape == Tetrominoes.BombShape)
+		if (pieceShape == Tetrominoes.SquareShape)
 			return this;
 
 		Shape result = new Shape();
 		result.pieceShape = pieceShape;
+		result.itemCellIndex = itemCellIndex;
 
 		for (int i = 0; i < 4; ++i) {
 			result.setX(i, -y(i));
