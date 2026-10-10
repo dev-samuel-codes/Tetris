@@ -204,6 +204,8 @@ public final class OnlineMatchWindow extends JFrame {
         root.add(footer, BorderLayout.SOUTH);
         bindKeys(root);
         install(root);
+        // 연결 폼보다 경기 화면에 높이를 더 배정해 두 보드의 칸을 읽을 수 있게 표시
+        setMinimumSize(new Dimension(660, Math.min(720, Toolkit.getDefaultToolkit().getScreenSize().height - 96)));
     }
 
     private void applyFrame(OnlineFrame frame) {
@@ -337,8 +339,11 @@ public final class OnlineMatchWindow extends JFrame {
     private static void addField(JPanel root, String text, JTextField field) {
         JLabel label = label(text, Style.MUTED_TEXT, Style.SMALL_FONT);
         label.setLabelFor(field);
-        root.add(label);
-        root.add(field);
+        // 라벨은 필요한 높이만 사용해 작은 창에서도 입력칸과 상태 문구 표시
+        JPanel row = transparent(new BorderLayout(0, 5));
+        row.add(label, BorderLayout.NORTH);
+        row.add(field, BorderLayout.CENTER);
+        root.add(row);
     }
     private static JLabel label(String text, Color color, Font font) {
         JLabel label = new JLabel(text);
@@ -364,8 +369,8 @@ public final class OnlineMatchWindow extends JFrame {
             this.title = title;
             setOpaque(false);
             JPanel heading = transparent(new BorderLayout(0, 6));
-            name = label(title, Style.TEXT, Style.SCORE_FONT);
-            metrics = label("0점 · 0줄", Style.ACCENT, Style.MONO_FONT);
+            name = label(title, Style.TEXT, Style.BUTTON_FONT);
+            metrics = label("0점 · 0줄", Style.ACCENT, Style.MONO_FONT.deriveFont(16f));
             heading.add(name, BorderLayout.NORTH);
             heading.add(metrics, BorderLayout.CENTER);
             JPanel nextRow = transparent(new BorderLayout(10, 0));
@@ -381,6 +386,13 @@ public final class OnlineMatchWindow extends JFrame {
         void update(OnlineFrame.Player player, boolean started) {
             boolean empty = player.getNickname().isEmpty();
             name.setText(title + " · " + (empty ? "참가 대기" : player.getNickname()) + (player.isReady() ? " · 준비" : ""));
+            name.setToolTipText(name.getText());
+            // 긴 닉네임도 최소 창의 게임판 폭 안에 들어가도록 필요한 만큼만 줄임
+            Font nameFont = Style.BUTTON_FONT;
+            while (name.getWidth() > 0 && nameFont.getSize2D() > 12f
+                    && name.getFontMetrics(nameFont).stringWidth(name.getText()) > name.getWidth())
+                nameFont = nameFont.deriveFont(nameFont.getSize2D() - .5f);
+            name.setFont(nameFont);
             metrics.setText(NumberFormat.getIntegerInstance().format(player.getScore()) + "점 · " + player.getLines() + "줄");
             canvas.cells = player.getCells();
             canvas.ended = started && !empty && !player.isAlive();
