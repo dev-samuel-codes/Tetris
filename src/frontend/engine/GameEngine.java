@@ -288,6 +288,12 @@ public class GameEngine {
                 continue;
 
             numFullLines++;
+            for (int x = 0; x < BOARD_WIDTH; x++) {
+                ItemType removedItem = boardItemTypeAt(x, y);
+                if (removedItem != null) {
+                    handleRemovedItemCell(removedItem);
+                }
+            }
             for (int clearY = y; clearY < BOARD_HEIGHT - 1; clearY++) {
                 for (int x = 0; x < BOARD_WIDTH; x++) {
                     Tetrominoes shape = shapeAt(x, clearY + 1);

@@ -44,9 +44,36 @@ public class ItemModeEngineTest {
 
         testRotationLockItem();
         testFullLineRemovalCleansBoard();
+        testItemCellRemovedOnLineClear();
         testBottomClearItem();
 
         System.out.println("ItemModeEngineTest passed");
+    }
+
+    private static void testItemCellRemovedOnLineClear() throws ReflectiveOperationException {
+        GameEngine engine = new GameEngine();
+        Field boardField = GameEngine.class.getDeclaredField("board");
+        boardField.setAccessible(true);
+        Tetrominoes[] board = (Tetrominoes[]) boardField.get(engine);
+
+        Field itemField = GameEngine.class.getDeclaredField("boardItemTypes");
+        itemField.setAccessible(true);
+        GameEngine.ItemType[] itemTypes = (GameEngine.ItemType[]) itemField.get(engine);
+
+        for (int x = 0; x < GameEngine.BOARD_WIDTH; x++) {
+            board[(GameEngine.BOARD_HEIGHT - 1) * GameEngine.BOARD_WIDTH + x] = Tetrominoes.LineShape;
+        }
+
+        int itemCell = (GameEngine.BOARD_HEIGHT - 1) * GameEngine.BOARD_WIDTH + 3;
+        itemTypes[itemCell] = GameEngine.ItemType.SCORE_BOOST;
+
+        Method removeFullLines = GameEngine.class.getDeclaredMethod("removeFullLines");
+        removeFullLines.setAccessible(true);
+        removeFullLines.invoke(engine);
+
+        if (!GameEngine.ItemType.SCORE_BOOST.getLabel().equals(engine.getLastItemName())) {
+            throw new AssertionError("줄 제거 시 아이템 셀이 사라지면 해당 아이템 효과가 실행되어야 합니다.");
+        }
     }
 
     private static void testRotationLockItem() throws ReflectiveOperationException {
