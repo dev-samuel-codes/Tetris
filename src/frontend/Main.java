@@ -123,16 +123,16 @@ public class Main extends JFrame {
             game.setVisible(true);
             dispose();
         });
-        ModeCard itemButton = new ModeCard("아이템", new String[] { "아이템을 사용하는 게임 모드" }, "게임 시작", "아이템 모드 시작",
+        ModeCard itemButton = new ModeCard("아이템", new String[] { "아이템 셀 기반 커스텀 규칙" }, "게임 시작", "아이템 모드 시작",
                 Style.ITEM_BUTTON, Style.TEXT, Style.GREEN, 1);
-        ModeCard multiplayerButton = new ModeCard("멀티플레이", new String[] { "1PC 2인 · AI · 네트워크 대전" }, "모드 보기", "준비 중",
-                Style.MULTIPLAYER_BUTTON, Style.TEXT, Style.PINK, 2);
         itemButton.addActionListener(e -> {
             Tetris game = new Tetris(GameSettings.getResolution(), "아이템");
             game.setLocationRelativeTo(Main.this);
             game.setVisible(true);
             dispose();
         });
+        ModeCard multiplayerButton = new ModeCard("멀티플레이", new String[] { "1PC 2인 · AI · 네트워크 대전" }, "모드 보기", "준비 중",
+                Style.MULTIPLAYER_BUTTON, Style.TEXT, Style.PINK, 2);
         multiplayerButton.addActionListener(e -> showMultiplayerMenu());
         modes.add(classicButton);
         modes.add(itemButton);
