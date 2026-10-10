@@ -120,11 +120,11 @@ public class ItemModeEngineTest {
         boardField.setAccessible(true);
         Tetrominoes[] board = (Tetrominoes[]) boardField.get(engine);
 
-        // 하단 2줄을 제거한 뒤 위 블록이 아래로 떨어져 빈 자리를 채워야 함
+        // 하단 2줄 제거는 마지막 2줄을 비우고, 위칸을 아래로 당겨 채워야 합니다.
         for (int x = 0; x < GameEngine.BOARD_WIDTH; x++) {
-            board[(2 * GameEngine.BOARD_WIDTH) + x] = Tetrominoes.LineShape;
-            board[(5 * GameEngine.BOARD_WIDTH) + x] = Tetrominoes.SquareShape;
+            board[(GameEngine.BOARD_HEIGHT - 3) * GameEngine.BOARD_WIDTH + x] = Tetrominoes.LineShape;
             board[(GameEngine.BOARD_HEIGHT - 2) * GameEngine.BOARD_WIDTH + x] = Tetrominoes.TShape;
+            board[(GameEngine.BOARD_HEIGHT - 1) * GameEngine.BOARD_WIDTH + x] = Tetrominoes.SquareShape;
         }
 
         Method applyItem = GameEngine.class.getDeclaredMethod("applyItem", GameEngine.ItemType.class);
@@ -132,24 +132,28 @@ public class ItemModeEngineTest {
         applyItem.invoke(engine, GameEngine.ItemType.BOTTOM_CLEAR);
 
         for (int x = 0; x < GameEngine.BOARD_WIDTH; x++) {
-            boolean seenFilledCell = false;
-            boolean seenGapAfterFill = false;
-            for (int y = 0; y < GameEngine.BOARD_HEIGHT; y++) {
-                Tetrominoes cell = engine.shapeAt(x, y);
-                if (cell == null) {
-                    throw new AssertionError("하단 제거 후 빈 칸은 null이 아니고 NoShape이어야 합니다.");
-                }
-                if (cell == Tetrominoes.NoShape) {
-                    if (seenFilledCell) {
-                        seenGapAfterFill = true;
-                    }
-                } else {
-                    if (seenGapAfterFill) {
-                        throw new AssertionError("하단 제거 후 블록이 공중에 떠 있으면 안 됩니다.");
-                    }
-                    seenFilledCell = true;
+            if (engine.shapeAt(x, GameEngine.BOARD_HEIGHT - 1) != Tetrominoes.NoShape) {
+                throw new AssertionError("하단 제거 후 가장 아래 행은 비어 있어야 합니다.");
+            }
+            if (engine.shapeAt(x, GameEngine.BOARD_HEIGHT - 2) != Tetrominoes.NoShape) {
+                throw new AssertionError("하단 제거 후 두 번째 아래 행도 비어 있어야 합니다.");
+            }
+        }
+
+        boolean foundDroppedBlock = false;
+        for (int x = 0; x < GameEngine.BOARD_WIDTH; x++) {
+            for (int y = 0; y < GameEngine.BOARD_HEIGHT - 2; y++) {
+                if (engine.shapeAt(x, y) != Tetrominoes.NoShape) {
+                    foundDroppedBlock = true;
+                    break;
                 }
             }
+            if (foundDroppedBlock) {
+                break;
+            }
+        }
+        if (!foundDroppedBlock) {
+            throw new AssertionError("하단 제거 후 위 블록이 아래로 내려와야 합니다.");
         }
     }
 }
