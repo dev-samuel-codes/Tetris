@@ -25,6 +25,7 @@ public class SidePanel extends JPanel {
     private int linesUntilItem;
     private String itemName = "";
     private String itemDescription = "";
+    private boolean itemMode = false;
 
     public SidePanel() {
         this(new String[][] {
@@ -74,7 +75,8 @@ public class SidePanel extends JPanel {
     }
 
     public void setItemMode(boolean itemMode) {
-        // 아이템 모드는 보드 셀 자체에서 처리되므로 패널은 기본 조작 안내만 유지한다.
+        this.itemMode = itemMode;
+        repaint();
     }
 
     @Override
@@ -210,6 +212,10 @@ public class SidePanel extends JPanel {
     }
 
     private void drawControls(Graphics2D g, double size) {
+        if (itemMode) {
+            return;
+        }
+
         double heading = 14.85;
         double firstRow = 15.5;
         double rowGap = 1.12;
