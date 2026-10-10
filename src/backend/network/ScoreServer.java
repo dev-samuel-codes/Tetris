@@ -33,7 +33,8 @@ public final class ScoreServer {
         String dataDirectory = args.length > 1 ? args[1] : "server-data";
         ThreadPoolExecutor clients = new ThreadPoolExecutor(
                 0, 8, 30, TimeUnit.SECONDS, new SynchronousQueue<Runnable>());
-        try (ScoreRepository scores = new ScoreRepository(Paths.get(dataDirectory));
+        try (OnlineMatchService online = new OnlineMatchService();
+                ScoreRepository scores = new ScoreRepository(Paths.get(dataDirectory));
                 ServerSocket server = new ServerSocket()) {
             server.setReuseAddress(true);
             server.bind(new InetSocketAddress("0.0.0.0", port));
@@ -41,7 +42,7 @@ public final class ScoreServer {
             while (!server.isClosed()) {
                 Socket client = server.accept();
                 try {
-                    clients.execute(() -> handleClient(client, scores));
+                    clients.execute(() -> handleClient(client, scores, online));
                 } catch (RejectedExecutionException e) {
                     rejectClient(client);
                 }
@@ -61,21 +62,32 @@ public final class ScoreServer {
         }
     }
 
-    private static void handleClient(Socket client, ScoreRepository scores) {
-        try (Socket socket = client) {
-            BufferedWriter writer = writer(socket);
+    private static void handleClient(Socket client, ScoreRepository scores, OnlineMatchService online) {
+        boolean handedOff = false;
+        try {
+            BufferedWriter writer = writer(client);
             respond(writer, "TETRIS/1 READY");
             String message;
             try {
-                message = readMessage(socket);
+                message = readMessage(client);
             } catch (IOException e) {
                 respond(writer, "ERROR BAD_REQUEST");
                 return;
             }
-            // 한 접속에서 한 요청만 처리해서 재접속과 재전송 동작을 단순하게 유지
-            dispatch(message, writer, scores);
+            // 온라인 지속 소켓은 전용 32스레드 풀이 소유하고 랭킹 풀은 즉시 반환
+            handedOff = online.handoff(client, message);
+            if (!handedOff)
+                dispatch(message, writer, scores);
         } catch (IOException ignored) {
             // 연결 종료나 송수신 오류는 해당 접속만 정리
+        } finally {
+            if (!handedOff) {
+                try {
+                    client.close();
+                } catch (IOException ignored) {
+                    // 온라인으로 넘겨진 소켓은 OnlineMatchService에서 정리
+                }
+            }
         }
     }
 

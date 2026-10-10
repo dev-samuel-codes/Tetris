@@ -5,6 +5,7 @@ import frontend.style.Style;
 import frontend.ui.ModeCard;
 import frontend.ui.PixelLogo;
 import frontend.ai.AiMatchWindow;
+import frontend.online.OnlineMatchWindow;
 import frontend.network.ScoreClient.RankingEntry;
 import frontend.network.ScoreClient.RankingPage;
 
@@ -172,11 +173,11 @@ public class Main extends JFrame {
     }
 
     private void showMultiplayerMenu() {
-        JPanel container = createPage("멀티플레이", "한 컴퓨터에서 함께 플레이하거나 AI와 점수 대결");
+        JPanel container = createPage("멀티플레이", "한 컴퓨터에서 함께 플레이하거나 AI·온라인 상대와 점수 대결");
         JPanel content = transparent(new GridBagLayout());
         JButton twoPlayerButton = createModeButton("1PC 2인 게임", "한 컴퓨터에서 두 명이 함께 플레이", Style.ACCENT);
         JButton aiButton = createModeButton("AI 대전", "5단계 난이도 · 같은 블록 · 시간 제한 없음", Style.ACCENT);
-        JButton networkButton = createModeButton("네트워크 대전", "온라인 상대와 대결하는 게임 · 준비 중", Style.ACCENT);
+        JButton networkButton = createModeButton("네트워크 대전", "방 코드로 참가 · 같은 블록 · 1:1 점수 대결", Style.ACCENT);
         // 구현된 대전 모드는 각각의 게임 화면으로 연결
         twoPlayerButton.addActionListener(e -> {
             TwoPlayerTetris game = new TwoPlayerTetris();
@@ -190,7 +191,12 @@ public class Main extends JFrame {
             game.setVisible(true);
             dispose();
         });
-        networkButton.addActionListener(e -> showComingSoon("네트워크 대전"));
+        networkButton.addActionListener(e -> {
+            OnlineMatchWindow game = new OnlineMatchWindow(GameSettings.getResolution());
+            game.setLocationRelativeTo(Main.this);
+            game.setVisible(true);
+            dispose();
+        });
         GridBagConstraints row = new GridBagConstraints();
         row.gridx = 0;
         row.weightx = 1;

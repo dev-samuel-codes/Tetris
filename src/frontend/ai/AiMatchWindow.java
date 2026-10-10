@@ -107,18 +107,19 @@ public final class AiMatchWindow extends JFrame {
         row.gridx = 0;
         row.weightx = 1;
         row.fill = GridBagConstraints.HORIZONTAL;
-        row.insets = new Insets(0, 0, 12, 0);
-        JPanel introduction = transparent(new BorderLayout(0, 10));
+        row.insets = new Insets(0, 0, 4, 0);
+        JPanel introduction = transparent(new BorderLayout(0, 6));
         introduction.add(label("상대의 난이도를 선택하세요", Style.TEXT, Style.TITLE_FONT), BorderLayout.NORTH);
         introduction.add(label("같은 블록 순서 · 사용자 맞춤 속도 · 시간 제한 없음", Style.MUTED_TEXT, Style.BODY_FONT), BorderLayout.CENTER);
-        introduction.setBorder(BorderFactory.createEmptyBorder(8, 0, 20, 0));
+        // 최소 창에서도 다섯 난이도 버튼이 모두 보이도록 소개 영역 여백 조절
+        introduction.setBorder(BorderFactory.createEmptyBorder(4, 0, 8, 0));
         row.gridy = 0;
         content.add(introduction, row);
         int index = 1;
         for (final AiDifficulty option : AiDifficulty.values()) {
             JButton choose = button(option.getLabel());
             choose.setFocusable(true);
-            choose.setPreferredSize(new Dimension(480, 54));
+            choose.setPreferredSize(new Dimension(480, 48));
             choose.addActionListener(event -> startMatch(option));
             row.gridy = index++;
             content.add(choose, row);
@@ -250,6 +251,8 @@ public final class AiMatchWindow extends JFrame {
         root.setPreferredSize(new Dimension(2 * BOARD_WIDTH * resolution.getCellSize() + 120,
                 BOARD_HEIGHT * resolution.getCellSize() + 240));
         installContent(root);
+        // 경기 화면은 선택 화면보다 높이를 확보해 보드가 지나치게 작아지지 않도록 제한
+        setMinimumSize(new Dimension(620, Math.min(720, Toolkit.getDefaultToolkit().getScreenSize().height - 96)));
         bindKeys(root);
     }
 

@@ -14,18 +14,32 @@ public class SidePanel extends JPanel {
 
     // 보드 옆 정보 패널은 가로 6칸 기준으로 표시
     public static final int COLS = 6;
-    private static final String[][] CONTROLS = {
-            { "← →", "이동" }, { "↑ ↓", "회전" }, { "D", "한 칸 하강" },
-            { "SPACE", "즉시 낙하" }, { "P", "일시정지" }
-    };
+    private final String[][] controls;
 
     private int score;
     private int elapsedSeconds;
     private int linesRemoved;
     private int level = 1;
     private Tetrominoes nextShape = Tetrominoes.NoShape;
+    private int linesUntilItem = 3;
+    private String itemName = "아이템 준비";
+    private String itemDescription = "3줄 누적 시 랜덤 아이템 발동";
+    private boolean itemMode = false;
 
+    // 클래식 모드 기본 조작키를 사용하는 사이드패널 생성
     public SidePanel() {
+        this(new String[][] {
+                { "← →", "이동" },
+                { "↑ ↓", "회전" },
+                { "D", "한 칸 하강" },
+                { "SPACE", "즉시 낙하" },
+                { "P", "일시정지" }
+        });
+    }
+
+    // 전달받은 조작키를 표시하는 사이드패널 생성
+    public SidePanel(String[][] controls) {
+        this.controls = controls;
         setBackground(Style.BACKGROUND);
     }
 
@@ -54,6 +68,18 @@ public class SidePanel extends JPanel {
         repaint();
     }
 
+    public void setItemStatus(int linesUntilItem, String itemName, String itemDescription) {
+        this.linesUntilItem = Math.max(0, linesUntilItem);
+        this.itemName = itemName == null || itemName.trim().isEmpty() ? "아이템 준비" : itemName;
+        this.itemDescription = itemDescription == null || itemDescription.trim().isEmpty() ? "3줄 누적 시 랜덤 아이템 발동" : itemDescription;
+        repaint();
+    }
+
+    public void setItemMode(boolean itemMode) {
+        this.itemMode = itemMode;
+        repaint();
+    }
+
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
@@ -67,9 +93,13 @@ public class SidePanel extends JPanel {
             graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             drawDivider(graphics, size, 4.0);
-            drawDivider(graphics, size, 13.8);
             drawStats(graphics, size);
             drawNextShape(graphics, size);
+            // 클래식에서는 아이템 상자를 그리지 않아 조작 안내와 겹치지 않게 표시
+            if (itemMode)
+                drawItemStatus(graphics, size);
+            else
+                drawDivider(graphics, size, 13.7);
             drawControls(graphics, size);
         } finally {
             graphics.dispose();
@@ -106,9 +136,9 @@ public class SidePanel extends JPanel {
         g.drawString(levelText, inset + chipPadding,
                 chipY + (chipHeight - g.getFontMetrics().getHeight()) / 2 + g.getFontMetrics().getAscent());
 
-        drawStatRow(g, size, "LINES", String.valueOf(linesRemoved), 5.6);
+        drawStatRow(g, size, "LINES", String.valueOf(linesRemoved), 5.15);
         String time = String.format("%02d:%02d", elapsedSeconds / 60, elapsedSeconds % 60);
-        drawStatRow(g, size, "TIME", time, 7.15);
+        drawStatRow(g, size, "TIME", time, 6.6);
     }
 
     private void drawStatRow(Graphics2D g, double size, String label, String value, double baseline) {
@@ -128,10 +158,10 @@ public class SidePanel extends JPanel {
     private void drawNextShape(Graphics2D g, double size) {
         g.setFont(Style.MONO_FONT.deriveFont((float) (size * .43)));
         g.setColor(Style.MUTED_TEXT);
-        g.drawString("NEXT", (int) (size * .6), (int) (size * 9.12));
-        int cell = Math.max(1, (int) size);
+        g.drawString("NEXT", (int) (size * .6), (int) (size * 8.12));
+        int cell = Math.max(1, (int) (size * .85));
         int boxLeft = (getWidth() - 4 * cell) / 2;
-        int boxTop = (int) (size * 9.5);
+        int boxTop = (int) (size * 8.5);
         // 다음 블록만 별도의 어두운 영역에 표시해 보드와 같은 색상 대비 사용
         int frameInset = (int) (size * .45);
         int frameHeight = (int) (size * 4.12);
@@ -139,16 +169,7 @@ public class SidePanel extends JPanel {
         g.fillRect(frameInset, boxTop, getWidth() - frameInset * 2, frameHeight);
         g.setColor(Style.BORDER);
         g.drawRect(frameInset, boxTop, getWidth() - frameInset * 2 - 1, frameHeight - 1);
-        if (level >= 4) {
-            // 숨긴 블록이 빈 화면이나 오류처럼 보이지 않도록 난이도 효과 표시
-            g.setFont(Style.DISPLAY_FONT.deriveFont((float) size));
-            drawCentered(g, "—", getWidth() / 2, (int) (size * 11.05), Style.MUTED_TEXT);
-            fitFont(g, Style.BODY_FONT, "미리보기 숨김", size * .45, getWidth() - cell);
-            drawCentered(g, "미리보기 숨김", getWidth() / 2, (int) (size * 12.1), Style.TEXT);
-            g.setFont(Style.BODY_FONT.deriveFont((float) (size * .37)));
-            drawCentered(g, "레벨 4부터 적용", getWidth() / 2, (int) (size * 12.85), Style.MUTED_TEXT);
-            return;
-        }
+
         if (nextShape == Tetrominoes.NoShape)
             return;
 
@@ -162,39 +183,71 @@ public class SidePanel extends JPanel {
             minY = Math.min(minY, preview.y(i));
             maxY = Math.max(maxY, preview.y(i));
         }
-        // 블록이 차지하는 가로·세로 칸 수를 계산해 4×4 영역 중앙에 표시
+        // 긴 블록도 테두리에 닿지 않게 여백을 두고 미리보기 중앙에 표시
         int startX = boxLeft + (4 - (maxX - minX + 1)) * cell / 2;
-        int startY = boxTop + (4 - (maxY - minY + 1)) * cell / 2;
+        int startY = boxTop + (frameHeight - (maxY - minY + 1) * cell) / 2;
         for (int i = 0; i < 4; i++)
             BlockPainter.drawSquare(g, startX + (preview.x(i) - minX) * cell,
                     startY + (preview.y(i) - minY) * cell, cell, nextShape);
     }
 
+    private void drawItemStatus(Graphics2D g, double size) {
+        g.setFont(Style.MONO_FONT.deriveFont((float) (size * .38)));
+        g.setColor(Style.MUTED_TEXT);
+        g.drawString("ITEM", (int) (size * .6), (int) (size * 13.35));
+
+        int boxLeft = (int) (size * .55);
+        int boxTop = (int) (size * 13.7);
+        int boxWidth = getWidth() - boxLeft * 2;
+        int boxHeight = (int) (size * 3.2);
+        g.setColor(Style.PANEL);
+        g.fillRoundRect(boxLeft, boxTop, boxWidth, boxHeight, 6, 6);
+        g.setColor(Style.BORDER);
+        g.drawRoundRect(boxLeft, boxTop, boxWidth - 1, boxHeight - 1, 6, 6);
+
+        String chargeText = "다음 발동까지 " + linesUntilItem + "줄";
+        fitFont(g, Style.MONO_FONT, chargeText, size * .42, boxWidth - 12);
+        g.setColor(Style.TEXT);
+        g.drawString(chargeText, boxLeft + 6, boxTop + (int) (size * .95));
+
+        g.setFont(Style.MONO_FONT.deriveFont((float) (size * .35)));
+        g.setColor(Style.ACCENT);
+        fitFont(g, Style.MONO_FONT, itemName, size * .45, boxWidth - 12);
+        g.drawString(itemName, boxLeft + 6, boxTop + (int) (size * 1.8));
+
+        g.setColor(Style.MUTED_TEXT);
+        fitFont(g, Style.BODY_FONT, itemDescription, size * .38, boxWidth - 12);
+        g.drawString(itemDescription, boxLeft + 6, boxTop + (int) (size * 2.56));
+    }
+
     // 나중에 키 설정 기능이 생기면 입력 처리와 안내 문구를 함께 관리해도 괜찮을 것 같음
     private void drawControls(Graphics2D g, double size) {
-        g.setFont(Style.MONO_FONT.deriveFont((float) (size * .43)));
+        // 아이템 모드에서는 안내 간격을 줄여 아이템 상자 아래에도 조작키 표시
+        double heading = itemMode ? 17.65 : 14.85;
+        double firstRow = itemMode ? 18.1 : 15.5;
+        double rowGap = itemMode ? .74 : 1.12;
+        g.setFont(Style.MONO_FONT.deriveFont((float) (size * (itemMode ? .36 : .43))));
         g.setColor(Style.MUTED_TEXT);
-        g.drawString("CONTROLS", (int) (size * .6), (int) (size * 15.17));
+        g.drawString("CONTROLS", (int) (size * .6), (int) (size * heading));
         int left = (int) (size * .55);
         int keyWidth = (int) (size * 1.8);
-        int keyHeight = (int) (size * .78);
-        for (int i = 0; i < CONTROLS.length; i++) {
-            int y = (int) (size * (15.82 + i * 1.15));
-            // 실제 키 반전 처리는 Board에서 하고 여기서는 바뀐 조작 방법만 표시
-            boolean reversed = i == 0 && level == 5;
-            String label = reversed ? "좌우 반전" : CONTROLS[i][1];
-            Color accent = reversed ? Style.GOLD : Style.TEXT;
+        int keyHeight = (int) (size * (itemMode ? .6 : .78));
+        for (int i = 0; i < controls.length; i++) {
+            int y = (int) (size * (firstRow + i * rowGap));
+
+            String label = controls[i][1];
+            Color accent = Style.TEXT;
             // 키 안내는 작은 직각 표식으로 표시하고 실제 입력 처리는 Board가 담당
             g.setColor(Style.PANEL);
             g.fillRect(left, y, keyWidth, keyHeight);
             g.setColor(Style.BORDER);
             g.drawRect(left, y, keyWidth, keyHeight);
-            fitFont(g, Style.MONO_FONT, CONTROLS[i][0], size * .41, keyWidth - 6);
+            fitFont(g, Style.MONO_FONT, controls[i][0], size * (itemMode ? .36 : .41), keyWidth - 6);
             int keyBaseline = y + (keyHeight - g.getFontMetrics().getHeight()) / 2 + g.getFontMetrics().getAscent();
-            drawCentered(g, CONTROLS[i][0], left + keyWidth / 2, keyBaseline, accent);
+            drawCentered(g, controls[i][0], left + keyWidth / 2, keyBaseline, accent);
             int labelRight = getWidth() - left;
-            fitFont(g, Style.BODY_FONT, label, size * .43, labelRight - left - keyWidth - (int) (size * .35));
-            g.setColor(reversed ? Style.GOLD : Style.MUTED_TEXT);
+            fitFont(g, Style.BODY_FONT, label, size * (itemMode ? .38 : .43), labelRight - left - keyWidth - (int) (size * .35));
+            g.setColor(Style.MUTED_TEXT);
             int baseline = y + (keyHeight - g.getFontMetrics().getHeight()) / 2 + g.getFontMetrics().getAscent();
             g.drawString(label, labelRight - g.getFontMetrics().stringWidth(label), baseline);
         }

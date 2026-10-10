@@ -6,6 +6,7 @@ Java Swing으로 구현한 데스크톱 테트리스입니다. 소스코드분�
 
 - 메인 메뉴에서 닉네임을 입력하고 **적용**한 뒤 **클래식** 게임을 시작합니다.
 - **멀티플레이 → AI 대전**에서 쉬움·보통·어려움·매우 어려움·지옥 중 하나를 선택합니다. 같은 블록 순서로 시간제한 없이 점수를 겨룹니다.
+- **멀티플레이 → 네트워크 대전**에서 방을 만들고 방 코드를 공유하면 다른 컴퓨터와 온라인 점수 대결을 할 수 있습니다. 두 사람 모두 준비하면 3초 뒤 시작합니다.
 - 클래식은 10 × 22칸 보드에서 7종의 블록을 이동·회전·낙하시켜 가득 찬 줄을 제거하는 게임입니다.
 - 오른쪽 패널에 점수, 누적 제거 줄 수, 경과 시간, 다음 블록, 조작키를 표시합니다.
 - 한 번에 지운 줄 수와 연속 줄 제거에 따라 점수가 오르며, 점수가 높아지면 자동 낙하 간격이 400ms에서 최대 200ms까지 짧아집니다.
@@ -112,6 +113,35 @@ AI 대전 점수는 클래식 서버 랭킹에 등록하지 않습니다.
 
 **아래 방향키는 회전 키입니다.** 한 칸 하강에는 `D`를 사용합니다.
 
+## 온라인 1:1 대전
+
+1. 서버 컴퓨터에 최신 코드를 반영하고 아래의 `ScoreServer`를 실행합니다. 예전 점수 전용 서버는 업데이트해야 온라인 대전을 처리할 수 있습니다.
+2. 두 컴퓨터에서 **멀티플레이 → 네트워크 대전**을 엽니다. 서버 주소와 포트는 같은 서버로 지정하고 닉네임을 입력합니다.
+3. 한 사람은 **방 만들기**, 다른 사람은 전달받은 **6자리 방 코드**로 **참가**합니다.
+4. 두 사람이 **준비**를 누르면 3초 카운트다운 뒤 경기가 시작됩니다. 왼쪽에는 내 보드, 오른쪽에는 상대 보드가 표시됩니다.
+5. 종료 결과를 확인한 뒤 방을 나가면 새 방을 만들거나 다른 방에 참가할 수 있습니다.
+
+두 플레이어에게 같은 순서의 블록을 제공하며, 서버가 이동·낙하·점수·승패를 계산합니다. 각 플레이어는 자신의 속도로 블록을 배치합니다.
+자동 낙하는 양쪽 모두 400ms이고, 줄 점수는 클래식과 같은 10/25/40/60점에 연속 제거 콤보 10점을 추가합니다.
+한 명이 게임오버되면 남은 사람은 계속 플레이할 수 있고, 종료한 상대보다 점수가 높아지는 순간 승리합니다.
+둘 다 게임오버되면 점수가 높은 사람이 승리하며 동점이면 무승부입니다. 시간제한은 없습니다.
+
+온라인 대전에서는 아이템·레벨에 따른 속도 변화·좌우 반전·일시정지를 적용하지 않습니다. 창을 다른 곳으로 옮겨도 경기는 계속됩니다.
+경기 중 방을 나가거나 접속이 끊기면 남은 사람이 승리합니다. 대기 중 이탈은 방을 종료하며, 시작하지 않은 방은 10분 뒤 만료합니다.
+대전 결과는 클래식 랭킹에 등록하지 않습니다. 닉네임과 방 코드를 이용한 친구 대전이며 계정 인증이나 재접속 복구는 지원하지 않습니다.
+
+기본 서버 주소는 기존 랭킹과 같은 `131.186.39.107:5000`입니다. 현재 사용하는 역방향 TCP 터널이 이 포트를 서버 컨테이너로 전달한다면 추가 게임 포트를 열 필요가 없습니다.
+서버에는 최신 Java 코드가 실행되어 있어야 합니다. 네트워크 설정과 서버 배포 여부는 실제 운영 환경에서 별도로 확인해야 합니다.
+
+### 한 컴퓨터에서 두 클라이언트로 확인하기
+
+서버를 실행한 뒤 서로 다른 터미널에서 아래 명령을 각각 실행합니다. 로컬 프로필 폴더를 나눠 닉네임이 섞이지 않도록 합니다.
+
+```bash
+java -Dtetris.server.host=127.0.0.1 -Dtetris.server.port=5000 -Dtetris.data.dir=.tetris/player1 -cp out frontend.Main
+java -Dtetris.server.host=127.0.0.1 -Dtetris.server.port=5000 -Dtetris.data.dir=.tetris/player2 -cp out frontend.Main
+```
+
 ## 프로젝트 구조
 
 ```text
@@ -130,6 +160,7 @@ src/
 │   ├── SoundManager.java         # 배경음악·효과음 재생
 │   ├── audio/                    # WAV 오디오 리소스
 │   ├── ai/                       # AI 난이도 선택·두 보드 대전 화면
+│   ├── online/                   # 온라인 방 생성·참가·준비·두 보드 대전 화면
 │   ├── style/
 │   │   └── Style.java            # 공통 폰트·화면 색상·버튼 스타일
 │   ├── engine/
@@ -138,15 +169,19 @@ src/
 │   │   └── LocalScoreStore.java  # 닉네임·로컬 최고 점수·전송 대기 기록
 │   └── network/
 │       ├── ScoreClient.java      # TCP 점수 등록·조회·랭킹 요청
+│       ├── OnlineClient.java     # 온라인 경기 지속 연결·입력·상태 요청
 │       └── ConnectionTestClient.java  # PING 연결 확인용 클라이언트
-└── backend/
-    ├── ai/                       # Python 추론 프로세스·대전 엔진·Java 연결
-    ├── models/tetris_afterstate/  # 다섯 난이도 가중치와 모델 실행 코드
-    ├── score/
-    │   └── ScoreRepository.java  # 최고 점수 영속 저장·정렬·페이지 조회
-    └── network/
-        ├── ScoreServer.java      # TCP 점수 서버 진입점
-        └── ConnectionTestServer.java # 기존 명령과 호환되는 진입점
+├── backend/
+│   ├── ai/                       # Python 추론 프로세스·대전 엔진·Java 연결
+│   ├── models/tetris_afterstate/  # 다섯 난이도 가중치와 모델 실행 코드
+│   ├── score/
+│   │   └── ScoreRepository.java  # 최고 점수 영속 저장·정렬·페이지 조회
+│   └── network/
+│       ├── ScoreServer.java      # 점수 요청·온라인 접속을 구분하는 TCP 진입점
+│       ├── OnlineMatchService.java # 방·서버 엔진·경기 시간·승패·연결 종료 관리
+│       └── ConnectionTestServer.java # 기존 명령과 호환되는 진입점
+└── shared/network/
+    └── OnlineFrame.java          # 서버와 클라이언트가 공유하는 경기 스냅숏·코덱
 ```
 
 `src/kr`에 있던 화면 개선은 `frontend`에 통합하고 중복 소스는 제거했습니다. 게임 규칙은 `frontend.engine.GameEngine`, 화면과 입력은 `frontend`에서 관리합니다. 엔진은 `frontend`의 `Shape`와 `Tetrominoes`를 사용합니다.
@@ -168,9 +203,9 @@ flowchart TD
 
 ## 현재 구현 범위
 
-- 클래식, 5단계 AI 대전, 서버 점수·전체 랭킹, 해상도 설정, 오디오, 메뉴 복귀를 지원합니다.
-- 아이템, 1PC 2인, 온라인 PVP는 아직 게임에 연결되어 있지 않습니다.
-- 서버는 파일 기반 저장소를 사용합니다. 계정 인증, 게임방·매칭·대전 상태 동기화, DB 연동은 아직 없습니다.
+- 클래식, 아이템, 1PC 2인, 5단계 AI 대전, 온라인 1:1 점수 대전, 서버 점수·전체 랭킹, 해상도 설정, 오디오, 메뉴 복귀를 지원합니다.
+- 온라인은 방 코드로 연결하는 친구 대전입니다. 공개 자동 매칭·공격 줄·관전·재접속 복구는 구현되어 있지 않습니다.
+- 서버는 파일 기반 점수 저장소와 메모리의 대전 방을 사용합니다. 계정 인증과 DB 연동은 아직 없습니다.
 - 홀드, 고스트 블록, 벽 차기(Wall Kick)는 구현되어 있지 않습니다.
 
 ## 서버 점수 저장과 운영
@@ -183,9 +218,18 @@ flowchart TD
 java -cp out backend.network.ScoreServer 5000 server-data
 ```
 
+서버 배포용 JAR만 만들려면 프로젝트 루트에서 `bash scripts/build-server.sh`를 실행합니다.
+생성된 `out/tetris-server.jar`를 서버로 복사한 뒤 `java -Djava.awt.headless=true -jar tetris-server.jar 5000 server-data`로 실행할 수도 있습니다.
+배포 시 기존 Java 서버를 정상 종료한 뒤 새 버전을 실행하고, `server-data`는 기존 저장 폴더를 그대로 지정합니다.
+
 서버는 `0.0.0.0:5000`에서 접속을 받고 `server-data/scores.tsv`에 저장합니다. 첫 번째 인자는 포트, 두 번째 인자는 저장 폴더입니다. 기존 `backend.network.ConnectionTestServer` 실행 명령도 점수 서버로 연결됩니다.
 
 현재 개인 서버의 작업 폴더는 `/home/samuel/server/tetris-network-check`이며, 점수는 그 아래 `server-data/scores.tsv`에 저장됩니다. 해당 작업 폴더는 Docker 볼륨에 연결되어 있습니다. 다른 배포 환경에서도 저장 폴더를 볼륨에 연결해야 컨테이너를 교체할 때 기록을 유지할 수 있습니다.
+
+2026-10-10에는 `releases/online-20261010-01/tetris-server.jar`로 온라인 지원 서버를 반영했습니다.
+같은 작업 폴더에서 `java -Djava.awt.headless=true -jar releases/online-20261010-01/tetris-server.jar 5000 server-data`로 실행합니다.
+이전 `out/` 실행 파일과 배포 시점 점수·로그 백업은 보존했습니다. 새 배포가 있으면 실제 실행 중인 버전과 저장 경로를 먼저 확인합니다.
+배포 당일 외부 주소에서 두 클라이언트의 방 생성·참가·준비·조작·승패와 랭킹 조회를 확인했으며, 기존 점수 파일 해시는 배포 전후 동일했습니다.
 
 점수 파일 보존과 Java 프로세스 자동 실행은 별개입니다. 현재 컨테이너의 시작 명령은 SSH 서버이므로 컨테이너를 재시작하면 점수 서버도 다시 실행해야 합니다. 자동 실행은 서버 노트북의 Docker 시작 설정에 위 명령을 등록해야 합니다.
 
@@ -216,6 +260,32 @@ java -cp out backend.network.ScoreServer 5000 server-data
 ```bash
 java -cp out frontend.network.ConnectionTestClient 131.186.39.107 5000
 ```
+
+### 온라인 프로토콜
+
+기존 배너 `TETRIS/1 READY` 뒤 첫 요청을 `ONLINE/1 CREATE <닉네임 토큰>` 또는
+`ONLINE/1 JOIN <방 코드> <닉네임 토큰>`으로 보내면 지속 연결로 전환합니다. 이후 `POLL`, `READY`,
+`INPUT LEFT|RIGHT|ROTATE_LEFT|ROTATE_RIGHT|SOFT_DROP|HARD_DROP`, `LEAVE`를 한 줄씩 요청합니다.
+각 요청에 서버가 한 줄의 `ONLINE/1 STATE ...` 스냅숏을 응답하며 두 보드와 점수, 준비 상태, 승패를 포함합니다.
+`LEAVE`의 응답은 `ONLINE/1 BYE`이고 오류는 `ERROR <코드>`입니다. 상세 필드와 검증은 `shared.network.OnlineFrame`에 있습니다.
+
+대전은 최대 16개 방과 32개 접속을 사용하며 점수 요청과 별도 작업 풀에서 처리합니다.
+클라이언트는 응답 후 50ms 간격으로 상태를 조회하지만 실제 중력은 서버 타이머가 독립적으로 진행합니다.
+클라이언트의 연결과 응답 제한은 각각 8초이고, 입력은 최대 4개를 1초 동안 보관합니다. 네트워크 지연에 따라 화면과 입력 반영은 늦어질 수 있습니다.
+15초 동안 요청이 없는 연결은 정리합니다. 방과 경기는 메모리에 있어 서버를 재시작하면 종료되며, 저장된 클래식 점수는 유지됩니다.
+
+### 네트워크 회귀 검증
+
+```bash
+find src tests -name '*.java' -print0 | xargs -0 javac -encoding UTF-8 -d out
+java -cp out shared.network.OnlineFrameTest
+java -Djava.awt.headless=true -cp out online.OnlineNetworkTest
+java -Djava.awt.headless=true -cp out frontend.online.OnlineUiTest
+```
+
+네트워크 테스트는 임시 저장 폴더와 빈 로컬 포트에서 별도 서버를 실행하므로 실제 개인 서버의 랭킹을 수정하지 않습니다.
+그래픽 데스크톱에서는 `java -cp out online.OnlineSwingIntegrationTest`로 실제 창 두 개의 메뉴·입력·복귀를 확인합니다.
+배포 서버 확인은 `java -cp out online.OnlineServerSmokeTest 서버주소 포트`로 실행합니다. 임시 대전 방만 생성·정리하고 기존 점수는 조회만 수행합니다.
 
 ## 개발 시 참고
 
