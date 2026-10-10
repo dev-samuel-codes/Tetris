@@ -483,30 +483,31 @@ public class GameEngine {
         if (rowsToClear <= 0 || rowsToClear >= BOARD_HEIGHT)
             return;
 
-        Tetrominoes[] previousBoard = board.clone();
-        ItemType[] previousItemTypes = boardItemTypes.clone();
-
         for (int x = 0; x < BOARD_WIDTH; x++) {
-            for (int y = 0; y < BOARD_HEIGHT; y++) {
-                int index = toIndex(x, y);
-                Tetrominoes shape = previousBoard[index];
-                ItemType itemType = previousItemTypes[index];
-
-                if (y >= BOARD_HEIGHT - rowsToClear) {
-                    if (shape != Tetrominoes.NoShape) {
-                        clearBoardCell(x, y);
-                    }
-                    continue;
-                }
-
-                if (shape != Tetrominoes.NoShape) {
-                    setBoardCell(x, y + rowsToClear, shape, itemType);
+            for (int y = BOARD_HEIGHT - rowsToClear; y < BOARD_HEIGHT; y++) {
+                ItemType removedItem = boardItemTypeAt(x, y);
+                if (removedItem != null) {
+                    handleRemovedItemCell(removedItem);
                 }
             }
         }
 
         for (int x = 0; x < BOARD_WIDTH; x++) {
-            for (int y = 0; y < rowsToClear; y++) {
+            int writeY = BOARD_HEIGHT - 1;
+            for (int y = BOARD_HEIGHT - 1; y >= 0; y--) {
+                if (y >= BOARD_HEIGHT - rowsToClear) {
+                    continue;
+                }
+
+                Tetrominoes shape = shapeAt(x, y);
+                ItemType itemType = boardItemTypeAt(x, y);
+                if (shape != Tetrominoes.NoShape) {
+                    setBoardCell(x, writeY, shape, itemType);
+                    writeY--;
+                }
+            }
+
+            for (int y = writeY; y >= 0; y--) {
                 setBoardCell(x, y, Tetrominoes.NoShape, null);
             }
         }

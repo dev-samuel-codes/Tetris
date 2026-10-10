@@ -132,28 +132,15 @@ public class ItemModeEngineTest {
         applyItem.invoke(engine, GameEngine.ItemType.BOTTOM_CLEAR);
 
         for (int x = 0; x < GameEngine.BOARD_WIDTH; x++) {
-            if (engine.shapeAt(x, GameEngine.BOARD_HEIGHT - 1) != Tetrominoes.NoShape) {
-                throw new AssertionError("하단 제거 후 가장 아래 행은 비어 있어야 합니다.");
-            }
-            if (engine.shapeAt(x, GameEngine.BOARD_HEIGHT - 2) != Tetrominoes.NoShape) {
-                throw new AssertionError("하단 제거 후 두 번째 아래 행도 비어 있어야 합니다.");
-            }
-        }
-
-        boolean foundDroppedBlock = false;
-        for (int x = 0; x < GameEngine.BOARD_WIDTH; x++) {
-            for (int y = 0; y < GameEngine.BOARD_HEIGHT - 2; y++) {
-                if (engine.shapeAt(x, y) != Tetrominoes.NoShape) {
-                    foundDroppedBlock = true;
-                    break;
+            boolean seenFilledCell = false;
+            for (int y = 0; y < GameEngine.BOARD_HEIGHT; y++) {
+                Tetrominoes cell = engine.shapeAt(x, y);
+                if (cell != Tetrominoes.NoShape) {
+                    seenFilledCell = true;
+                } else if (seenFilledCell) {
+                    throw new AssertionError("하단 제거 후 아래에 빈 공간이 남아 있으면 안 됩니다.");
                 }
             }
-            if (foundDroppedBlock) {
-                break;
-            }
-        }
-        if (!foundDroppedBlock) {
-            throw new AssertionError("하단 제거 후 위 블록이 아래로 내려와야 합니다.");
         }
     }
 }
