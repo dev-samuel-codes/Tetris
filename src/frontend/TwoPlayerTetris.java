@@ -79,6 +79,16 @@ public class TwoPlayerTetris extends JFrame {
         requestFocusInWindow();
 
         setSize(1100, 750);
+        GraphicsConfiguration configuration = getGraphicsConfiguration();
+        Rectangle screen = configuration.getBounds();
+        Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(configuration);
+        // 메뉴 막대와 Dock을 제외한 작업 영역에 두 게임판을 함께 맞춤
+        int availableWidth = screen.width - insets.left - insets.right - 32;
+        int availableHeight = screen.height - insets.top - insets.bottom - 32;
+        double scale = Math.min(1, Math.min(availableWidth / (double) getWidth(),
+                availableHeight / (double) getHeight()));
+        if (scale < 1)
+            setSize((int) (getWidth() * scale), (int) (getHeight() * scale));
         setLocationRelativeTo(null);
         setResizable(false);
     }
@@ -98,14 +108,17 @@ public class TwoPlayerTetris extends JFrame {
         statusbar.setForeground(Style.MUTED_TEXT);
 
         SidePanel sidePanel = new SidePanel();
-        sidePanel.setPreferredSize(new Dimension(150, 0));
+        sidePanel.setControls(isPlayer1
+                ? new String[][] { { "A D", "이동" }, { "W", "회전" }, { "S", "한 칸 하강" }, { "SPACE", "즉시 낙하" } }
+                : new String[][] { { "← →", "이동" }, { "↑", "회전" }, { "↓", "한 칸 하강" }, { "ENTER", "즉시 낙하" } });
 
         Board board = new Board(statusbar, sidePanel, false);
 
-        JPanel gamePanel = new JPanel(new BorderLayout(10, 0));
+        // 클래식과 같은 배치를 사용해 두 게임판과 정보 패널의 칸 비율 유지
+        JPanel gamePanel = new JPanel(new Tetris.GameAreaLayout(board, sidePanel, 26));
         gamePanel.setOpaque(false);
-        gamePanel.add(board, BorderLayout.CENTER);
-        gamePanel.add(sidePanel, BorderLayout.EAST);
+        gamePanel.add(board);
+        gamePanel.add(sidePanel);
 
         panel.add(gamePanel, BorderLayout.CENTER);
         panel.add(statusbar, BorderLayout.SOUTH);

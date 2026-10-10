@@ -18,6 +18,7 @@ public class SidePanel extends JPanel {
             { "← →", "이동" }, { "↑ ↓", "회전" }, { "D", "한 칸 하강" },
             { "SPACE", "즉시 낙하" }, { "P", "일시정지" }
     };
+    private String[][] controls = CONTROLS;
 
     private int score;
     private int elapsedSeconds;
@@ -67,6 +68,12 @@ public class SidePanel extends JPanel {
 
     public void setItemMode(boolean itemMode) {
         this.itemMode = itemMode;
+        repaint();
+    }
+
+    // 1PC 2인 화면에서는 플레이어가 실제로 사용하는 키를 전달받아 표시
+    public void setControls(String[][] controls) {
+        this.controls = controls;
         repaint();
     }
 
@@ -231,20 +238,20 @@ public class SidePanel extends JPanel {
         int left = (int) (size * .55);
         int keyWidth = (int) (size * 1.8);
         int keyHeight = (int) (size * (itemMode ? .6 : .78));
-        for (int i = 0; i < CONTROLS.length; i++) {
+        for (int i = 0; i < controls.length; i++) {
             int y = (int) (size * (firstRow + i * rowGap));
             // 실제 키 반전 처리는 Board에서 하고 여기서는 바뀐 조작 방법만 표시
             boolean reversed = i == 0 && level == 5;
-            String label = reversed ? "좌우 반전" : CONTROLS[i][1];
+            String label = reversed ? "좌우 반전" : controls[i][1];
             Color accent = reversed ? Style.GOLD : Style.TEXT;
             // 키 안내는 작은 직각 표식으로 표시하고 실제 입력 처리는 Board가 담당
             g.setColor(Style.PANEL);
             g.fillRect(left, y, keyWidth, keyHeight);
             g.setColor(Style.BORDER);
             g.drawRect(left, y, keyWidth, keyHeight);
-            fitFont(g, Style.MONO_FONT, CONTROLS[i][0], size * (itemMode ? .36 : .41), keyWidth - 6);
+            fitFont(g, Style.MONO_FONT, controls[i][0], size * (itemMode ? .36 : .41), keyWidth - 6);
             int keyBaseline = y + (keyHeight - g.getFontMetrics().getHeight()) / 2 + g.getFontMetrics().getAscent();
-            drawCentered(g, CONTROLS[i][0], left + keyWidth / 2, keyBaseline, accent);
+            drawCentered(g, controls[i][0], left + keyWidth / 2, keyBaseline, accent);
             int labelRight = getWidth() - left;
             fitFont(g, Style.BODY_FONT, label, size * (itemMode ? .38 : .43), labelRight - left - keyWidth - (int) (size * .35));
             g.setColor(reversed ? Style.GOLD : Style.MUTED_TEXT);
