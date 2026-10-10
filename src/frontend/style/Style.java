@@ -41,8 +41,9 @@ public final class Style {
     public static final Color ITEM_BUTTON = PANEL;
     public static final Color MULTIPLAYER_BUTTON = PANEL;
     public static final Color BOARD_BACKGROUND = new Color(0x0D0C12);
-    public static final Color BOARD_GRID = new Color(0x1D1B25);
-    public static final Color BOARD_BORDER = BORDER;
+    // 어두운 보드에서도 빈칸의 경계가 보이도록 모든 게임 화면에 같은 대비 사용
+    public static final Color BOARD_GRID = new Color(0x393644);
+    public static final Color BOARD_BORDER = new Color(0x5A5565);
     public static final Color OVERLAY = new Color(13, 12, 18, 240);
     // 나중에 밝은 테마나 고대비 모드를 추가하면 이 색상 묶음을 테마별로 나눠도 괜찮을 것 같음
 

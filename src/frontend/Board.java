@@ -38,8 +38,12 @@ public class Board extends JPanel implements ActionListener {
 	private String levelMessage = "";
 	private String scoreSaveStatus = "";
 	private boolean defaultKeysEnabled = true;
+	private String battleMessage = "";
+	private final Timer battleMessageTimer;
+	private boolean battleMode = false;
 
-    // 상태바와 사이드패널, 아이템 모드 여부를 받아 게임판 생성
+
+	// 상태바와 사이드패널, 아이템 모드 여부를 받아 게임판 생성
     public Board(JLabel statusbar, SidePanel sidePanel, boolean itemMode) {
 =======
     private final GameEngine engine = new GameEngine();
@@ -91,7 +95,15 @@ public class Board extends JPanel implements ActionListener {
 <<<<<<< Updated upstream
 		levelTimer.setRepeats(false); // 반복하지 말고 한번만 실행
 		addKeyListener(new TAdapter());
+
+		battleMessageTimer = new Timer(3000, e -> {
+			battleMessage = "";
+			repaint();
+		});
+		battleMessageTimer.setRepeats(false);
 	}
+
+
 
 	public void actionPerformed(ActionEvent e) {
 		// 정지 전에 들어온 타이머 이벤트도 무시
@@ -146,6 +158,7 @@ public class Board extends JPanel implements ActionListener {
         moveHorizontally(false);
     }
 
+<<<<<<< HEAD
     private void moveHorizontally(boolean left) {
         if (isStopped || !engine.isStarted() || engine.isPaused()
                 || engine.getCurrentShape() == Tetrominoes.NoShape)
@@ -179,6 +192,9 @@ public class Board extends JPanel implements ActionListener {
 
 <<<<<<< Updated upstream
 		if (left != (currentLevel == 5))
+=======
+		if (left)
+>>>>>>> 05d2c9b34c0dc542bedeb4fadf0a25831f715173
 			engine.moveLeft();
 		else
 			engine.moveRight();
@@ -204,6 +220,11 @@ public class Board extends JPanel implements ActionListener {
 		clockTimer.stop();
 		levelTimer.stop();
 		levelMessage = "";
+		battleMessageTimer.stop();
+	}
+	//1pc2인 모드인지 여부 설정
+	public void setBattleMode(boolean battleMode) {
+		this.battleMode = battleMode;
 	}
 =======
         if (score >= 200) {
@@ -250,15 +271,15 @@ public class Board extends JPanel implements ActionListener {
 		// 1.5초 동안 떴다가 사라지는 코드
 		if (newLevel != currentLevel) {
 			currentLevel = newLevel;
-			if (currentLevel == 4) {
-				levelMessage = "LEVEL 4 - NEXT 블록 숨김";
-			} else if (currentLevel == 5) {
-				levelMessage = "LEVEL 5 - 좌우키 반전";
-			} else {
-				levelMessage = "LEVEL " + currentLevel;
-			}
+			levelMessage = "LEVEL " + currentLevel;
 
 			levelTimer.restart(); // 레벨이 다시 바뀌면 표시 시간도 처음부터 계산
+		}
+		// 1pc 2인게임이면 속도 고정
+		if (battleMode) {
+			timer.setDelay(250);
+			currentLevel = 1;
+			return;
 		}
 	}
 =======
@@ -326,11 +347,19 @@ public class Board extends JPanel implements ActionListener {
 			sidePanel.setItemStatus(0, "클래식 모드", "아이템 없음");
 		}
 		// 4레벨이상 사이드 패널에 다음 모양 숨김
-		if (currentLevel >= 4) {
-			sidePanel.setNextShape(Tetrominoes.NoShape);
-		} else {
-			sidePanel.setNextShape(engine.getNextShape());
-		}
+		sidePanel.setNextShape(engine.getNextShape());
+	}
+
+	// 보드 중앙에 대전 공격 메시지 표시
+	private void drawBattleMessage(Graphics2D g, int left, int top, int size) {
+		int centerX = left + BOARD_WIDTH * size / 2;
+		int centerY = top + BOARD_HEIGHT * size / 2;
+
+		g.setFont(Style.DISPLAY_FONT.deriveFont((float) (size * 1.1)));
+		g.setColor(Style.GOLD);
+
+		int textWidth = g.getFontMetrics().stringWidth(battleMessage);
+		g.drawString(battleMessage, centerX - textWidth / 2, centerY);
 	}
 =======
         if (!engine.getLastItemName().isEmpty()) {
@@ -378,11 +407,18 @@ public class Board extends JPanel implements ActionListener {
 			graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 			drawGrid(graphics, left, top, size);
 			drawPieces(graphics, left, top, size);
+<<<<<<< HEAD
 =======
         int size = squareSize();
         if (size <= 0)
             return;
 >>>>>>> Stashed changes
+=======
+			//메세지가 들어있을 때 띄우기
+			if (!battleMessage.isEmpty()) {
+				drawBattleMessage(graphics, left, top, size);
+			}
+>>>>>>> 05d2c9b34c0dc542bedeb4fadf0a25831f715173
 
         int left = boardLeft();
         int top = boardTop();
@@ -455,8 +491,7 @@ public class Board extends JPanel implements ActionListener {
 		drawCentered(g, "LEVEL " + currentLevel, centerX, top + (int) (2.15 * size));
 		g.setFont(Style.BODY_FONT.deriveFont(size * 0.43f));
 		g.setColor(Style.TEXT);
-		String description = currentLevel == 5 ? "좌우 이동 키가 반전됩니다"
-				: currentLevel == 4 ? "다음 블록이 숨겨집니다" : "블록이 조금 더 빠르게 떨어집니다";
+		String description = "블록이 더 빠르게 떨어집니다";
 		drawCentered(g, description, centerX, top + (int) (3.15 * size));
 	}
 =======
@@ -509,7 +544,18 @@ public class Board extends JPanel implements ActionListener {
         drawCentered(g, description, centerX, top + (int) (3.15 * size));
     }
 
+<<<<<<< HEAD
 <<<<<<< Updated upstream
+=======
+	// 1PC 2인용 공격 메시지를 3초 동안 표시
+	public void showBattleMessage(String message) {
+		battleMessage = message;
+		battleMessageTimer.restart();
+		repaint();
+	}
+
+
+>>>>>>> 05d2c9b34c0dc542bedeb4fadf0a25831f715173
 	class TAdapter extends KeyAdapter {
 		public void keyPressed(KeyEvent e) {
 			// 1PC 2인용에서 키 입력 막기위한 코드

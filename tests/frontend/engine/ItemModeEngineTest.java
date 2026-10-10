@@ -38,56 +38,11 @@ public class ItemModeEngineTest {
             throw new AssertionError("클래식 모드에서는 아이템이 발동하면 안 됩니다.");
         }
 
-        testEarthquakeItem();
         testRotationLockItem();
         testFullLineRemovalCleansBoard();
         testBottomClearItem();
 
         System.out.println("ItemModeEngineTest passed");
-    }
-
-    private static void testEarthquakeItem() throws ReflectiveOperationException {
-        GameEngine engine = new GameEngine();
-        Method applyItem = GameEngine.class.getDeclaredMethod("applyItem", GameEngine.ItemType.class);
-        applyItem.setAccessible(true);
-        applyItem.invoke(engine, GameEngine.ItemType.EARTHQUAKE);
-
-        int totalTrashRows = 0;
-        for (int y = GameEngine.BOARD_HEIGHT - 4; y < GameEngine.BOARD_HEIGHT; y++) {
-            boolean rowHasBlock = false;
-            for (int x = 0; x < GameEngine.BOARD_WIDTH; x++) {
-                if (engine.shapeAt(x, y) != Tetrominoes.NoShape) {
-                    rowHasBlock = true;
-                    break;
-                }
-            }
-            if (rowHasBlock) {
-                totalTrashRows++;
-            }
-        }
-
-        if (totalTrashRows < 2 || totalTrashRows > 4) {
-            throw new AssertionError("지진 아이템은 바닥에서 위로 2~4줄의 방해 줄을 생성해야 합니다.");
-        }
-
-        for (int y = 0; y < GameEngine.BOARD_HEIGHT - 4; y++) {
-            for (int x = 0; x < GameEngine.BOARD_WIDTH; x++) {
-                if (engine.shapeAt(x, y) != Tetrominoes.NoShape) {
-                    throw new AssertionError("지진 아이템은 바닥에서 위로 생성되어야 하며, 위쪽 행에는 방해 줄이 생기면 안 됩니다.");
-                }
-            }
-        }
-
-        boolean hasHole = false;
-        for (int x = 0; x < GameEngine.BOARD_WIDTH; x++) {
-            if (engine.shapeAt(x, GameEngine.BOARD_HEIGHT - 1) == Tetrominoes.NoShape) {
-                hasHole = true;
-                break;
-            }
-        }
-        if (!hasHole) {
-            throw new AssertionError("지진 아이템은 맨 밑 줄에 구멍이 있어야 합니다.");
-        }
     }
 
     private static void testRotationLockItem() throws ReflectiveOperationException {
