@@ -4,6 +4,8 @@ import java.util.Random;
 
 import frontend.Shape;
 import frontend.Tetrominoes;
+import java.util.ArrayDeque;
+import java.util.Queue;
 
 // 화면과 독립적으로 게임 상태와 블록 이동, 충돌, 줄 제거를 관리
 public class GameEngine {
@@ -47,6 +49,7 @@ public class GameEngine {
     private boolean isStarted = false;
     private boolean isPaused = false;
     private boolean itemMode = false;
+    private boolean battleItemMode = false;
     private boolean pendingBombItem = false;
 	private int numLinesRemoved = 0;
 	private int score = 0;
@@ -69,6 +72,7 @@ public class GameEngine {
     private int nextItemSpawnInterval = ITEM_SPAWN_MIN;
     private ItemType currentItemType = null;
     private ItemType lastItemType = null;
+    private final Queue<ItemType> pendingBattleItems = new ArrayDeque<>();
 
     public GameEngine() {
         this(new Random());
@@ -364,9 +368,14 @@ public class GameEngine {
             case BOTTOM_CLEAR:
                 break;
             case ROTATION_LOCK:
-                rotationLockRemaining += 2;
-                rotationLocked = true;
+                if (battleItemMode) {
+                    pendingBattleItems.offer(ItemType.ROTATION_LOCK);
+                } else {
+                    rotationLockRemaining += 2;
+                    rotationLocked = true;
+                }
                 break;
+
             case SCORE_BOOST:
                 score += 30;
                 break;
@@ -374,9 +383,13 @@ public class GameEngine {
                 clearSameShape(removedItemShape);
                 break;
             case FOG:
+            if (battleItemMode) {
+                pendingBattleItems.offer(ItemType.FOG);
+            } else {
                 fogRemaining += FOG_PIECES;
                 fogActive = true;
-                break;
+            }
+            break;
 
             default:
                 break;
@@ -414,6 +427,16 @@ public class GameEngine {
             accumulatedItemLines = 0;
     }
 
+    // 대전에서는 방해 아이템을 상대에게 적용하도록 설정
+    public void setBattleItemMode(boolean battleItemMode) {
+        this.battleItemMode = battleItemMode;
+    }
+
+    // 상대에게 전달할 방해 아이템을 하나 꺼냄
+    public ItemType pollBattleItem() {
+        return pendingBattleItems.poll();
+    }
+
     public int getLinesUntilItemActivation() {
         return 0;
     }
@@ -449,6 +472,12 @@ public class GameEngine {
     public void applyBattleRotationLock() {
         rotationLockRemaining += 2;
         rotationLocked = true;
+    }
+
+    // 상대에게 안개 효과 적용
+    public void applyBattleFog() {
+        fogRemaining += FOG_PIECES;
+        fogActive = true;
     }
 
     public void applyBattleScorePenalty() {

@@ -1,7 +1,7 @@
 package frontend;
 
 import frontend.style.Style;
-
+import frontend.engine.GameEngine;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
@@ -74,6 +74,7 @@ public class TwoPlayerTetris extends JFrame {
         // 두 플레이어의 게임오버 여부 확인
         gameCheckTimer = new Timer(200, e -> {
             checkGameOver();
+            checkBattleItems();
         });
         gameCheckTimer.start();
 
@@ -103,6 +104,29 @@ public class TwoPlayerTetris extends JFrame {
             setSize((int) (getWidth() * scale), (int) (getHeight() * scale));
         setLocationRelativeTo(null);
         setResizable(false);
+    }
+
+    // 각 플레이어가 발동한 방해 아이템을 상대에게 적용
+    private void checkBattleItems() {
+        applyPendingItems(player1Board, player2Board);
+        applyPendingItems(player2Board, player1Board);
+    }
+
+    // 대기 중인 방해 아이템을 상대 보드에 적용
+    private void applyPendingItems(Board source, Board target) {
+        GameEngine.ItemType item;
+
+        while ((item = source.getEngine().pollBattleItem()) != null) {
+            if (item == GameEngine.ItemType.ROTATION_LOCK) {
+                target.getEngine().applyBattleRotationLock();
+                target.showBattleMessage("다음 2블록 회전 금지!");
+            } else if (item == GameEngine.ItemType.FOG) {
+                target.getEngine().applyBattleFog();
+                target.showBattleMessage("안개 공격!");
+            }
+
+            target.repaint();
+        }
     }
 
     // 두 플레이어의 게임오버 상태를 확인하고 승자를 결정
@@ -162,6 +186,8 @@ public class TwoPlayerTetris extends JFrame {
         SidePanel sidePanel = new SidePanel(controls);
 
         Board board = new Board(statusbar, sidePanel, true);
+        // 1PC 대전에서는 방해 아이템을 상대에게 적용
+        board.getEngine().setBattleItemMode(true);
 
         // 클래식과 같은 배치를 사용해 두 게임판과 정보 패널의 칸 비율 유지
         JPanel gamePanel = new JPanel(new Tetris.GameAreaLayout(board, sidePanel, 26));
