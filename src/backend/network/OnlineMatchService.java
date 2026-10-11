@@ -197,6 +197,7 @@ public final class OnlineMatchService implements AutoCloseable {
                 if (++connection.inputCount > INPUTS_PER_SECOND)
                     throw new RequestException("RATE_LIMIT");
                 input(connection.engine, action);
+                applyBattleItems(room);
                 evaluate(room, now);
             } else if (!"POLL".equals(message)) {
                 throw new RequestException("BAD_REQUEST");
@@ -254,8 +255,29 @@ public final class OnlineMatchService implements AutoCloseable {
         while ("PLAYING".equals(room.phase) && now >= room.nextTick) {
             for (Connection connection : room.players)
                 connection.engine.tick();
+
+            applyBattleItems(room);
             evaluate(room, room.nextTick);
             room.nextTick += GRAVITY;
+        }
+    }
+
+    // 각 플레이어가 발동한 방해 아이템을 상대에게 적용
+    private static void applyBattleItems(Room room) {
+        applyPendingItems(room.players[0].engine, room.players[1].engine);
+        applyPendingItems(room.players[1].engine, room.players[0].engine);
+    }
+
+    // 대기 중인 방해 아이템을 상대 엔진에 적용
+    private static void applyPendingItems(GameEngine source, GameEngine target) {
+        GameEngine.ItemType item;
+
+        while ((item = source.pollBattleItem()) != null) {
+            if (item == GameEngine.ItemType.ROTATION_LOCK) {
+                target.applyBattleRotationLock();
+            } else if (item == GameEngine.ItemType.FOG) {
+                target.applyBattleFog();
+            }
         }
     }
 
