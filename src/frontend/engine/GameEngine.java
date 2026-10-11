@@ -68,6 +68,8 @@ public class GameEngine {
 	private final Tetrominoes[] board = new Tetrominoes[BOARD_WIDTH * BOARD_HEIGHT];
     private final ItemType[] boardItemTypes = new ItemType[BOARD_WIDTH * BOARD_HEIGHT];
     private final Random random;
+    // 아이템 사용 횟수가 달라도 같은 시드의 블록 순서는 유지하도록 효과 난수 분리
+    private final Random itemEffectRandom;
     private int piecesSinceLastItem = 0;
     private int nextItemSpawnInterval = ITEM_SPAWN_MIN;
     private ItemType currentItemType = null;
@@ -75,15 +77,16 @@ public class GameEngine {
     private final Queue<ItemType> pendingBattleItems = new ArrayDeque<>();
 
     public GameEngine() {
-        this(new Random());
+        this(new Random(), new Random());
     }
 
     public GameEngine(long seed) {
-        this(new Random(seed));
+        this(new Random(seed), new Random(~seed));
     }
 
-    private GameEngine(Random random) {
+    private GameEngine(Random random, Random itemEffectRandom) {
         this.random = random;
+        this.itemEffectRandom = itemEffectRandom;
         clearBoard();
     }
 
@@ -485,7 +488,7 @@ public class GameEngine {
     }
 
     public void applyBattleColumnClear() {
-        int column = randomBetween(0, BOARD_WIDTH - 1);
+        int column = itemEffectRandom.nextInt(BOARD_WIDTH);
         for (int y = 0; y < BOARD_HEIGHT; y++) {
             clearBoardCell(column, y);
         }
@@ -544,14 +547,14 @@ public class GameEngine {
     }
 
     private void clearRandomRow() {
-        int row = randomBetween(0, BOARD_HEIGHT - 1);
+        int row = itemEffectRandom.nextInt(BOARD_HEIGHT);
         for (int x = 0; x < BOARD_WIDTH; x++) {
             clearBoardCell(x, row);
         }
     }
 
     private void clearRandomColumn() {
-        int column = randomBetween(0, BOARD_WIDTH - 1);
+        int column = itemEffectRandom.nextInt(BOARD_WIDTH);
         for (int y = 0; y < BOARD_HEIGHT; y++) {
             clearBoardCell(column, y);
         }
