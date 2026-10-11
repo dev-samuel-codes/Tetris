@@ -161,7 +161,7 @@ public class TwoPlayerTetris extends JFrame {
 
         SidePanel sidePanel = new SidePanel(controls);
 
-        Board board = new Board(statusbar, sidePanel, false);
+        Board board = new Board(statusbar, sidePanel, true);
 
         // 클래식과 같은 배치를 사용해 두 게임판과 정보 패널의 칸 비율 유지
         JPanel gamePanel = new JPanel(new Tetris.GameAreaLayout(board, sidePanel, 26));
