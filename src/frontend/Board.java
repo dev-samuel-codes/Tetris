@@ -1,6 +1,8 @@
 package frontend;
 
+import java.awt.Color;
 import java.awt.FontMetrics;
+import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -244,6 +246,9 @@ public class Board extends JPanel implements ActionListener {
             graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             drawGrid(graphics, left, top, size);
             drawPieces(graphics, left, top, size);
+            if (engine.isFogActive()) {                 // ← 추가
+                drawFog(graphics, left, top, size);     // ← 추가
+            }                                           // ← 추가
             if (!battleMessage.isEmpty()) {
                 drawBattleMessage(graphics, left, top, size);
             }
@@ -257,6 +262,32 @@ public class Board extends JPanel implements ActionListener {
         } finally {
             graphics.dispose();
         }
+    }
+
+    // 안개 아이템 : 보드 위쪽 절반 가림, 경계는 1칸마다 흐리게 품
+    private void drawFog(Graphics2D g, int left, int top, int size) {
+        int width = BOARD_WIDTH * size;
+        int fogHeight = (BOARD_HEIGHT / 2) * size;
+        Color fog = new Color(0x2B, 0x30, 0x3A);
+
+        // 위쪽 : 잘 안보임
+        g.setColor(new Color(fog.getRed(), fog.getGreen(), fog.getBlue(), 245));
+        g.fillRect(left, top, width, fogHeight - size);
+
+        // 마지막 : 그라데이션
+        g.setPaint(new GradientPaint(left, top + fogHeight - size,
+                new Color(fog.getRed(), fog.getGreen(), fog.getBlue(), 245),
+                left, top + fogHeight,
+                new Color(fog.getRed(), fog.getGreen(), fog.getBlue(), 0)));
+        g.fillRect(left, top + fogHeight - size, width, size);
+
+        // 안개 몇 블록 남았는지 가운데 표시
+        String text = "안개 " + (engine.getFogRemaining() + 1);
+        g.setFont(Style.BUTTON_FONT.deriveFont((float) Math.max(10, size * .7)));
+        FontMetrics metrics = g.getFontMetrics();
+        g.setColor(Style.MUTED_TEXT);
+        g.drawString(text, left + (width - metrics.stringWidth(text)) / 2,
+                top + fogHeight / 2 + metrics.getAscent() / 2);
     }
 
     private void drawGrid(Graphics2D g, int left, int top, int size) {

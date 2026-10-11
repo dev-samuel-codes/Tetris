@@ -15,7 +15,8 @@ public class GameEngine {
         BOTTOM_CLEAR("하단 제거", "하단 2줄을 제거합니다."),
         ROTATION_LOCK("회전 금지", "다음 2개 블록은 회전할 수 없습니다."),
         SCORE_BOOST("점수 업", "점수를 30점 추가합니다."),
-        COLOR_CLEAR("같은 색 제거", "아이템 블록과 같은 색 칸을 모두 제거합니다.");
+        COLOR_CLEAR("같은 색 제거", "아이템 블록과 같은 색 칸을 모두 제거합니다."),
+        FOG("안개", "다음 3개 블록 동안 보드 위쪽 절반이 가려집니다.");
 
         private final String label;
         private final String description;
@@ -56,6 +57,9 @@ public class GameEngine {
 	private int rotationLockRemaining = 0;
 	private boolean rotationLocked = false;
     private Tetrominoes removedItemShape = Tetrominoes.NoShape;
+    private static final int FOG_PIECES = 3;
+    private int fogRemaining = 0;
+    private boolean fogActive = false;
 	private Shape curPiece = new Shape();
 	private final Shape nextPiece = new Shape(); // 다음에 나올 블록 (미리보기용)
 	private final Tetrominoes[] board = new Tetrominoes[BOARD_WIDTH * BOARD_HEIGHT];
@@ -118,6 +122,8 @@ public class GameEngine {
         combo = 0;
         rotationLockRemaining = 0;
         rotationLocked = false;
+        fogRemaining = 0;
+        fogActive = false;
         accumulatedItemLines = 0;
         piecesSinceLastItem = 0;
         nextItemSpawnInterval = randomBetween(ITEM_SPAWN_MIN, ITEM_SPAWN_MAX);
@@ -256,6 +262,11 @@ public class GameEngine {
             rotationLockRemaining--;
         }
 
+        fogActive = fogRemaining > 0;
+        if (fogRemaining > 0) {
+            fogRemaining--;
+        }
+
         curX = BOARD_WIDTH / 2 + 1;
         curY = BOARD_HEIGHT - 1 + curPiece.minY();
 
@@ -362,6 +373,11 @@ public class GameEngine {
             case COLOR_CLEAR:
                 clearSameShape(removedItemShape);
                 break;
+            case FOG:
+                fogRemaining += FOG_PIECES;
+                fogActive = true;
+                break;
+
             default:
                 break;
         }
@@ -420,6 +436,14 @@ public class GameEngine {
 
     public boolean isRotationLocked() {
         return rotationLocked;
+    }
+
+    public boolean isFogActive() {
+        return fogActive;
+    }
+
+    public int getFogRemaining() {
+        return fogRemaining;
     }
 
     public void applyBattleRotationLock() {
@@ -526,7 +550,9 @@ public class GameEngine {
             ItemType.BOMB_CLEAR,
             ItemType.ROTATION_LOCK,
             ItemType.SCORE_BOOST,
-            ItemType.COLOR_CLEAR
+            ItemType.COLOR_CLEAR,
+            ItemType.COLOR_CLEAR,
+            ItemType.FOG
         };
         return pool[randomBetween(0, pool.length - 1)];
     }
