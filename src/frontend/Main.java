@@ -374,6 +374,23 @@ public class Main extends JFrame {
         resolutionSection.add(label("화면 크기", Style.TEXT, Style.BUTTON_FONT), BorderLayout.NORTH);
         resolutionSection.add(resolutionPanel, BorderLayout.CENTER);
         resolutionSection.add(selectedDescription, BorderLayout.SOUTH);
+
+        // 음소거 설정 버튼
+        JToggleButton muteButton = new JToggleButton();
+        Style.applyButtonStyle(muteButton, Style.ACCENT, Style.PANEL);
+
+        muteButton.setSelected(SoundManager.isMuted());
+        muteButton.setText(SoundManager.isMuted() ? "음소거 ON" : "음소거 OFF");
+
+        muteButton.addActionListener(e -> {
+            SoundManager.setMuted(muteButton.isSelected());
+            muteButton.setText(muteButton.isSelected() ? "음소거 ON" : "음소거 OFF");
+        });
+        // 소리 설정 영역 생성
+        JPanel soundSection = transparent(new BorderLayout(0, 12));
+        soundSection.add(label("소리", Style.TEXT, Style.BUTTON_FONT), BorderLayout.NORTH);
+        soundSection.add(muteButton, BorderLayout.CENTER);
+
         // 설정과 조작 안내는 필요한 높이만 사용하고 남은 공간은 아래 여백으로 유지
         GridBagConstraints section = new GridBagConstraints();
         section.gridx = 0;
@@ -383,8 +400,11 @@ public class Main extends JFrame {
         content.add(resolutionSection, section);
         section.gridy = 1;
         section.insets = new java.awt.Insets(20, 0, 0, 0);
-        content.add(infoPanel("조작 방법", "<html>← → 이동　　↑ ↓ 회전<br><br>D 한 칸 하강　　SPACE 즉시 낙하<br><br>P 일시정지 / 재개</html>"), section);
+        content.add(soundSection, section);
         section.gridy = 2;
+        section.insets = new java.awt.Insets(20, 0, 0, 0);
+        content.add(infoPanel("조작 방법", "<html>← → 이동　　↑ ↓ 회전<br><br>D 한 칸 하강　　SPACE 즉시 낙하<br><br>P 일시정지 / 재개</html>"), section);
+        section.gridy = 3;
         section.weighty = 1;
         section.fill = GridBagConstraints.BOTH;
         content.add(transparent(new BorderLayout()), section);
