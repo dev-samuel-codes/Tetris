@@ -203,9 +203,6 @@ public class SidePanel extends JPanel {
         g.setColor(Style.BORDER);
         g.drawRect(boxX, boxY, boxWidth - 1, boxHeight - 1);
 
-        int padding = (int) (size * .32);
-        int maxTextWidth = boxWidth - padding * 2;
-
         int padding = Math.max(3, (int) (size * .3));
         int contentX = boxX + padding;
         int contentWidth = Math.max(1, boxWidth - padding * 2);
