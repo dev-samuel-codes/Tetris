@@ -7,10 +7,13 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.text.NumberFormat;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.swing.JPanel;
 
 import frontend.style.Style;
+import frontend.engine.GameEngine.ItemType;
 
 public class SidePanel extends JPanel {
 
@@ -22,9 +25,12 @@ public class SidePanel extends JPanel {
     private int linesRemoved;
     private int level = 1;
     private Tetrominoes nextShape = Tetrominoes.NoShape;
-    private int linesUntilItem;
-    private String itemName = "";
-    private String itemDescription = "";
+    private ItemType lastItemType;
+    private static final ItemType[] ITEM_GUIDE = {
+            ItemType.ROW_CLEAR, ItemType.COLUMN_CLEAR, ItemType.BOMB_CLEAR,
+            ItemType.ROTATION_LOCK, ItemType.SCORE_BOOST
+    };
+    private static final String[] ITEM_GUIDE_LABELS = { "한 줄", "열", "폭탄", "회전 금지", "점수 업" };
     private boolean itemMode = false;
 
     public SidePanel() {
@@ -67,10 +73,8 @@ public class SidePanel extends JPanel {
         repaint();
     }
 
-    public void setItemStatus(int linesUntilItem, String itemName, String itemDescription) {
-        this.linesUntilItem = Math.max(0, linesUntilItem);
-        this.itemName = itemName == null || itemName.trim().isEmpty() ? "아이템 준비" : itemName;
-        this.itemDescription = itemDescription == null || itemDescription.trim().isEmpty() ? "아이템은 블록/제거 시 발동" : itemDescription;
+    public void setItemStatus(ItemType itemType) {
+        lastItemType = itemType;
         repaint();
     }
 
@@ -193,7 +197,7 @@ public class SidePanel extends JPanel {
         int boxX = inset;
         int boxY = (int) (size * 14.0);
         int boxWidth = getWidth() - inset * 2;
-        int boxHeight = (int) (size * 4.2);
+        int boxHeight = (int) (size * 7.4);
         g.setColor(new Color(Style.ACCENT.getRed(), Style.ACCENT.getGreen(), Style.ACCENT.getBlue(), 22));
         g.fillRect(boxX, boxY, boxWidth, boxHeight);
         g.setColor(Style.BORDER);
@@ -202,43 +206,93 @@ public class SidePanel extends JPanel {
         int padding = (int) (size * .32);
         int maxTextWidth = boxWidth - padding * 2;
 
-        String displayName = itemName == null || itemName.trim().isEmpty() ? "아이템 준비" : itemName;
-        fitFont(g, Style.MONO_FONT, displayName, size * .65, maxTextWidth);
-        g.setColor(Style.TEXT);
-        int nameY = boxY + (int) (size * 1.35);
-        g.drawString(displayName, boxX + padding, nameY);
-
-        String descriptionText = itemDescription == null || itemDescription.trim().isEmpty()
-                ? "아이템은 블록/제거 시 발동"
-                : itemDescription;
-        g.setFont(Style.BODY_FONT.deriveFont((float) (size * .32)));
-        g.setColor(Style.MUTED_TEXT);
-        FontMetrics fm = g.getFontMetrics();
-        if (fm.stringWidth(descriptionText) <= maxTextWidth) {
-            int descY = boxY + (int) (size * 2.6);
-            g.drawString(descriptionText, boxX + padding, descY);
-        } else {
-            int split = descriptionText.length() / 2;
-            int spaceIdx = descriptionText.indexOf(' ', split);
-            if (spaceIdx == -1) {
-                spaceIdx = descriptionText.lastIndexOf(' ', split);
+        int padding = Math.max(3, (int) (size * .3));
+        int contentX = boxX + padding;
+        int contentWidth = Math.max(1, boxWidth - padding * 2);
+        if (lastItemType == null) {
+            drawCenteredText(g, "아이템 준비", Style.BUTTON_FONT, size * .65,
+                    contentX, contentWidth, boxY + (int) (size * .95), Style.TEXT);
+            drawCenteredText(g, "블록/줄 제거 시 발동", Style.BODY_FONT, size * .46,
+                    contentX, contentWidth, boxY + (int) (size * 1.7), Style.MUTED_TEXT);
+            // 두 줄로 나눠 작은 창에서도 다섯 아이템을 구분
+            for (int i = 0; i < ITEM_GUIDE.length; i++) {
+                int columns = i < 3 ? 3 : 2;
+                int column = i < 3 ? i : i - 3;
+                int slotWidth = contentWidth / columns;
+                int slotX = contentX + column * slotWidth;
+                int iconSize = Math.max(1, Math.min(slotWidth - 2, (int) (size * 1.3)));
+                int iconY = boxY + (int) (size * (i < 3 ? 2.15 : 4.65));
+                drawItemIcon(g, ITEM_GUIDE[i], slotX + (slotWidth - iconSize) / 2,
+                        iconY, iconSize);
+                drawCenteredText(g, ITEM_GUIDE_LABELS[i], Style.BODY_FONT, size * .46,
+                        slotX, slotWidth - 1, iconY + iconSize + (int) (size * .6), Style.MUTED_TEXT);
             }
-            String line1, line2;
-            if (spaceIdx > 0 && spaceIdx < descriptionText.length() - 1) {
-                line1 = descriptionText.substring(0, spaceIdx).trim();
-                line2 = descriptionText.substring(spaceIdx + 1).trim();
-            } else {
-                int cut = descriptionText.length() / 2;
-                line1 = descriptionText.substring(0, cut);
-                line2 = descriptionText.substring(cut);
-            }
-            int line1Y = boxY + (int) (size * 2.3);
-            int line2Y = boxY + (int) (size * 3.3);
-            fitFont(g, Style.BODY_FONT, line1, size * .32, maxTextWidth);
-            g.drawString(line1, boxX + padding, line1Y);
-            fitFont(g, Style.BODY_FONT, line2, size * .32, maxTextWidth);
-            g.drawString(line2, boxX + padding, line2Y);
+            return;
         }
+
+        int iconSize = Math.max(1, Math.min(contentWidth, (int) (size * 3.35)));
+        drawItemIcon(g, lastItemType, contentX + (contentWidth - iconSize) / 2,
+                boxY + (int) (size * .45), iconSize);
+        drawCenteredText(g, lastItemType.getLabel(), Style.BUTTON_FONT, size * .68,
+                contentX, contentWidth, boxY + (int) (size * 4.55), Style.TEXT);
+        g.setColor(Style.MUTED_TEXT);
+        drawWrappedText(g, lastItemType.getDescription(), contentX,
+                boxY + (int) (size * 5.05), contentWidth, (int) (size * 1.95), size * .5);
+    }
+
+    private void drawItemIcon(Graphics2D g, ItemType type, int x, int y, int size) {
+        if (!ItemSprites.draw(g, type, x, y, size, size)) {
+            g.setColor(Style.ACCENT);
+            g.drawRect(x, y, size - 1, size - 1);
+            drawCenteredText(g, "?", Style.MONO_FONT, size * .65,
+                    x, size, y + (int) (size * .75), Style.ACCENT);
+        }
+    }
+
+    private void drawCenteredText(Graphics2D g, String text, Font font, double fontSize,
+            int x, int width, int baseline, Color color) {
+        fitFont(g, font, text, fontSize, width);
+        g.setColor(color);
+        g.drawString(text, x + (width - g.getFontMetrics().stringWidth(text)) / 2, baseline);
+    }
+
+    private void drawWrappedText(Graphics2D g, String text, int x, int y,
+            int width, int height, double preferredSize) {
+        float fontSize = (float) preferredSize;
+        List<String> lines;
+        FontMetrics metrics;
+        // 줄바꿈 후 높이도 확인해 긴 설명이 프레임 밖으로 나가지 않도록 조절
+        do {
+            g.setFont(Style.BODY_FONT.deriveFont(fontSize));
+            metrics = g.getFontMetrics();
+            lines = wrapText(text, metrics, width);
+            if (lines.size() * metrics.getHeight() <= height || fontSize <= 1f)
+                break;
+            fontSize = Math.max(1f, fontSize - .5f);
+        } while (true);
+        int baseline = y + metrics.getAscent();
+        for (String line : lines) {
+            g.drawString(line, x + (width - metrics.stringWidth(line)) / 2, baseline);
+            baseline += metrics.getHeight();
+        }
+    }
+
+    private List<String> wrapText(String text, FontMetrics metrics, int width) {
+        List<String> lines = new ArrayList<>();
+        String remaining = text.trim();
+        while (!remaining.isEmpty()) {
+            int end = 1;
+            while (end < remaining.length() && metrics.stringWidth(remaining.substring(0, end + 1)) <= width)
+                end++;
+            if (end < remaining.length()) {
+                int space = remaining.lastIndexOf(' ', end);
+                if (space > 0)
+                    end = space;
+            }
+            lines.add(remaining.substring(0, end).trim());
+            remaining = remaining.substring(end).trim();
+        }
+        return lines;
     }
 
     private void fitFont(Graphics2D g, Font font, String text, double preferredSize, int maxWidth) {

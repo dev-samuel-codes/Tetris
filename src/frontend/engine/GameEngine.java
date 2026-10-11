@@ -62,8 +62,7 @@ public class GameEngine {
     private int piecesSinceLastItem = 0;
     private int nextItemSpawnInterval = ITEM_SPAWN_MIN;
     private ItemType currentItemType = null;
-    private String lastItemName = "";
-    private String lastItemDescription = "";
+    private ItemType lastItemType = null;
 
     public GameEngine() {
         this(new Random());
@@ -97,8 +96,7 @@ public class GameEngine {
 
     public void triggerBombItem() {
         pendingBombItem = true;
-        lastItemName = ItemType.BOMB_CLEAR.getLabel();
-        lastItemDescription = ItemType.BOMB_CLEAR.getDescription();
+        lastItemType = ItemType.BOMB_CLEAR;
     }
 
     public void triggerRotationLockItem() {
@@ -122,8 +120,7 @@ public class GameEngine {
         piecesSinceLastItem = 0;
         nextItemSpawnInterval = randomBetween(ITEM_SPAWN_MIN, ITEM_SPAWN_MAX);
         currentItemType = null;
-        lastItemName = "";
-        lastItemDescription = "";
+        lastItemType = null;
 		clearBoard();
 		chooseNextPiece(); // 다음 블록을 먼저 뽑기
 		newPiece();
@@ -156,14 +153,27 @@ public class GameEngine {
             tryMove(curPiece, curX + 1, curY);
     }
 
+    // 벽면 회전 버그 수정 : 벽에서 회전 시도 시 좌 우로 1~2칸 밀고 회전 시도
     public void rotateLeft() {
         if (canControlPiece() && !rotationLocked)
-            tryMove(curPiece.rotateLeft(), curX, curY);
+            tryRotate(curPiece.rotateLeft());
     }
 
     public void rotateRight() {
         if (canControlPiece() && !rotationLocked)
-            tryMove(curPiece.rotateRight(), curX, curY);
+            tryRotate(curPiece.rotateRight());
+    }
+    // 벽 차기
+    private static final int[][] WALL_KICK_OFFSETS = {
+            { 0, 0 }, { -1, 0 }, { 1, 0 }, { -2, 0 }, { 2, 0 }
+    };
+
+    private boolean tryRotate(Shape rotated) {
+        for (int[] offset : WALL_KICK_OFFSETS) {
+            if (tryMove(rotated, curX + offset[0], curY + offset[1]))
+                return true;
+        }
+        return false;
     }
 
     public void dropDown() {
@@ -217,8 +227,7 @@ public class GameEngine {
         if (pendingBombItem) {
             pendingBombItem = false;
             clearAreaAroundCenter();
-            lastItemName = ItemType.BOMB_CLEAR.getLabel();
-            lastItemDescription = ItemType.BOMB_CLEAR.getDescription();
+            lastItemType = ItemType.BOMB_CLEAR;
         }
 
         curPiece.setShape(nextPiece.getShape()); // 미리 뽑아 둔 블록을 현재 블록으로
@@ -353,9 +362,12 @@ public class GameEngine {
     }
 
     public boolean isItemCell(int x, int y) {
-        if (x < 0 || x >= BOARD_WIDTH || y < 0 || y >= BOARD_HEIGHT)
-            return false;
-        return boardItemTypes[toIndex(x, y)] != null;
+        return getItemTypeAt(x, y) != null;
+    }
+
+    // 착지한 아이템도 이동 중인 블록과 같은 이미지로 표시할 수 있도록 종류를 전달
+    public ItemType getItemTypeAt(int x, int y) {
+        return boardItemTypeAt(x, y);
     }
 
     public ItemType getCurrentItemType() {
@@ -385,11 +397,15 @@ public class GameEngine {
     }
 
     public String getLastItemName() {
-        return lastItemName;
+        return lastItemType == null ? "" : lastItemType.getLabel();
     }
 
     public String getLastItemDescription() {
-        return lastItemDescription;
+        return lastItemType == null ? "" : lastItemType.getDescription();
+    }
+
+    public ItemType getLastItemType() {
+        return lastItemType;
     }
 
     public int getRotationLockRemaining() {
@@ -439,8 +455,7 @@ public class GameEngine {
             return;
 
         triggerItemEffect(itemType);
-        lastItemName = itemType.getLabel();
-        lastItemDescription = itemType.getDescription();
+        lastItemType = itemType;
     }
 
     private void setBoardCell(int x, int y, Tetrominoes shape, ItemType itemType) {

@@ -222,10 +222,7 @@ public class Board extends JPanel implements ActionListener {
         sidePanel.setLinesRemoved(currentLinesRemoved);
         updateDropSpeed();
         sidePanel.setLevel(currentLevel);
-        sidePanel.setItemStatus(
-                engine.getLinesUntilItemActivation(),
-                engine.getLastItemName(),
-                engine.getLastItemDescription());
+        sidePanel.setItemStatus(engine.getLastItemType());
         sidePanel.setItemMode(engine.isItemMode());
         sidePanel.setNextShape(engine.getNextShape());
         repaint();
@@ -285,7 +282,7 @@ public class Board extends JPanel implements ActionListener {
                 Tetrominoes shape = engine.shapeAt(j, BOARD_HEIGHT - i - 1);
                 if (shape != Tetrominoes.NoShape) {
                     BlockPainter.drawSquare(g, left + j * size, top + i * size, size,
-                            shape, engine.isItemCell(j, BOARD_HEIGHT - i - 1));
+                            shape, engine.getItemTypeAt(j, BOARD_HEIGHT - i - 1));
                 }
             }
         }
@@ -296,7 +293,8 @@ public class Board extends JPanel implements ActionListener {
                 int y = engine.getCurrentY() - engine.getPieceY(i);
                 BlockPainter.drawSquare(g, left + x * size, top + (BOARD_HEIGHT - y - 1) * size,
                         size, engine.getCurrentShape(),
-                        engine.isCurrentPieceItem() && i == engine.getCurrentItemCellIndex());
+                        engine.isCurrentPieceItem() && i == engine.getCurrentItemCellIndex()
+                                ? engine.getCurrentItemType() : null);
             }
         }
     }
