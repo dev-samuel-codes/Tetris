@@ -153,14 +153,27 @@ public class GameEngine {
             tryMove(curPiece, curX + 1, curY);
     }
 
+    // 벽면 회전 버그 수정 : 벽에서 회전 시도 시 좌 우로 1~2칸 밀고 회전 시도
     public void rotateLeft() {
         if (canControlPiece() && !rotationLocked)
-            tryMove(curPiece.rotateLeft(), curX, curY);
+            tryRotate(curPiece.rotateLeft());
     }
 
     public void rotateRight() {
         if (canControlPiece() && !rotationLocked)
-            tryMove(curPiece.rotateRight(), curX, curY);
+            tryRotate(curPiece.rotateRight());
+    }
+    // 벽 차기
+    private static final int[][] WALL_KICK_OFFSETS = {
+            { 0, 0 }, { -1, 0 }, { 1, 0 }, { -2, 0 }, { 2, 0 }
+    };
+
+    private boolean tryRotate(Shape rotated) {
+        for (int[] offset : WALL_KICK_OFFSETS) {
+            if (tryMove(rotated, curX + offset[0], curY + offset[1]))
+                return true;
+        }
+        return false;
     }
 
     public void dropDown() {
