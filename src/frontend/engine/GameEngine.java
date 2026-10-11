@@ -543,6 +543,32 @@ public class GameEngine {
         return board[toIndex(x, y)];
     }
 
+    // 현재 블록이 바닥에 착지할 Y 위치 계산(고스트피스)
+    public int getGhostY() {
+        if (!canControlPiece())
+            return curY;
+        int ghostY = curY;
+        while (canPlace(curPiece, curX, ghostY - 1)) {
+            ghostY--;
+        }
+        return ghostY;
+    }
+
+    // 블록을 해당 위치에 놓을 수 있는지 확인(고스트피스)
+    private boolean canPlace(Shape piece, int x, int y) {
+        for (int i = 0; i < 4; i++) {
+            int boardX = x + piece.x(i);
+            int boardY = y - piece.y(i);
+            if (boardX < 0 || boardX >= BOARD_WIDTH
+                    || boardY < 0 || boardY >= BOARD_HEIGHT)
+                return false;
+            if (shapeAt(boardX, boardY) != Tetrominoes.NoShape)
+                return false;
+        }
+        return true;
+    }
+
+
     public boolean isStarted() {
         return isStarted;
     }
