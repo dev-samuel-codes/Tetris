@@ -15,6 +15,7 @@ import javax.swing.Timer;
 
 import frontend.engine.GameEngine;
 import frontend.style.Style;
+import java.awt.AlphaComposite;
 
 // 게임 입력과 타이머를 엔진에 전달하고, 현재 상태를 화면에 표시
 public class Board extends JPanel implements ActionListener {
@@ -276,6 +277,9 @@ public class Board extends JPanel implements ActionListener {
     }
 
     private void drawPieces(Graphics2D g, int left, int top, int size) {
+        // 현재 블록이 착지할 위치를 반투명하게 표시
+        drawGhostPiece(g, left, top, size);
+
         for (int i = 0; i < BOARD_HEIGHT; ++i) {
             for (int j = 0; j < BOARD_WIDTH; ++j) {
                 Tetrominoes shape = engine.shapeAt(j, BOARD_HEIGHT - i - 1);
@@ -294,6 +298,30 @@ public class Board extends JPanel implements ActionListener {
                         size, engine.getCurrentShape(),
                         engine.isCurrentPieceItem() && i == engine.getCurrentItemCellIndex());
             }
+        }
+    }
+
+    // 현재 블록이 착지할 위치에 고스트 피스 표시
+    private void drawGhostPiece(Graphics2D g, int left, int top, int size) {
+        int ghostY = engine.getGhostY();
+        Graphics2D ghostGraphics = (Graphics2D) g.create();
+        try {
+            ghostGraphics.setComposite(
+                    AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.25f));
+
+            for (int i = 0; i < 4; i++) {
+                int x = engine.getCurrentX() + engine.getPieceX(i);
+                int y = ghostY - engine.getPieceY(i);
+
+                BlockPainter.drawSquare(
+                        ghostGraphics,
+                        left + x * size,
+                        top + (BOARD_HEIGHT - y - 1) * size,
+                        size,
+                        engine.getCurrentShape());
+            }
+        } finally {
+            ghostGraphics.dispose();
         }
     }
 
