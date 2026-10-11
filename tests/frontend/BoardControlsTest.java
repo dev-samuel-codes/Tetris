@@ -26,7 +26,7 @@ public final class BoardControlsTest {
                 throw new RuntimeException(error);
             }
         });
-        System.out.println("BoardControlsTest: 클래식·2인 좌우 이동, 레벨 5 반전, 입력 차단, 화면 갱신 통과");
+        System.out.println("BoardControlsTest: 클래식·2인 좌우 이동, 레벨별 방향 유지, 입력 차단, 화면 갱신 통과");
     }
 
     private static void verifyClassic() throws Exception {
@@ -80,7 +80,8 @@ public final class BoardControlsTest {
             SidePanel panel = (SidePanel) get(Board.class, board, "sidePanel");
             panel.setScore(-1);
             panel.setLevel(2); // 이동 후 공통 화면 갱신이 실행되는지 확인
-            int direction = score >= 200 ? 1 : -1;
+            // 레벨 효과는 낙하 속도만 바뀌므로 이동 방향은 그대로 유지
+            int direction = -1;
             int x = board.getEngine().getCurrentX();
             keys.press(left);
             require(board.getEngine().getCurrentX() == x + direction, mode + " " + score + "점 왼쪽 키 방향 오류");

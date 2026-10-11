@@ -1,5 +1,6 @@
 package frontend.engine;
 
+import frontend.Shape;
 import frontend.Tetrominoes;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -35,6 +36,17 @@ public class ItemModeEngineTest {
 
         if (engine.getLastItemName() == null || !engine.getLastItemName().contains("폭탄")) {
             throw new AssertionError("폭탄 아이템은 효과 이름이 기록되어야 합니다.");
+        }
+
+        engine.triggerRotationLockItem();
+        if (engine.getLastItemName() == null || !engine.getLastItemName().contains("회전 금지")) {
+            throw new AssertionError("회전 금지 아이템은 마지막 아이템 이름으로 기록되어야 합니다.");
+        }
+
+        Tetrominoes originalShape = engine.getCurrentShape();
+        engine.rotateLeft();
+        if (engine.getCurrentShape() != originalShape) {
+            throw new AssertionError("회전 금지 아이템이 활성화된 상태에서는 블록을 회전시킬 수 없어야 합니다.");
         }
 
         engine.setItemMode(false);
@@ -91,11 +103,47 @@ public class ItemModeEngineTest {
 
         Method newPiece = GameEngine.class.getDeclaredMethod("newPiece");
         newPiece.setAccessible(true);
-        newPiece.invoke(engine);
+        Field nextPieceField = GameEngine.class.getDeclaredField("nextPiece");
+        nextPieceField.setAccessible(true);
+        Shape nextPiece = (Shape) nextPieceField.get(engine);
 
-        if (!engine.isRotationLocked()) {
-            throw new AssertionError("회전 금지 아이템은 다음 블록 생성 시 회전이 막혀야 합니다.");
+        for (int pieceNumber = 1; pieceNumber <= 3; pieceNumber++) {
+            nextPiece.setShape(Tetrominoes.TShape);
+            newPiece.invoke(engine);
+            engine.oneLineDown();
+            boolean expectedLocked = pieceNumber <= 2;
+            if (engine.isRotationLocked() != expectedLocked) {
+                throw new AssertionError("첫째·둘째 블록은 잠기고 셋째 블록은 해제되어야 합니다.");
+            }
+            int[] before = pieceCoordinates(engine);
+            engine.rotateRight();
+            if (sameCoordinates(before, pieceCoordinates(engine)) != expectedLocked) {
+                throw new AssertionError("회전 금지는 블록 종류 대신 실제 셀 좌표로 확인해야 합니다.");
+            }
+            if (expectedLocked) {
+                engine.rotateLeft();
+                if (!sameCoordinates(before, pieceCoordinates(engine))) {
+                    throw new AssertionError("잠긴 블록은 양방향 회전이 모두 막혀야 합니다.");
+                }
+            }
         }
+    }
+
+    private static int[] pieceCoordinates(GameEngine engine) {
+        int[] coordinates = new int[8];
+        for (int i = 0; i < 4; i++) {
+            coordinates[i * 2] = engine.getPieceX(i);
+            coordinates[i * 2 + 1] = engine.getPieceY(i);
+        }
+        return coordinates;
+    }
+
+    private static boolean sameCoordinates(int[] first, int[] second) {
+        for (int i = 0; i < first.length; i++) {
+            if (first[i] != second[i])
+                return false;
+        }
+        return true;
     }
 
     private static void testFullLineRemovalCleansBoard() throws ReflectiveOperationException {

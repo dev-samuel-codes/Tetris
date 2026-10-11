@@ -377,37 +377,32 @@ public class Board extends JPanel implements ActionListener {
                 return;
 
             int keycode = e.getKeyCode();
-            if (keycode == KeyEvent.VK_P) {
+            if (keycode == GameSettings.getPauseKey()) {
                 engine.pause();
                 updateView();
                 return;
             }
-
+            // 게임 세팅에서 설정한 값으로 입력 받음.
             if (engine.isPaused())
                 return;
-
-            switch (keycode) {
-                case KeyEvent.VK_LEFT:
-                    moveLeft();
-                    return;
-                case KeyEvent.VK_RIGHT:
-                    moveRight();
-                    return;
-                case KeyEvent.VK_DOWN:
-                    engine.rotateRight();
-                    break;
-                case KeyEvent.VK_UP:
-                    engine.rotateLeft();
-                    break;
-                case KeyEvent.VK_SPACE:
-                    engine.dropDown();
-                    break;
-                case KeyEvent.VK_D:
-                    engine.oneLineDown();
-                    break;
-                default:
-                    return;
+            if (keycode == GameSettings.getLeftKey()) {
+                moveLeft();
+                return;
+            } else if (keycode == GameSettings.getRightKey()) {
+                moveRight();
+                return;
+            } else if (keycode == GameSettings.getRotateRightKey()) {
+                engine.rotateRight();
+            } else if (keycode == GameSettings.getRotateLeftKey()) {
+                engine.rotateLeft();
+            } else if (keycode == GameSettings.getHardDropKey()) {
+                engine.dropDown();
+            } else if (keycode == GameSettings.getSoftDropKey()) {
+                engine.oneLineDown();
+            } else {
+                return;
             }
+
             updateView();
         }
     }
