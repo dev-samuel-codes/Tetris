@@ -68,6 +68,8 @@ public final class OnlineFrame {
             line.append(' ');
             for (int item : player.itemTypes)
                 line.append((char) ('0' + item));
+            line.append(' ').append(player.fogActive ? 1 : 0)
+                    .append(' ').append(player.fogRemaining);
         }
         return line.toString();
     }
@@ -78,11 +80,11 @@ public final class OnlineFrame {
             if (line == null || line.length() > MAX_LINE_LENGTH)
                 throw new IllegalArgumentException();
             String[] parts = line.split(" ", -1);
-            if (parts.length != 25 || !"ONLINE/1".equals(parts[0]) || !"STATE".equals(parts[1]))
+            if (parts.length != 29 || !"ONLINE/1".equals(parts[0]) || !"STATE".equals(parts[1]))
                 throw new IllegalArgumentException();
             return new OnlineFrame(parts[2], integer(parts[3]), parts[4],
                     "-1".equals(parts[5]) ? -1 : integer(parts[5]), parts[6],
-                    number(parts[7]), number(parts[8]), player(parts, 9), player(parts, 17));
+                    number(parts[7]), number(parts[8]), player(parts, 9), player(parts, 19));
         } catch (IllegalArgumentException e) {
             throw new IOException("온라인 경기 응답 형식이 올바르지 않습니다.", e);
         }
@@ -113,9 +115,18 @@ public final class OnlineFrame {
 
             itemTypes[i] = value - '0';
         }
-        return new Player(nickname, bit(parts[offset + 1]), integer(parts[offset + 2]),
-                integer(parts[offset + 3]), bit(parts[offset + 4]),
-                integer(parts[offset + 5]), cells, itemTypes);
+        return new Player(
+                nickname,
+                bit(parts[offset + 1]),
+                integer(parts[offset + 2]),
+                integer(parts[offset + 3]),
+                bit(parts[offset + 4]),
+                integer(parts[offset + 5]),
+                cells,
+                itemTypes,
+                bit(parts[offset + 8]),
+                integer(parts[offset + 9])
+        );
     }
 
     private static boolean bit(String value) {
@@ -179,12 +190,16 @@ public final class OnlineFrame {
         private final int nextShape;
         private final int[] cells;
         private final int[] itemTypes;
+        private final boolean fogActive;
+        private final int fogRemaining;
 
         public Player(String nickname, boolean ready, int score, int lines, boolean alive,
-                int nextShape, int[] cells, int[] itemTypes) {
+                      int nextShape, int[] cells, int[] itemTypes,
+                      boolean fogActive, int fogRemaining) {
             this.nickname = nickname == null ? "" : nickname;
             checkNickname(this.nickname);
             if (score < 0 || lines < 0 || nextShape < 0 || nextShape > 7
+                    || fogRemaining < 0
                     || cells == null || cells.length != WIDTH * HEIGHT
                     || itemTypes == null || itemTypes.length != WIDTH * HEIGHT)
                 throw new IllegalArgumentException("플레이어 상태가 올바르지 않습니다.");
@@ -202,6 +217,8 @@ public final class OnlineFrame {
             this.nextShape = nextShape;
             this.cells = cells.clone();
             this.itemTypes = itemTypes.clone();
+            this.fogActive = fogActive;
+            this.fogRemaining = fogRemaining;
         }
 
         public String getNickname() { return nickname; }
@@ -214,6 +231,15 @@ public final class OnlineFrame {
         // 각 칸의 아이템 종류 반환
         public int[] getItemTypes() {
             return itemTypes.clone();
+        }
+        // 안개 효과가 현재 활성화되어 있는지 반환
+        public boolean isFogActive() {
+            return fogActive;
+        }
+
+        // 안개 효과가 몇 블록 남았는지 반환
+        public int getFogRemaining() {
+            return fogRemaining;
         }
     }
 }
