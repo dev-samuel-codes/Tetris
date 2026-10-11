@@ -18,10 +18,10 @@ import javax.swing.SwingUtilities;
 
 /** 실제 PNG, 셀 렌더링과 엔진에서 패널까지의 타입 전달을 검증합니다. */
 public final class ItemRenderingTest {
-    private static final ItemType[] ITEMS = { ItemType.ROW_CLEAR, ItemType.COLUMN_CLEAR,
-            ItemType.BOMB_CLEAR, ItemType.ROTATION_LOCK, ItemType.SCORE_BOOST };
-    private static final String[] FILES = { "row-clear", "column-clear", "bomb-clear",
-            "rotation-lock", "score-boost" };
+    private static final ItemType[] ITEMS = {ItemType.ROW_CLEAR, ItemType.COLUMN_CLEAR,
+            ItemType.BOMB_CLEAR, ItemType.ROTATION_LOCK, ItemType.SCORE_BOOST, ItemType.COLOR_CLEAR, ItemType.FOG};
+    private static final String[] FILES = {"row-clear", "column-clear", "bomb-clear",
+            "rotation-lock", "score-boost", "color-clear", "fog"};
 
     private ItemRenderingTest() { }
 
