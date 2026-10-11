@@ -115,7 +115,8 @@ def validate_manifest(manifest: dict, difficulty: Difficulty, engine_path: Path 
     if manifest.get("rules_version") != RULES_VERSION:
         raise ValueError("Checkpoint rules version is incompatible")
     engine_path = engine_path or RUNTIME_ROOT / "tetris_sca" / "engine.py"
-    if manifest.get("engine_sha256") != ENGINE_SHA256 or hashlib.sha256(engine_path.read_bytes()).hexdigest() != ENGINE_SHA256:
+    engine_bytes = engine_path.read_bytes().replace(b"\r\n", b"\n")
+    if manifest.get("engine_sha256") != ENGINE_SHA256 or hashlib.sha256(engine_bytes).hexdigest() != ENGINE_SHA256:
         raise ValueError("Checkpoint engine hash is incompatible")
     config = validate_config(manifest.get("config"))
     if config["env"] != RULE_SETTINGS or config["reward"] != "score":
