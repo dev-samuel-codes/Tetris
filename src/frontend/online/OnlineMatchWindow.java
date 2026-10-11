@@ -38,6 +38,8 @@ import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
 import frontend.GameSettings;
+import frontend.engine.GameEngine.ItemType;
+import java.awt.GradientPaint;
 
 // 서버 스냅숏만 표시합니다. 낙하·점수·승패의 계산은 서버가 담당합니다.
 // 나중에 연결 폼과 관전 화면이 늘어나면 JPanel 단위로 분리할 수 있습니다.
@@ -76,7 +78,10 @@ public final class OnlineMatchWindow extends JFrame {
         setMinimumSize(new Dimension(660, 600));
         setLocationRelativeTo(null);
         addWindowListener(new WindowAdapter() {
-            @Override public void windowDeactivated(WindowEvent event) { clearInput(); }
+            @Override
+            public void windowDeactivated(WindowEvent event) {
+                clearInput();
+            }
         });
         showForm();
     }
@@ -315,7 +320,8 @@ public final class OnlineMatchWindow extends JFrame {
         menu.setVisible(true);
     }
 
-    @Override public void dispose() {
+    @Override
+    public void dispose() {
         if (!disposed) {
             disposed = true;
             stopSession();
@@ -328,17 +334,24 @@ public final class OnlineMatchWindow extends JFrame {
         return String.format("%02d:%02d", seconds / 60, seconds % 60);
     }
 
-    private void install(JPanel root) { setContentPane(root); revalidate(); repaint(); }
+    private void install(JPanel root) {
+        setContentPane(root);
+        revalidate();
+        repaint();
+    }
+
     private static JPanel page() {
         JPanel root = Style.createBackground(new BorderLayout(0, 16));
         root.setBorder(BorderFactory.createEmptyBorder(22, 28, 22, 28));
         return root;
     }
+
     private static JPanel transparent(java.awt.LayoutManager layout) {
         JPanel panel = new JPanel(layout);
         panel.setOpaque(false);
         return panel;
     }
+
     private static JPanel header(String title) {
         JPanel panel = transparent(new BorderLayout(0, 10));
         JLabel logo = new JLabel(new PixelLogo(3));
@@ -347,12 +360,14 @@ public final class OnlineMatchWindow extends JFrame {
         panel.add(label(title, Style.TEXT, Style.BUTTON_FONT), BorderLayout.CENTER);
         return panel;
     }
+
     private static JTextField field(String value, String accessibleName) {
         JTextField field = new JTextField(value);
         Style.applyTextFieldStyle(field);
         field.getAccessibleContext().setAccessibleName(accessibleName);
         return field;
     }
+
     private static void addField(JPanel root, String text, JTextField field) {
         JLabel label = label(text, Style.MUTED_TEXT, Style.SMALL_FONT);
         label.setLabelFor(field);
@@ -362,12 +377,14 @@ public final class OnlineMatchWindow extends JFrame {
         row.add(field, BorderLayout.CENTER);
         root.add(row);
     }
+
     private static JLabel label(String text, Color color, Font font) {
         JLabel label = new JLabel(text);
         label.setForeground(color);
         label.setFont(font);
         return label;
     }
+
     private static JButton button(String text) {
         JButton button = new JButton(text);
         Style.applyButtonStyle(button, Style.ACCENT, Style.PANEL);
@@ -381,6 +398,7 @@ public final class OnlineMatchWindow extends JFrame {
         final BoardCanvas canvas;
         final NextCanvas next = new NextCanvas();
         private final String title;
+
         BoardView(String title, Resolution resolution) {
             super(new BorderLayout(0, 8));
             this.title = title;
@@ -399,7 +417,11 @@ public final class OnlineMatchWindow extends JFrame {
             canvas.setPreferredSize(new Dimension(10 * resolution.getCellSize(), 22 * resolution.getCellSize()));
             add(canvas, BorderLayout.CENTER);
         }
-        void update(OnlineFrame.Player player) { update(player, true); }
+
+        void update(OnlineFrame.Player player) {
+            update(player, true);
+        }
+
         void update(OnlineFrame.Player player, boolean started) {
             boolean empty = player.getNickname().isEmpty();
             name.setText(title + " · " + (empty ? "참가 대기" : player.getNickname()) + (player.isReady() ? " · 준비" : ""));
@@ -412,6 +434,14 @@ public final class OnlineMatchWindow extends JFrame {
             name.setFont(nameFont);
             metrics.setText(NumberFormat.getIntegerInstance().format(player.getScore()) + "점 · " + player.getLines() + "줄");
             canvas.cells = player.getCells();
+            canvas.itemTypes = player.getItemTypes();
+
+            // 서버에서 받은 안개 상태 저장
+            canvas.fogActive = player.isFogActive();
+            canvas.fogRemaining = player.getFogRemaining();
+            // 서버에서 받은 회전 금지 상태 저장
+            canvas.rotationLockRemaining = player.getRotationLockRemaining();
+
             canvas.ended = started && !empty && !player.isAlive();
             next.shape = player.getNextShape();
             next.repaint();
@@ -421,9 +451,19 @@ public final class OnlineMatchWindow extends JFrame {
 
     static final class BoardCanvas extends JPanel {
         int[] cells = new int[220];
+        int[] itemTypes = new int[220];
+        boolean fogActive;
+        int fogRemaining;
         boolean ended;
-        BoardCanvas() { setOpaque(false); setMinimumSize(new Dimension(100, 220)); }
-        @Override protected void paintComponent(Graphics graphics) {
+        int rotationLockRemaining;
+
+        BoardCanvas() {
+            setOpaque(false);
+            setMinimumSize(new Dimension(100, 220));
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
             super.paintComponent(graphics);
             Graphics2D g = (Graphics2D) graphics.create();
             try {
@@ -437,11 +477,36 @@ public final class OnlineMatchWindow extends JFrame {
                 for (int y = 1; y < 22; y++) g.drawLine(left, top + y * size, left + width, top + y * size);
                 for (int y = 0; y < 22; y++) {
                     for (int x = 0; x < 10; x++) {
-                        int value = cells[y * 10 + x];
-                        if (value > 0 && value < 8)
-                            BlockPainter.drawSquare(g, left + x * size, top + (21 - y) * size, size, Tetrominoes.values()[value]);
+                        int index = y * 10 + x;
+                        int value = cells[index];
+                        int itemValue = itemTypes[index];
+
+                        if (value > 0 && value < 8) {
+                            ItemType itemType = null;
+
+                            // 0은 아이템 없음, 1부터 실제 ItemType
+                            if (itemValue > 0 && itemValue <= ItemType.values().length)
+                                itemType = ItemType.values()[itemValue - 1];
+
+                            BlockPainter.drawSquare(
+                                    g,
+                                    left + x * size,
+                                    top + (21 - y) * size,
+                                    size,
+                                    Tetrominoes.values()[value],
+                                    itemType
+                            );
+                        }
                     }
                 }
+
+                // 안개 효과 표시
+                if (fogActive)
+                    drawFog(g, left, top, size);
+                // 회전 금지 상태 표시
+                if (rotationLockRemaining > 0)
+                    drawRotationLock(g, left, top, width);
+
                 g.setColor(Style.BOARD_BORDER);
                 g.drawRect(left - 1, top - 1, width + 1, height + 1);
                 if (ended) {
@@ -452,14 +517,80 @@ public final class OnlineMatchWindow extends JFrame {
                     FontMetrics metrics = g.getFontMetrics();
                     g.drawString("게임오버", left + (width - metrics.stringWidth("게임오버")) / 2, top + height / 2);
                 }
-            } finally { g.dispose(); }
+            } finally {
+                g.dispose();
+            }
+        }
+
+        // 안개 아이템 효과를 보드 위쪽 절반에 표시
+        private void drawFog(Graphics2D g, int left, int top, int size) {
+            int width = 10 * size;
+            int fogHeight = 11 * size;
+
+            Color fog = new Color(0x2B, 0x30, 0x3A);
+
+            g.setColor(new Color(
+                    fog.getRed(),
+                    fog.getGreen(),
+                    fog.getBlue(),
+                    245
+            ));
+            g.fillRect(left, top, width, fogHeight - size);
+
+            GradientPaint gradient = new GradientPaint(
+                    left,
+                    top + fogHeight - size,
+                    new Color(fog.getRed(), fog.getGreen(), fog.getBlue(), 245),
+                    left,
+                    top + fogHeight,
+                    new Color(fog.getRed(), fog.getGreen(), fog.getBlue(), 0)
+            );
+
+            g.setPaint(gradient);
+            g.fillRect(left, top + fogHeight - size, width, size);
+
+            String text = "안개 " + (fogRemaining + 1);
+
+            g.setFont(Style.BUTTON_FONT.deriveFont(
+                    (float) Math.max(10, size * 0.7)
+            ));
+
+            FontMetrics metrics = g.getFontMetrics();
+
+            g.setColor(Style.MUTED_TEXT);
+            g.drawString(
+                    text,
+                    left + (width - metrics.stringWidth(text)) / 2,
+                    top + fogHeight / 2
+            );
+        }
+
+
+        // 회전 금지 아이템 효과를 보드 위에 표시
+        private void drawRotationLock(Graphics2D g, int left, int top, int width) {
+            String text = "회전 금지 " + rotationLockRemaining;
+
+            g.setFont(Style.BUTTON_FONT.deriveFont(14f));
+            FontMetrics metrics = g.getFontMetrics();
+
+            g.setColor(Style.PINK);
+            g.drawString(
+                    text,
+                    left + (width - metrics.stringWidth(text)) / 2,
+                    top + 20
+            );
         }
     }
-
     static final class NextCanvas extends JPanel {
         int shape;
-        NextCanvas() { setOpaque(false); setPreferredSize(new Dimension(90, 44)); }
-        @Override protected void paintComponent(Graphics graphics) {
+
+        NextCanvas() {
+            setOpaque(false);
+            setPreferredSize(new Dimension(90, 44));
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
             super.paintComponent(graphics);
             if (shape < 1 || shape > 7)
                 return;
