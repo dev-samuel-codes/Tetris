@@ -70,7 +70,7 @@ public class SidePanel extends JPanel {
     public void setItemStatus(int linesUntilItem, String itemName, String itemDescription) {
         this.linesUntilItem = Math.max(0, linesUntilItem);
         this.itemName = itemName == null || itemName.trim().isEmpty() ? "아이템 준비" : itemName;
-        this.itemDescription = itemDescription == null || itemDescription.trim().isEmpty() ? "3줄 누적 시 랜덤 아이템 발동" : itemDescription;
+        this.itemDescription = itemDescription == null || itemDescription.trim().isEmpty() ? "아이템은 블록/제거 시 발동" : itemDescription;
         repaint();
     }
 
@@ -94,7 +94,6 @@ public class SidePanel extends JPanel {
             drawStats(graphics, size);
             drawNextShape(graphics, size);
             drawItemStatus(graphics, size);
-            drawControls(graphics, size);
         } finally {
             graphics.dispose();
         }
@@ -182,6 +181,10 @@ public class SidePanel extends JPanel {
     }
 
     private void drawItemStatus(Graphics2D g, double size) {
+        if (!itemMode) {
+            return;
+        }
+
         int inset = (int) (size * .6);
         g.setFont(Style.MONO_FONT.deriveFont((float) (size * .42)));
         g.setColor(Style.ACCENT);
@@ -203,48 +206,12 @@ public class SidePanel extends JPanel {
         g.drawString(displayName, boxX + (int) (size * .32), nameY);
 
         String descriptionText = itemDescription == null || itemDescription.trim().isEmpty()
-                ? "3줄 누적 시 랜덤 아이템 발동"
+                ? "아이템은 블록/제거 시 발동"
                 : itemDescription;
         g.setFont(Style.BODY_FONT.deriveFont((float) (size * .42)));
         g.setColor(Style.MUTED_TEXT);
         int descY = boxY + (int) (size * 2.6);
         g.drawString(descriptionText, boxX + (int) (size * .32), descY);
-    }
-
-    private void drawControls(Graphics2D g, double size) {
-        if (itemMode) {
-            return;
-        }
-
-        double heading = 14.85;
-        double firstRow = 15.5;
-        double rowGap = 1.12;
-        g.setFont(Style.MONO_FONT.deriveFont((float) (size * .43)));
-        g.setColor(Style.MUTED_TEXT);
-        g.drawString("CONTROLS", (int) (size * .6), (int) (size * heading));
-
-        int left = (int) (size * .55);
-        int keyWidth = (int) (size * 1.8);
-        int keyHeight = (int) (size * .78);
-        for (int i = 0; i < controls.length; i++) {
-            int y = (int) (size * (firstRow + i * rowGap));
-            String label = controls[i][1];
-            Color accent = Style.TEXT;
-
-            g.setColor(Style.PANEL);
-            g.fillRect(left, y, keyWidth, keyHeight);
-            g.setColor(Style.BORDER);
-            g.drawRect(left, y, keyWidth, keyHeight);
-            fitFont(g, Style.MONO_FONT, controls[i][0], size * .41, keyWidth - 6);
-            int keyBaseline = y + (keyHeight - g.getFontMetrics().getHeight()) / 2 + g.getFontMetrics().getAscent();
-            drawCentered(g, controls[i][0], left + keyWidth / 2, keyBaseline, accent);
-
-            int labelRight = getWidth() - left;
-            fitFont(g, Style.BODY_FONT, label, size * .43, labelRight - left - keyWidth - (int) (size * .35));
-            g.setColor(Style.MUTED_TEXT);
-            int baseline = y + (keyHeight - g.getFontMetrics().getHeight()) / 2 + g.getFontMetrics().getAscent();
-            g.drawString(label, labelRight - g.getFontMetrics().stringWidth(label), baseline);
-        }
     }
 
     private void fitFont(Graphics2D g, Font font, String text, double preferredSize, int maxWidth) {
@@ -253,11 +220,5 @@ public class SidePanel extends JPanel {
         int width = g.getFontMetrics().stringWidth(text);
         if (width > Math.max(1, maxWidth))
             g.setFont(font.deriveFont(Math.max(1f, fontSize * Math.max(1, maxWidth) / width)));
-    }
-
-    private void drawCentered(Graphics2D g, String text, int centerX, int baselineY, Color color) {
-        FontMetrics fm = g.getFontMetrics();
-        g.setColor(color);
-        g.drawString(text, centerX - fm.stringWidth(text) / 2, baselineY);
     }
 }
