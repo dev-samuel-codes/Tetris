@@ -38,7 +38,7 @@ bin/
 scores.txt
 
 ### Tetris local profile and server scores ###
-.tetris/
+.tetris/*
 server-data/
 
 ### Local AI inference environment ###
