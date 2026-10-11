@@ -38,6 +38,7 @@ import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
 import frontend.GameSettings;
+import frontend.engine.GameEngine.ItemType;
 
 // 서버 스냅숏만 표시합니다. 낙하·점수·승패의 계산은 서버가 담당합니다.
 // 나중에 연결 폼과 관전 화면이 늘어나면 JPanel 단위로 분리할 수 있습니다.
@@ -412,6 +413,8 @@ public final class OnlineMatchWindow extends JFrame {
             name.setFont(nameFont);
             metrics.setText(NumberFormat.getIntegerInstance().format(player.getScore()) + "점 · " + player.getLines() + "줄");
             canvas.cells = player.getCells();
+            // 서버에서 받은 아이템 위치도 함께 저장
+            canvas.itemTypes = player.getItemTypes();
             canvas.ended = started && !empty && !player.isAlive();
             next.shape = player.getNextShape();
             next.repaint();
@@ -421,6 +424,7 @@ public final class OnlineMatchWindow extends JFrame {
 
     static final class BoardCanvas extends JPanel {
         int[] cells = new int[220];
+        int[] itemTypes = new int[220];
         boolean ended;
         BoardCanvas() { setOpaque(false); setMinimumSize(new Dimension(100, 220)); }
         @Override protected void paintComponent(Graphics graphics) {
@@ -437,9 +441,26 @@ public final class OnlineMatchWindow extends JFrame {
                 for (int y = 1; y < 22; y++) g.drawLine(left, top + y * size, left + width, top + y * size);
                 for (int y = 0; y < 22; y++) {
                     for (int x = 0; x < 10; x++) {
-                        int value = cells[y * 10 + x];
-                        if (value > 0 && value < 8)
-                            BlockPainter.drawSquare(g, left + x * size, top + (21 - y) * size, size, Tetrominoes.values()[value]);
+                        int index = y * 10 + x;
+                        int value = cells[index];
+                        int itemValue = itemTypes[index];
+
+                        if (value > 0 && value < 8) {
+                            ItemType itemType = null;
+
+                            // 0은 아이템 없음, 1부터 실제 ItemType
+                            if (itemValue > 0 && itemValue <= ItemType.values().length)
+                                itemType = ItemType.values()[itemValue - 1];
+
+                            BlockPainter.drawSquare(
+                                    g,
+                                    left + x * size,
+                                    top + (21 - y) * size,
+                                    size,
+                                    Tetrominoes.values()[value],
+                                    itemType
+                            );
+                        }
                     }
                 }
                 g.setColor(Style.BOARD_BORDER);

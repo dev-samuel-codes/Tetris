@@ -311,24 +311,47 @@ public final class OnlineMatchService implements AutoCloseable {
                 player(room.players[0]), player(room.players[1]));
     }
 
+    // 플레이어의 보드와 아이템 상태를 네트워크 전송용으로 만듦
     private static OnlineFrame.Player player(Connection connection) {
         int[] cells = new int[GameEngine.BOARD_WIDTH * GameEngine.BOARD_HEIGHT];
+        int[] itemTypes = new int[GameEngine.BOARD_WIDTH * GameEngine.BOARD_HEIGHT];
         if (connection == null)
-            return new OnlineFrame.Player("", false, 0, 0, false, 0, cells);
+            return new OnlineFrame.Player("", false, 0, 0, false, 0, cells, itemTypes);
         GameEngine engine = connection.engine;
+        // 이미 착지한 블록과 아이템 위치 저장
         for (int y = 0; y < GameEngine.BOARD_HEIGHT; y++) {
-            for (int x = 0; x < GameEngine.BOARD_WIDTH; x++)
-                cells[y * GameEngine.BOARD_WIDTH + x] = engine.shapeAt(x, y).ordinal();
+            for (int x = 0; x < GameEngine.BOARD_WIDTH; x++) {
+                int index = y * GameEngine.BOARD_WIDTH + x;
+                cells[index] = engine.shapeAt(x, y).ordinal();
+                if (engine.getItemTypeAt(x, y) != null)
+                    itemTypes[index] = engine.getItemTypeAt(x, y).ordinal() + 1;
+            }
         }
+        // 현재 내려오는 블록도 함께 저장
         if (engine.isStarted() && engine.getCurrentShape().ordinal() != 0) {
             for (int i = 0; i < 4; i++) {
                 int x = engine.getCurrentX() + engine.getPieceX(i);
                 int y = engine.getCurrentY() - engine.getPieceY(i);
-                cells[y * GameEngine.BOARD_WIDTH + x] = engine.getCurrentShape().ordinal();
+                int index = y * GameEngine.BOARD_WIDTH + x;
+                cells[index] = engine.getCurrentShape().ordinal();
+                // 현재 내려오는 블록의 아이템 칸도 저장
+                if (engine.isCurrentPieceItem()
+                        && i == engine.getCurrentItemCellIndex()
+                        && engine.getCurrentItemType() != null) {
+                    itemTypes[index] = engine.getCurrentItemType().ordinal() + 1;
+                }
             }
         }
-        return new OnlineFrame.Player(connection.nickname, connection.ready, engine.getScore(),
-                engine.getNumLinesRemoved(), engine.isStarted(), engine.getNextShape().ordinal(), cells);
+        return new OnlineFrame.Player(
+                connection.nickname,
+                connection.ready,
+                engine.getScore(),
+                engine.getNumLinesRemoved(),
+                engine.isStarted(),
+                engine.getNextShape().ordinal(),
+                cells,
+                itemTypes
+        );
     }
 
     private static String readMessage(Socket socket) throws IOException {
@@ -400,6 +423,10 @@ public final class OnlineMatchService implements AutoCloseable {
             this.nickname = nickname;
             this.socket = socket;
             this.engine = new GameEngine(room.seed);
+            // 네트워크 대전에서도 아이템 모드 사용
+            this.engine.setItemMode(true);
+            // 방해 아이템은 상대에게 보내는 대전 방식 사용
+            this.engine.setBattleItemMode(true);
             this.inputWindow = now;
         }
     }

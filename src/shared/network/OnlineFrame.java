@@ -65,6 +65,9 @@ public final class OnlineFrame {
                     .append(' ').append(player.nextShape).append(' ');
             for (int cell : player.cells)
                 line.append((char) ('0' + cell));
+            line.append(' ');
+            for (int item : player.itemTypes)
+                line.append((char) ('0' + item));
         }
         return line.toString();
     }
@@ -75,17 +78,18 @@ public final class OnlineFrame {
             if (line == null || line.length() > MAX_LINE_LENGTH)
                 throw new IllegalArgumentException();
             String[] parts = line.split(" ", -1);
-            if (parts.length != 23 || !"ONLINE/1".equals(parts[0]) || !"STATE".equals(parts[1]))
+            if (parts.length != 25 || !"ONLINE/1".equals(parts[0]) || !"STATE".equals(parts[1]))
                 throw new IllegalArgumentException();
             return new OnlineFrame(parts[2], integer(parts[3]), parts[4],
                     "-1".equals(parts[5]) ? -1 : integer(parts[5]), parts[6],
-                    number(parts[7]), number(parts[8]), player(parts, 9), player(parts, 16));
+                    number(parts[7]), number(parts[8]), player(parts, 9), player(parts, 17));
         } catch (IllegalArgumentException e) {
             throw new IOException("온라인 경기 응답 형식이 올바르지 않습니다.", e);
         }
     }
 
     private static Player player(String[] parts, int offset) throws IOException {
+
         String nickname = "-".equals(parts[offset]) ? "" : decodeNickname(parts[offset]);
         String board = parts[offset + 6];
         if (board.length() != WIDTH * HEIGHT)
@@ -93,8 +97,25 @@ public final class OnlineFrame {
         int[] cells = new int[board.length()];
         for (int i = 0; i < cells.length; i++)
             cells[i] = board.charAt(i) - '0';
+        // 각 칸의 아이템 종류도 함께 읽음
+        String items = parts[offset + 7];
+
+        if (items.length() != WIDTH * HEIGHT)
+            throw new IllegalArgumentException();
+
+        int[] itemTypes = new int[items.length()];
+
+        for (int i = 0; i < itemTypes.length; i++) {
+            char value = items.charAt(i);
+
+            if (value < '0' || value > '8')
+                throw new IllegalArgumentException();
+
+            itemTypes[i] = value - '0';
+        }
         return new Player(nickname, bit(parts[offset + 1]), integer(parts[offset + 2]),
-                integer(parts[offset + 3]), bit(parts[offset + 4]), integer(parts[offset + 5]), cells);
+                integer(parts[offset + 3]), bit(parts[offset + 4]),
+                integer(parts[offset + 5]), cells, itemTypes);
     }
 
     private static boolean bit(String value) {
@@ -157,23 +178,30 @@ public final class OnlineFrame {
         private final boolean alive;
         private final int nextShape;
         private final int[] cells;
+        private final int[] itemTypes;
 
         public Player(String nickname, boolean ready, int score, int lines, boolean alive,
-                int nextShape, int[] cells) {
+                int nextShape, int[] cells, int[] itemTypes) {
             this.nickname = nickname == null ? "" : nickname;
             checkNickname(this.nickname);
             if (score < 0 || lines < 0 || nextShape < 0 || nextShape > 7
-                    || cells == null || cells.length != WIDTH * HEIGHT)
+                    || cells == null || cells.length != WIDTH * HEIGHT
+                    || itemTypes == null || itemTypes.length != WIDTH * HEIGHT)
                 throw new IllegalArgumentException("플레이어 상태가 올바르지 않습니다.");
             for (int cell : cells)
                 if (cell < 0 || cell > 7)
                     throw new IllegalArgumentException("보드의 블록 값이 올바르지 않습니다.");
+            // 아이템 종류 값이 올바른지 확인
+            for (int item : itemTypes)
+                if (item < 0 || item > 8)
+                    throw new IllegalArgumentException("아이템 값이 올바르지 않습니다.");
             this.ready = ready;
             this.score = score;
             this.lines = lines;
             this.alive = alive;
             this.nextShape = nextShape;
             this.cells = cells.clone();
+            this.itemTypes = itemTypes.clone();
         }
 
         public String getNickname() { return nickname; }
@@ -183,5 +211,9 @@ public final class OnlineFrame {
         public boolean isAlive() { return alive; }
         public int getNextShape() { return nextShape; }
         public int[] getCells() { return cells.clone(); }
+        // 각 칸의 아이템 종류 반환
+        public int[] getItemTypes() {
+            return itemTypes.clone();
+        }
     }
 }
