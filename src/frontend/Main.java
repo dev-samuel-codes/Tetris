@@ -31,6 +31,9 @@ import javax.swing.JToggleButton;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import javax.swing.JScrollPane;
 
 // 앱 메인 화면
 // 나중에 메뉴 화면이 더 늘어나면 화면별 JPanel로 나눠도 괜찮을 것 같음
@@ -391,6 +394,38 @@ public class Main extends JFrame {
         soundSection.add(label("소리", Style.TEXT, Style.BUTTON_FONT), BorderLayout.NORTH);
         soundSection.add(muteButton, BorderLayout.CENTER);
 
+        // 키 설정 영역 생성
+        JPanel keyPanel = transparent(new GridLayout(4, 4, 10, 6));
+
+        keyPanel.add(label("왼쪽 이동", Style.TEXT, Style.BODY_FONT));
+        keyPanel.add(createKeySettingButton("LEFT", GameSettings.getLeftKey()));
+
+        keyPanel.add(label("오른쪽 이동", Style.TEXT, Style.BODY_FONT));
+        keyPanel.add(createKeySettingButton("RIGHT", GameSettings.getRightKey()));
+
+        keyPanel.add(label("왼쪽 회전", Style.TEXT, Style.BODY_FONT));
+        keyPanel.add(createKeySettingButton("ROTATE_LEFT", GameSettings.getRotateLeftKey()));
+
+        keyPanel.add(label("오른쪽 회전", Style.TEXT, Style.BODY_FONT));
+        keyPanel.add(createKeySettingButton("ROTATE_RIGHT", GameSettings.getRotateRightKey()));
+
+        keyPanel.add(label("한 칸 하강", Style.TEXT, Style.BODY_FONT));
+        keyPanel.add(createKeySettingButton("SOFT_DROP", GameSettings.getSoftDropKey()));
+
+        keyPanel.add(label("즉시 낙하", Style.TEXT, Style.BODY_FONT));
+        keyPanel.add(createKeySettingButton("HARD_DROP", GameSettings.getHardDropKey()));
+
+        keyPanel.add(label("일시정지", Style.TEXT, Style.BODY_FONT));
+        keyPanel.add(createKeySettingButton("PAUSE", GameSettings.getPauseKey()));
+
+        // 마지막 한 칸 비우기
+        keyPanel.add(new JLabel());
+        keyPanel.add(new JLabel());
+
+        JPanel keySection = transparent(new BorderLayout(0, 12));
+        keySection.add(label("키 설정", Style.TEXT, Style.BUTTON_FONT), BorderLayout.NORTH);
+        keySection.add(keyPanel, BorderLayout.CENTER);
+
         // 설정과 조작 안내는 필요한 높이만 사용하고 남은 공간은 아래 여백으로 유지
         GridBagConstraints section = new GridBagConstraints();
         section.gridx = 0;
@@ -402,14 +437,72 @@ public class Main extends JFrame {
         section.insets = new java.awt.Insets(20, 0, 0, 0);
         content.add(soundSection, section);
         section.gridy = 2;
+        content.add(keySection, section);
+        section.gridy = 3;
         section.insets = new java.awt.Insets(20, 0, 0, 0);
         content.add(infoPanel("조작 방법", "<html>← → 이동　　↑ ↓ 회전<br><br>D 한 칸 하강　　SPACE 즉시 낙하<br><br>P 일시정지 / 재개</html>"), section);
-        section.gridy = 3;
+        section.gridy = 4;
         section.weighty = 1;
         section.fill = GridBagConstraints.BOTH;
         content.add(transparent(new BorderLayout()), section);
-        container.add(content, BorderLayout.CENTER);
+        // 설정 항목이 화면보다 길면 휠로 스크롤
+        JScrollPane scrollPane = new JScrollPane(content);
+        scrollPane.setBorder(null);
+        scrollPane.setOpaque(false);
+        scrollPane.getViewport().setOpaque(false);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+
+        container.add(scrollPane, BorderLayout.CENTER);
         showSubmenu(container);
+        showSubmenu(container);
+    }
+
+    // 키 설정 버튼 생성
+    private JButton createKeySettingButton(String action, int currentKey) {
+        JButton button = createButton(KeyEvent.getKeyText(currentKey));
+        button.setPreferredSize(new Dimension(180, 32));
+
+        button.addActionListener(e -> {
+            button.setText("키를 누르세요...");
+            button.requestFocusInWindow();
+        });
+
+        button.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                applyKeySetting(action, e.getKeyCode());
+                button.setText(KeyEvent.getKeyText(e.getKeyCode()));
+            }
+        });
+
+        return button;
+    }
+
+    // 선택한 동작의 키 변경
+    private void applyKeySetting(String action, int keyCode) {
+        switch (action) {
+            case "LEFT":
+                GameSettings.setLeftKey(keyCode);
+                break;
+            case "RIGHT":
+                GameSettings.setRightKey(keyCode);
+                break;
+            case "ROTATE_LEFT":
+                GameSettings.setRotateLeftKey(keyCode);
+                break;
+            case "ROTATE_RIGHT":
+                GameSettings.setRotateRightKey(keyCode);
+                break;
+            case "SOFT_DROP":
+                GameSettings.setSoftDropKey(keyCode);
+                break;
+            case "HARD_DROP":
+                GameSettings.setHardDropKey(keyCode);
+                break;
+            case "PAUSE":
+                GameSettings.setPauseKey(keyCode);
+                break;
+        }
     }
 
     private String resolutionText(Resolution resolution, boolean selected) {
