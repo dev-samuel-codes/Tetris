@@ -1,5 +1,6 @@
 package online;
 
+import frontend.GameSettings;
 import frontend.Main;
 import frontend.Resolution;
 import frontend.network.ScoreClient;
@@ -21,9 +22,11 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import javax.imageio.ImageIO;
 import javax.swing.AbstractButton;
+import javax.swing.Action;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JTextField;
+import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 
 // 실제 Swing 창과 별도 서버로 메뉴 진입부터 경기, 방 이탈, 메뉴 복귀까지 연결 검증
@@ -83,15 +86,15 @@ public final class OnlineSwingIntegrationTest {
             await(() -> edt(() -> "PLAYING".equals(latest(first).getPhase())
                     && "PLAYING".equals(latest(second).getPhase())), 5000);
             int before = edt(() -> minX(latest(first).getPlayer(0).getCells()));
-            key(first, "LEFT");
+            key(first, GameSettings.getLeftKey());
             await(() -> edt(() -> minX(latest(second).getPlayer(0).getCells()) == before - 1), 2000);
             require(edt(() -> minX(latest(first).getPlayer(0).getCells()) == before - 1), "화면 키바인딩과 양쪽 보드 반영");
-            key(first, "UP");
-            key(first, "SPACE");
+            key(first, GameSettings.getRotateLeftKey());
+            key(first, GameSettings.getHardDropKey());
             await(() -> edt(() -> occupied(latest(first).getPlayer(0).getCells()) >= 8), 2000);
             require(edt(() -> occupied(latest(second).getPlayer(1).getCells()) == 4), "내 키는 상대 보드를 움직이지 않음");
-            key(second, "RIGHT");
-            key(second, "SPACE");
+            key(second, GameSettings.getRightKey());
+            key(second, GameSettings.getHardDropKey());
             await(() -> edt(() -> occupied(latest(second).getPlayer(1).getCells()) >= 8), 2000);
             save(first, temporary.resolve("03-playing.png"));
             edt(() -> { first.setSize(680, 620); first.validate(); return null; });
@@ -120,11 +123,18 @@ public final class OnlineSwingIntegrationTest {
         }
     }
 
-    private static void key(OnlineMatchWindow window, String key) throws Exception {
+    private static void key(OnlineMatchWindow window, int keyCode) throws Exception {
         edt(() -> {
             JComponent content = (JComponent) window.getContentPane();
-            content.getActionMap().get("press-" + key).actionPerformed(new ActionEvent(content, 0, key));
-            content.getActionMap().get("release-" + key).actionPerformed(new ActionEvent(content, 0, key));
+            // 사용자 설정 키의 실제 입력 매핑을 따라 누름과 뗌을 실행
+            for (boolean released : new boolean[] { false, true }) {
+                KeyStroke stroke = KeyStroke.getKeyStroke(keyCode, 0, released);
+                Object binding = content.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).get(stroke);
+                require(binding != null, "설정된 키 입력 매핑 없음: " + stroke);
+                Action action = content.getActionMap().get(binding);
+                require(action != null, "설정된 키 동작 없음: " + binding);
+                action.actionPerformed(new ActionEvent(content, ActionEvent.ACTION_PERFORMED, binding.toString()));
+            }
             return null;
         });
     }
