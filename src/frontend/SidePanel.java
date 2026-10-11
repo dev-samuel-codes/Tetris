@@ -70,7 +70,7 @@ public class SidePanel extends JPanel {
     public void setItemStatus(int linesUntilItem, String itemName, String itemDescription) {
         this.linesUntilItem = Math.max(0, linesUntilItem);
         this.itemName = itemName == null || itemName.trim().isEmpty() ? "아이템 준비" : itemName;
-        this.itemDescription = itemDescription == null || itemDescription.trim().isEmpty() ? "3줄 누적 시 랜덤 아이템 발동" : itemDescription;
+        this.itemDescription = itemDescription == null || itemDescription.trim().isEmpty() ? "아이템은 블록/제거 시 발동" : itemDescription;
         repaint();
     }
 
@@ -203,7 +203,7 @@ public class SidePanel extends JPanel {
         g.drawString(displayName, boxX + (int) (size * .32), nameY);
 
         String descriptionText = itemDescription == null || itemDescription.trim().isEmpty()
-                ? "3줄 누적 시 랜덤 아이템 발동"
+                ? "아이템은 블록/제거 시 발동"
                 : itemDescription;
         g.setFont(Style.BODY_FONT.deriveFont((float) (size * .42)));
         g.setColor(Style.MUTED_TEXT);
