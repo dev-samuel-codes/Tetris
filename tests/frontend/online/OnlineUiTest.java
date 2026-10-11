@@ -28,13 +28,14 @@ public final class OnlineUiTest {
     public static void main(String[] args) throws Exception {
         verifyMailbox();
         SwingUtilities.invokeAndWait(OnlineUiTest::verifyRendering);
+        verifyItemStateRoundTrip();
         verifyCompatibilityError();
         verifyCloseCancelsRead();
         verifyCancelSuppressesLateFrame();
         verifyResponsePacing();
         verifyRotationDropSequence();
         verifySlowResponseDeadline();
-        System.out.println("OnlineUiTest: 1초 입력 만료·원격 지연 후 회전/낙하 보존·보드 방향·다음 블록·좌석·상태·구서버·취소·늦은 EDT 응답·50ms 간격·8초 제한 통과");
+        System.out.println("OnlineUiTest: 1초 입력 만료·원격 지연 후 회전/낙하 보존·보드 방향·아이템/안개/회전 금지·다음 블록·좌석·상태·구서버·취소·늦은 EDT 응답·50ms 간격·8초 제한 통과");
     }
 
     private static void verifyMailbox() throws Exception {
@@ -96,13 +97,52 @@ public final class OnlineUiTest {
         require(view.name.getText().contains("두번째"), "좌석 1 닉네임 누락");
         require(view.metrics.getText().contains("40점") && view.metrics.getText().contains("3줄"), "점수와 줄수 표시 오류");
         require(view.next.shape == 7, "다음 블록 표시 오류");
-        view.update(new OnlineFrame.Player("두번째", false, 0, 0, false, 0, new int[220]), false);
+        view.update(new OnlineFrame.Player("두번째", false, 0, 0, false, 0,
+                new int[220], new int[220], false, 0, 0), false);
         require(!view.canvas.ended, "경기 시작 전 게임오버가 표시됩니다");
         require("03:01".equals(OnlineMatchWindow.formatElapsedTime(181999)), "서버 경과 시간 표시 오류");
         require("시작까지 3초".equals(OnlineMatchWindow.statusText(frame("COUNTDOWN", -1, "NONE", 3000))), "카운트다운 표시 오류");
         require(OnlineMatchWindow.statusText(frame("FINISHED", 1, "DISCONNECT", 0)).startsWith("승리!"), "좌석 1 승패 표시 오류");
         require("무승부".equals(OnlineMatchWindow.statusText(frame("FINISHED", -1, "SCORE", 0))), "무승부 표시 오류");
         require(OnlineMatchWindow.statusText(frame("FINISHED", -1, "EXPIRED", 0)).startsWith("방 종료"), "대기 방 만료는 경기 무승부가 아닙니다");
+    }
+
+    // 실제 TCP에서 읽은 아이템 상태가 화면까지 전달되고 다음 프레임에서 해제되는지 확인합니다.
+    private static void verifyItemStateRoundTrip() throws Exception {
+        int[] cells = new int[220];
+        cells[0] = 7;
+        cells[219] = 1;
+        int[] items = new int[220];
+        items[0] = 8;
+        items[219] = 1;
+        OnlineFrame source = new OnlineFrame("AB1234", 1, "PLAYING", -1, "NONE", 0, 0,
+                frame("PLAYING", -1, "NONE", 0).getPlayer(0),
+                new OnlineFrame.Player("두번째", true, 40, 3, true, 7, cells, items, true, 2, 4));
+        try (FakeServer server = new FakeServer(socket -> {
+            writer(socket).println("TETRIS/1 READY");
+            reader(socket).readLine();
+            writer(socket).println(source.encode());
+        }); OnlineClient client = new OnlineClient("127.0.0.1", server.port())) {
+            OnlineFrame received = client.create("두번째");
+            SwingUtilities.invokeAndWait(() -> {
+                OnlineMatchWindow.BoardView view = new OnlineMatchWindow.BoardView("나", Resolution.SMALL);
+                view.update(received.getPlayer(received.getSeat()));
+                require(view.canvas.cells[0] == 7 && view.canvas.cells[219] == 1,
+                        "아이템 프레임의 보드 좌표가 바뀌었습니다");
+                require(view.canvas.itemTypes[0] == 8 && view.canvas.itemTypes[219] == 1,
+                        "서버 아이템 종류 및 좌표가 화면에 전달되지 않았습니다");
+                require(view.canvas.fogActive && view.canvas.fogRemaining == 2
+                        && view.canvas.rotationLockRemaining == 4, "서버 아이템 효과가 화면에 전달되지 않았습니다");
+                view.canvas.setSize(202, 442);
+                int fogPixel = render(view.canvas).getRGB(11, 31);
+                view.update(frame("PLAYING", -1, "NONE", 0).getPlayer(1));
+                require(!view.canvas.fogActive && view.canvas.fogRemaining == 0
+                        && view.canvas.rotationLockRemaining == 0
+                        && view.canvas.itemTypes[0] == 0 && view.canvas.itemTypes[219] == 0,
+                        "해제된 아이템 또는 효과가 다음 프레임에도 남아 있습니다");
+                require(render(view.canvas).getRGB(11, 31) != fogPixel, "안개 오버레이가 표시 또는 해제되지 않았습니다");
+            });
+        }
     }
 
     private static BufferedImage render(javax.swing.JPanel canvas) {
@@ -279,8 +319,10 @@ public final class OnlineUiTest {
 
     private static OnlineFrame frame(String phase, int winner, String reason, long countdown) {
         return new OnlineFrame("AB1234", 1, phase, winner, reason, 181999, countdown,
-                new OnlineFrame.Player("첫번째", true, 10, 1, true, 3, new int[220]),
-                new OnlineFrame.Player("두번째", true, 40, 3, true, 7, new int[220]));
+                new OnlineFrame.Player("첫번째", true, 10, 1, true, 3,
+                        new int[220], new int[220], false, 0, 0),
+                new OnlineFrame.Player("두번째", true, 40, 3, true, 7,
+                        new int[220], new int[220], false, 0, 0));
     }
 
     private static BufferedReader reader(Socket socket) throws IOException {
