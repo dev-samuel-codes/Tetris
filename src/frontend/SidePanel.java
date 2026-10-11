@@ -199,19 +199,46 @@ public class SidePanel extends JPanel {
         g.setColor(Style.BORDER);
         g.drawRect(boxX, boxY, boxWidth - 1, boxHeight - 1);
 
+        int padding = (int) (size * .32);
+        int maxTextWidth = boxWidth - padding * 2;
+
         String displayName = itemName == null || itemName.trim().isEmpty() ? "아이템 준비" : itemName;
-        g.setFont(Style.MONO_FONT.deriveFont((float) (size * .72)));
+        fitFont(g, Style.MONO_FONT, displayName, size * .65, maxTextWidth);
         g.setColor(Style.TEXT);
         int nameY = boxY + (int) (size * 1.35);
-        g.drawString(displayName, boxX + (int) (size * .32), nameY);
+        g.drawString(displayName, boxX + padding, nameY);
 
         String descriptionText = itemDescription == null || itemDescription.trim().isEmpty()
                 ? "아이템은 블록/제거 시 발동"
                 : itemDescription;
-        g.setFont(Style.BODY_FONT.deriveFont((float) (size * .42)));
+        g.setFont(Style.BODY_FONT.deriveFont((float) (size * .32)));
         g.setColor(Style.MUTED_TEXT);
-        int descY = boxY + (int) (size * 2.6);
-        g.drawString(descriptionText, boxX + (int) (size * .32), descY);
+        FontMetrics fm = g.getFontMetrics();
+        if (fm.stringWidth(descriptionText) <= maxTextWidth) {
+            int descY = boxY + (int) (size * 2.6);
+            g.drawString(descriptionText, boxX + padding, descY);
+        } else {
+            int split = descriptionText.length() / 2;
+            int spaceIdx = descriptionText.indexOf(' ', split);
+            if (spaceIdx == -1) {
+                spaceIdx = descriptionText.lastIndexOf(' ', split);
+            }
+            String line1, line2;
+            if (spaceIdx > 0 && spaceIdx < descriptionText.length() - 1) {
+                line1 = descriptionText.substring(0, spaceIdx).trim();
+                line2 = descriptionText.substring(spaceIdx + 1).trim();
+            } else {
+                int cut = descriptionText.length() / 2;
+                line1 = descriptionText.substring(0, cut);
+                line2 = descriptionText.substring(cut);
+            }
+            int line1Y = boxY + (int) (size * 2.3);
+            int line2Y = boxY + (int) (size * 3.3);
+            fitFont(g, Style.BODY_FONT, line1, size * .32, maxTextWidth);
+            g.drawString(line1, boxX + padding, line1Y);
+            fitFont(g, Style.BODY_FONT, line2, size * .32, maxTextWidth);
+            g.drawString(line2, boxX + padding, line2Y);
+        }
     }
 
     private void fitFont(Graphics2D g, Font font, String text, double preferredSize, int maxWidth) {
