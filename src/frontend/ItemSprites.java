@@ -39,6 +39,8 @@ public final class ItemSprites {
         load(sprites, ItemType.BOMB_CLEAR, "bomb-clear.png");
         load(sprites, ItemType.ROTATION_LOCK, "rotation-lock.png");
         load(sprites, ItemType.SCORE_BOOST, "score-boost.png");
+        load(sprites, ItemType.COLOR_CLEAR, "color-clear.png");
+        load(sprites, ItemType.FOG, "fog.png");
         return sprites;
     }
 

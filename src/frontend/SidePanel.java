@@ -28,9 +28,10 @@ public class SidePanel extends JPanel {
     private ItemType lastItemType;
     private static final ItemType[] ITEM_GUIDE = {
             ItemType.ROW_CLEAR, ItemType.COLUMN_CLEAR, ItemType.BOMB_CLEAR,
-            ItemType.ROTATION_LOCK, ItemType.SCORE_BOOST
+            ItemType.ROTATION_LOCK, ItemType.SCORE_BOOST, ItemType.COLOR_CLEAR, ItemType.FOG
     };
-    private static final String[] ITEM_GUIDE_LABELS = { "한 줄", "열", "폭탄", "회전 금지", "점수 업" };
+    private static final String[] ITEM_GUIDE_LABELS = { "한 줄", "열", "폭탄", "회전 금지", "점수 업" ,"같은 색", "안개"};
+    private static final int ITEM_GUIDE_FIRST_ROW = 4;
     private boolean itemMode = false;
 
     public SidePanel() {
@@ -212,13 +213,15 @@ public class SidePanel extends JPanel {
             drawCenteredText(g, "블록/줄 제거 시 발동", Style.BODY_FONT, size * .46,
                     contentX, contentWidth, boxY + (int) (size * 1.7), Style.MUTED_TEXT);
             // 두 줄로 나눠 작은 창에서도 다섯 아이템을 구분
+
             for (int i = 0; i < ITEM_GUIDE.length; i++) {
-                int columns = i < 3 ? 3 : 2;
-                int column = i < 3 ? i : i - 3;
+                boolean firstRow = i < ITEM_GUIDE_FIRST_ROW;
+                int columns = firstRow ? ITEM_GUIDE_FIRST_ROW : ITEM_GUIDE.length - ITEM_GUIDE_FIRST_ROW;
+                int column = firstRow ? i : i - ITEM_GUIDE_FIRST_ROW;
                 int slotWidth = contentWidth / columns;
                 int slotX = contentX + column * slotWidth;
                 int iconSize = Math.max(1, Math.min(slotWidth - 2, (int) (size * 1.3)));
-                int iconY = boxY + (int) (size * (i < 3 ? 2.15 : 4.65));
+                int iconY = boxY + (int) (size * (firstRow ? 2.15 : 4.65));
                 drawItemIcon(g, ITEM_GUIDE[i], slotX + (slotWidth - iconSize) / 2,
                         iconY, iconSize);
                 drawCenteredText(g, ITEM_GUIDE_LABELS[i], Style.BODY_FONT, size * .46,

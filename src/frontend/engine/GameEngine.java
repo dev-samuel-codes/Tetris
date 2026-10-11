@@ -14,7 +14,9 @@ public class GameEngine {
         BOMB_CLEAR("폭탄 제거", "주변 3x3 범위를 제거합니다."),
         BOTTOM_CLEAR("하단 제거", "하단 2줄을 제거합니다."),
         ROTATION_LOCK("회전 금지", "다음 2개 블록은 회전할 수 없습니다."),
-        SCORE_BOOST("점수 업", "점수를 30점 추가합니다.");
+        SCORE_BOOST("점수 업", "점수를 30점 추가합니다."),
+        COLOR_CLEAR("같은 색 제거", "아이템 블록과 같은 색 칸을 모두 제거합니다."),
+        FOG("안개", "다음 3개 블록 동안 보드 위쪽 절반이 가려집니다.");
 
         private final String label;
         private final String description;
@@ -54,6 +56,10 @@ public class GameEngine {
 	private int accumulatedItemLines = 0;
 	private int rotationLockRemaining = 0;
 	private boolean rotationLocked = false;
+    private Tetrominoes removedItemShape = Tetrominoes.NoShape;
+    private static final int FOG_PIECES = 3;
+    private int fogRemaining = 0;
+    private boolean fogActive = false;
 	private Shape curPiece = new Shape();
 	private final Shape nextPiece = new Shape(); // 다음에 나올 블록 (미리보기용)
 	private final Tetrominoes[] board = new Tetrominoes[BOARD_WIDTH * BOARD_HEIGHT];
@@ -116,6 +122,8 @@ public class GameEngine {
         combo = 0;
         rotationLockRemaining = 0;
         rotationLocked = false;
+        fogRemaining = 0;
+        fogActive = false;
         accumulatedItemLines = 0;
         piecesSinceLastItem = 0;
         nextItemSpawnInterval = randomBetween(ITEM_SPAWN_MIN, ITEM_SPAWN_MAX);
@@ -254,6 +262,11 @@ public class GameEngine {
             rotationLockRemaining--;
         }
 
+        fogActive = fogRemaining > 0;
+        if (fogRemaining > 0) {
+            fogRemaining--;
+        }
+
         curX = BOARD_WIDTH / 2 + 1;
         curY = BOARD_HEIGHT - 1 + curPiece.minY();
 
@@ -297,9 +310,10 @@ public class GameEngine {
 			if (lineIsFull) {
 				++numFullLines;
                 for (int j = 0; j < BOARD_WIDTH; ++j) {
-                    ItemType removedItem = boardItemTypeAt(j, i);
+                    ItemType removedItem = boardItemTypeAt(j, i); // 제거 줄 블록 기억
                     boardItemTypes[toIndex(j, i)] = null;
                     if (removedItem != null) {
+                        removedItemShape = shapeAt(j, i);
                         handleRemovedItemCell(removedItem);
                     }
                 }
@@ -356,6 +370,14 @@ public class GameEngine {
             case SCORE_BOOST:
                 score += 30;
                 break;
+            case COLOR_CLEAR:
+                clearSameShape(removedItemShape);
+                break;
+            case FOG:
+                fogRemaining += FOG_PIECES;
+                fogActive = true;
+                break;
+
             default:
                 break;
         }
@@ -416,6 +438,14 @@ public class GameEngine {
         return rotationLocked;
     }
 
+    public boolean isFogActive() {
+        return fogActive;
+    }
+
+    public int getFogRemaining() {
+        return fogRemaining;
+    }
+
     public void applyBattleRotationLock() {
         rotationLockRemaining += 2;
         rotationLocked = true;
@@ -434,6 +464,18 @@ public class GameEngine {
 
     private void applyItem(ItemType itemType) {
         triggerItemEffect(itemType);
+    }
+
+    // 같은 색 제거 아이템 : 보드에서 target과 같은 색 지움
+    private void clearSameShape(Tetrominoes target) {
+        if (target == null || target == Tetrominoes.NoShape)
+            return;
+        for (int y = 0; y < BOARD_HEIGHT; y++) {
+            for (int x = 0; x < BOARD_WIDTH; x++) {
+                if (shapeAt(x, y) == target)
+                    clearBoardCell(x, y);
+            }
+        }
     }
 
     private void clearBoardCell(int x, int y) {
@@ -507,7 +549,10 @@ public class GameEngine {
             ItemType.COLUMN_CLEAR,
             ItemType.BOMB_CLEAR,
             ItemType.ROTATION_LOCK,
-            ItemType.SCORE_BOOST
+            ItemType.SCORE_BOOST,
+            ItemType.COLOR_CLEAR,
+            ItemType.COLOR_CLEAR,
+            ItemType.FOG
         };
         return pool[randomBetween(0, pool.length - 1)];
     }
