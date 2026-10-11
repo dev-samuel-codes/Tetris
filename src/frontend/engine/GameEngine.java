@@ -19,6 +19,14 @@ public class GameEngine {
 	// 콤보 점수 10점 추가
 	private static final int COMBO_BONUS = 10;
 
+	private static final int[][] WALL_KICK_OFFSETS = {
+			{ 0, 0 },   // 제자리
+			{ -1, 0 },  // 왼쪽 1칸
+			{ 1, 0 },   // 오른쪽 1칸
+			{ -2, 0 },  // 왼쪽 2칸
+			{ 2, 0 },   // 오른쪽 2칸
+	};
+
 	private boolean isFallingFinished = false;  // 현재 코드에서는 줄 제거 후 다음 블록 생성을 기다리는 상태 변수
 	private boolean isStarted = false;
 	private boolean isPaused = false;
@@ -83,13 +91,22 @@ public class GameEngine {
     // 좌우 회전
 	public void rotateLeft() {
 		if (canControlPiece())
-			tryMove(curPiece.rotateLeft(), curX, curY); // 좌우 회전
+			tryRotate(curPiece.rotateLeft());
 	}
 
-    // 좌우 회전
+	// 좌우 회전
 	public void rotateRight() {
 		if (canControlPiece())
-			tryMove(curPiece.rotateRight(), curX, curY);
+			tryRotate(curPiece.rotateRight());
+	}
+
+	// 벽면에 붙었을 때, 회전 시도 : 벽 차는 방법
+	private boolean tryRotate(Shape rotated) {
+		for (int[] offset : WALL_KICK_OFFSETS) {
+			if (tryMove(rotated, curX + offset[0], curY + offset[1]))
+				return true;
+		}
+		return false;
 	}
 
     // 좌표에 따른 move
