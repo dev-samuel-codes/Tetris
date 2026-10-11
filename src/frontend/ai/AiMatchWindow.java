@@ -49,6 +49,7 @@ import javax.swing.JTextArea;
 import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import frontend.GameSettings;
 
 // 같은 블록 순서로 점수를 겨루는 AI 대전 화면
 public final class AiMatchWindow extends JFrame {
@@ -366,45 +367,56 @@ public final class AiMatchWindow extends JFrame {
         updateStatus();
     }
 
+    // 사용자 키 설정을 AI 대전에도 적용
     private void bindKeys(JComponent root) {
-        bind(root, "LEFT", "LEFT", true);
-        bind(root, "RIGHT", "RIGHT", true);
-        bind(root, "UP", "ROTATE_LEFT", false);
-        bind(root, "DOWN", "ROTATE_RIGHT", false);
-        bind(root, "SPACE", "HARD_DROP", false);
-        bind(root, "D", "SOFT_DROP", true);
-        bind(root, "P", "PAUSE", false);
+        bind(root, GameSettings.getLeftKey(), "LEFT", true);
+        bind(root, GameSettings.getRightKey(), "RIGHT", true);
+        bind(root, GameSettings.getRotateLeftKey(), "ROTATE_LEFT", false);
+        bind(root, GameSettings.getRotateRightKey(), "ROTATE_RIGHT", false);
+        bind(root, GameSettings.getHardDropKey(), "HARD_DROP", false);
+        bind(root, GameSettings.getSoftDropKey(), "SOFT_DROP", true);
+        bind(root, GameSettings.getPauseKey(), "PAUSE", false);
     }
 
-    private void bind(JComponent root, final String key, final String command, final boolean repeat) {
-        String pressed = "press-" + key;
-        String released = "release-" + key;
-        root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("pressed " + key), pressed);
-        root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("released " + key), released);
+    // 설정된 키를 AI 대전 명령과 연결
+    private void bind(JComponent root, final int keyCode, final String command, final boolean repeat) {
+        String pressed = "press-" + command;
+        String released = "release-" + command;
+
+        root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+                .put(KeyStroke.getKeyStroke(keyCode, 0, false), pressed);
+
+        root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+                .put(KeyStroke.getKeyStroke(keyCode, 0, true), released);
+
         root.getActionMap().put(pressed, new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent event) {
-                if (!repeat && !pressedKeys.add(key))
+                if (!repeat && !pressedKeys.add(command))
                     return;
+
                 if ("PAUSE".equals(command)) {
                     togglePause();
-                    pressedKeys.add(key);
+                    pressedKeys.add(command);
                     return;
                 }
+
                 Session current = session;
-                if (current == null || !current.playing || current.paused || latestFrame == null
-                        || latestFrame.getHuman().isEnded())
+                if (current == null || !current.playing || current.paused
+                        || latestFrame == null || latestFrame.getHuman().isEnded())
                     return;
-                // 입력이 다음 블록까지 쌓이지 않도록 한 개씩 보관
+
                 if ("HARD_DROP".equals(command))
                     current.commands.clear();
+
                 current.commands.offer(command);
             }
         });
+
         root.getActionMap().put(released, new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent event) {
-                pressedKeys.remove(key);
+                pressedKeys.remove(command);
             }
         });
     }

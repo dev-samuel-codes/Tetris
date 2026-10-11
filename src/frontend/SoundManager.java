@@ -9,6 +9,7 @@ import javax.sound.sampled.Clip;
 public class SoundManager {
 
     private static Clip bgmClip;
+    private static boolean muted = false;
 
     // 객체 생성 하지말라는 생성자
     private SoundManager() {
@@ -46,6 +47,8 @@ public class SoundManager {
 
     // BGM 파일을 불러와 반복 재생
     public static void playBgm() {
+        if (muted)
+            return;
         try {
             URL url = resolveSoundUrl("/frontend/audio/bgm.wav");
             if (url == null) {
@@ -70,6 +73,25 @@ public class SoundManager {
         }
     }
 
+    // 현재 음소거 상태 반환
+    public static boolean isMuted() {
+        return muted;
+    }
+
+    // 음소거 상태 변경
+    public static void setMuted(boolean mute) {
+        muted = mute;
+
+        if (muted) {
+            stopBgm();
+        }
+    }
+
+    // 음소거 상태를 반대로 변경
+    public static void toggleMute() {
+        setMuted(!muted);
+    }
+
     // 줄을 제거했을 때 효과음 재생
     public static void playLineClear() {
         playSound("/frontend/audio/lineclear.wav");
@@ -82,6 +104,8 @@ public class SoundManager {
 
     // 전달받은 경로의 효과음 파일을 한 번 재생
     private static void playSound(String path) {
+        if (muted)
+            return;
         try {
             URL url = resolveSoundUrl(path);
             if (url == null) {
