@@ -34,6 +34,7 @@ import javax.swing.SwingUtilities;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import javax.swing.JScrollPane;
+import javax.swing.plaf.basic.BasicScrollBarUI;
 
 // 앱 메인 화면
 // 나중에 메뉴 화면이 더 늘어나면 화면별 JPanel로 나눠도 괜찮을 것 같음
@@ -451,6 +452,32 @@ public class Main extends JFrame {
         scrollPane.setOpaque(false);
         scrollPane.getViewport().setOpaque(false);
         scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+
+        // 설정 화면 스크롤바를 얇고 단순하게 표시
+        scrollPane.getVerticalScrollBar().setPreferredSize(new Dimension(8, 0));
+        scrollPane.getVerticalScrollBar().setUI(new BasicScrollBarUI() {
+            @Override
+            protected void configureScrollBarColors() {
+                thumbColor = Style.BORDER;
+                trackColor = Style.BACKGROUND;
+            }
+
+            @Override
+            protected JButton createDecreaseButton(int orientation) {
+                return zeroButton();
+            }
+
+            @Override
+            protected JButton createIncreaseButton(int orientation) {
+                return zeroButton();
+            }
+
+            private JButton zeroButton() {
+                JButton button = new JButton();
+                button.setPreferredSize(new Dimension(0, 0));
+                return button;
+            }
+        });
 
         container.add(scrollPane, BorderLayout.CENTER);
         showSubmenu(container);
