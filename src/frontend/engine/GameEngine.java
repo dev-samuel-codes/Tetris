@@ -47,17 +47,17 @@ public class GameEngine {
     private boolean isPaused = false;
     private boolean itemMode = false;
     private boolean pendingBombItem = false;
-    private int numLinesRemoved = 0;
-    private int score = 0;
-    private int combo = 0;
-    private int curX = 0;
-    private int curY = 0;
-    private int rotationLockRemaining = 0;
-    private boolean rotationLocked = false;
-    private int accumulatedItemLines = 0;
-    private Shape curPiece = new Shape();
-    private final Shape nextPiece = new Shape();
-    private final Tetrominoes[] board = new Tetrominoes[BOARD_WIDTH * BOARD_HEIGHT];
+	private int numLinesRemoved = 0;
+	private int score = 0;
+	private int combo = 0;
+	private int curX = 0;
+	private int curY = 0;
+	private int accumulatedItemLines = 0;
+	private int rotationLockRemaining = 0;
+	private boolean rotationLocked = false;
+	private Shape curPiece = new Shape();
+	private final Shape nextPiece = new Shape(); // 다음에 나올 블록 (미리보기용)
+	private final Tetrominoes[] board = new Tetrominoes[BOARD_WIDTH * BOARD_HEIGHT];
     private final ItemType[] boardItemTypes = new ItemType[BOARD_WIDTH * BOARD_HEIGHT];
     private final Random random;
     private int piecesSinceLastItem = 0;
@@ -110,6 +110,12 @@ public class GameEngine {
         lastItemDescription = ItemType.BOMB_CLEAR.getDescription();
     }
 
+    public void triggerRotationLockItem() {
+        if (!itemMode)
+            return;
+        handleRemovedItemCell(ItemType.ROTATION_LOCK);
+    }
+
     public void start() {
         if (isPaused)
             return;
@@ -127,10 +133,10 @@ public class GameEngine {
         currentItemType = null;
         lastItemName = "";
         lastItemDescription = "";
-        clearBoard();
-        chooseNextPiece();
-        newPiece();
-    }
+		clearBoard();
+		chooseNextPiece(); // 다음 블록을 먼저 뽑기
+		newPiece();
+	}
 
     public void pause() {
         if (isStarted)
@@ -160,12 +166,12 @@ public class GameEngine {
     }
 
     public void rotateLeft() {
-        if (canControlPiece() && rotationLockRemaining <= 0)
+        if (canControlPiece() && !rotationLocked)
             tryMove(curPiece.rotateLeft(), curX, curY);
     }
 
     public void rotateRight() {
-        if (canControlPiece() && rotationLockRemaining <= 0)
+        if (canControlPiece() && !rotationLocked)
             tryMove(curPiece.rotateRight(), curX, curY);
     }
 
@@ -224,8 +230,8 @@ public class GameEngine {
             lastItemDescription = ItemType.BOMB_CLEAR.getDescription();
         }
 
-        curPiece.setShape(nextPiece.getShape());
-        chooseNextPiece();
+        curPiece.setShape(nextPiece.getShape()); // 미리 뽑아 둔 블록을 현재 블록으로
+        chooseNextPiece(); // 다음 블록 만들기
 
         currentItemType = null;
         if (itemMode) {
@@ -274,48 +280,51 @@ public class GameEngine {
         return true;
     }
 
-    private void removeFullLines() {
-        int numFullLines = 0;
-        for (int y = BOARD_HEIGHT - 1; y >= 0; y--) {
-            boolean lineIsFull = true;
-            for (int x = 0; x < BOARD_WIDTH; x++) {
-                if (shapeAt(x, y) == Tetrominoes.NoShape) {
-                    lineIsFull = false;
-                    break;
-                }
-            }
-            if (!lineIsFull)
-                continue;
+	private void removeFullLines() {
+		int numFullLines = 0;
 
-            numFullLines++;
-            for (int x = 0; x < BOARD_WIDTH; x++) {
-                ItemType removedItem = boardItemTypeAt(x, y);
-                if (removedItem != null) {
-                    handleRemovedItemCell(removedItem);
-                }
-            }
-            for (int clearY = y; clearY < BOARD_HEIGHT - 1; clearY++) {
-                for (int x = 0; x < BOARD_WIDTH; x++) {
-                    Tetrominoes shape = shapeAt(x, clearY + 1);
-                    ItemType itemType = boardItemTypeAt(x, clearY + 1);
-                    setBoardCell(x, clearY, shape, itemType);
-                }
-            }
-            for (int x = 0; x < BOARD_WIDTH; x++) {
-                setBoardCell(x, BOARD_HEIGHT - 1, Tetrominoes.NoShape, null);
-            }
-            y++;
-        }
+        // 줄이 가등 찼는 지 검사
+		for (int i = BOARD_HEIGHT - 1; i >= 0; --i) {
+			boolean lineIsFull = true;
+			for (int j = 0; j < BOARD_WIDTH; ++j) {
+				if (shapeAt(j, i) == Tetrominoes.NoShape) {
+					lineIsFull = false;
+					break;
+				}
+			}
 
-        if (numFullLines > 0) {
-            numLinesRemoved += numFullLines;
-            combo++;
-            score += LINE_SCORES[numFullLines];
-            if (combo > 1) {
-                score += COMBO_BONUS;
-            }
-            isFallingFinished = true;
-            curPiece.setShape(Tetrominoes.NoShape);
+            // 가득 찬 줄을 위쪽 줄로 덮어씀
+			if (lineIsFull) {
+				++numFullLines;
+                for (int j = 0; j < BOARD_WIDTH; ++j) {
+                    ItemType removedItem = boardItemTypeAt(j, i);
+                    boardItemTypes[toIndex(j, i)] = null;
+                    if (removedItem != null) {
+                        handleRemovedItemCell(removedItem);
+                    }
+                }
+				for (int k = i; k < BOARD_HEIGHT - 1; ++k) {
+					for (int j = 0; j < BOARD_WIDTH; ++j) {
+                        setBoardCell(j, k, shapeAt(j, k + 1), boardItemTypeAt(j, k + 1));
+                    }
+				}
+				for (int j = 0; j < BOARD_WIDTH; ++j) {
+                    setBoardCell(j, BOARD_HEIGHT - 1, Tetrominoes.NoShape, null);
+				}
+                i++;
+			}
+		}
+
+		// 콤보 보너스 점수, 연속 보너스 점수 추가
+		if (numFullLines > 0) {
+			numLinesRemoved += numFullLines;
+			combo++;
+			score += LINE_SCORES[numFullLines];
+			if ((combo > 1)) {
+				score += COMBO_BONUS;
+			}
+			isFallingFinished = true;
+			curPiece.setShape(Tetrominoes.NoShape);
             if (itemMode) {
                 activateRandomItemForClearedLines(numFullLines);
             }
@@ -480,40 +489,6 @@ public class GameEngine {
             for (int x = centerX - 1; x <= centerX + 1; x++) {
                 if (x >= 0 && x < BOARD_WIDTH && y >= 0 && y < BOARD_HEIGHT)
                     clearBoardCell(x, y);
-            }
-        }
-    }
-
-    private void clearBottomRows(int rowsToClear) {
-        if (rowsToClear <= 0 || rowsToClear >= BOARD_HEIGHT)
-            return;
-
-        for (int x = 0; x < BOARD_WIDTH; x++) {
-            for (int y = BOARD_HEIGHT - rowsToClear; y < BOARD_HEIGHT; y++) {
-                ItemType removedItem = boardItemTypeAt(x, y);
-                if (removedItem != null) {
-                    handleRemovedItemCell(removedItem);
-                }
-            }
-        }
-
-        for (int x = 0; x < BOARD_WIDTH; x++) {
-            int writeY = BOARD_HEIGHT - 1;
-            for (int y = BOARD_HEIGHT - 1; y >= 0; y--) {
-                if (y >= BOARD_HEIGHT - rowsToClear) {
-                    continue;
-                }
-
-                Tetrominoes shape = shapeAt(x, y);
-                ItemType itemType = boardItemTypeAt(x, y);
-                if (shape != Tetrominoes.NoShape) {
-                    setBoardCell(x, writeY, shape, itemType);
-                    writeY--;
-                }
-            }
-
-            for (int y = writeY; y >= 0; y--) {
-                setBoardCell(x, y, Tetrominoes.NoShape, null);
             }
         }
     }
