@@ -37,6 +37,7 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
+import frontend.GameSettings;
 
 // 서버 스냅숏만 표시합니다. 낙하·점수·승패의 계산은 서버가 담당합니다.
 // 나중에 연결 폼과 관전 화면이 늘어나면 JPanel 단위로 분리할 수 있습니다.
@@ -245,30 +246,46 @@ public final class OnlineMatchWindow extends JFrame {
                 : "경기 중 · 같은 블록 순서 · 점수 대결";
     }
 
+    // 사용자 키 설정을 네트워크 대전에도 적용
     private void bindKeys(JComponent root) {
-        bind(root, "LEFT", "LEFT", true);
-        bind(root, "RIGHT", "RIGHT", true);
-        bind(root, "UP", "ROTATE_LEFT", false);
-        bind(root, "DOWN", "ROTATE_RIGHT", false);
-        bind(root, "D", "SOFT_DROP", true);
-        bind(root, "SPACE", "HARD_DROP", false);
+        bind(root, GameSettings.getLeftKey(), "LEFT", true);
+        bind(root, GameSettings.getRightKey(), "RIGHT", true);
+        bind(root, GameSettings.getRotateLeftKey(), "ROTATE_LEFT", false);
+        bind(root, GameSettings.getRotateRightKey(), "ROTATE_RIGHT", false);
+        bind(root, GameSettings.getSoftDropKey(), "SOFT_DROP", true);
+        bind(root, GameSettings.getHardDropKey(), "HARD_DROP", false);
     }
 
-    private void bind(JComponent root, String key, String command, boolean repeat) {
-        root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("pressed " + key), "press-" + key);
-        root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("released " + key), "release-" + key);
-        root.getActionMap().put("press-" + key, new AbstractAction() {
-            @Override public void actionPerformed(ActionEvent event) {
+    // 설정된 키를 네트워크 대전 명령과 연결
+    private void bind(JComponent root, int keyCode, String command, boolean repeat) {
+        String pressed = "press-" + command;
+        String released = "release-" + command;
+
+        root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+                .put(KeyStroke.getKeyStroke(keyCode, 0, false), pressed);
+
+        root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+                .put(KeyStroke.getKeyStroke(keyCode, 0, true), released);
+
+        root.getActionMap().put(pressed, new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent event) {
                 if (session == null || latest == null || !"PLAYING".equals(latest.getPhase())
                         || !latest.getPlayer(latest.getSeat()).isAlive())
                     return;
-                if (!repeat && !pressedKeys.add(key))
+
+                if (!repeat && !pressedKeys.add(command))
                     return;
+
                 session.input(command);
             }
         });
-        root.getActionMap().put("release-" + key, new AbstractAction() {
-            @Override public void actionPerformed(ActionEvent event) { pressedKeys.remove(key); }
+
+        root.getActionMap().put(released, new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                pressedKeys.remove(command);
+            }
         });
     }
 
