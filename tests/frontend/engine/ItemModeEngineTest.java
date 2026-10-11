@@ -10,20 +10,20 @@ public class ItemModeEngineTest {
         GameEngine engine = new GameEngine();
         engine.setItemMode(true);
 
-        if (!engine.activateRandomItemForClearedLines(3)) {
-            throw new AssertionError("3줄을 지울 때 아이템이 발동해야 합니다.");
+        if (engine.activateRandomItemForClearedLines(3)) {
+            throw new AssertionError("줄 누적 3줄로는 아이템이 발동하면 안 됩니다.");
         }
 
-        if (engine.getLastItemName() == null || engine.getLastItemName().trim().isEmpty()) {
-            throw new AssertionError("발동된 아이템 이름이 비어 있으면 안 됩니다.");
+        if (engine.getLastItemName() == null || !engine.getLastItemName().trim().isEmpty()) {
+            throw new AssertionError("줄 누적 조건이 제거되면, 발동된 아이템 이름은 비어 있어야 합니다.");
         }
 
-        if (engine.getLinesUntilItemActivation() != 3) {
-            throw new AssertionError("아이템 초기 누적 목표는 3줄이어야 합니다.");
+        if (engine.getLinesUntilItemActivation() != 0) {
+            throw new AssertionError("줄 누적 조건이 제거되면 남은 줄 수는 0이어야 합니다.");
         }
 
-        if (engine.getLastItemDescription() == null || engine.getLastItemDescription().trim().isEmpty()) {
-            throw new AssertionError("발동된 아이템 설명이 비어 있으면 안 됩니다.");
+        if (engine.getLastItemDescription() == null || !engine.getLastItemDescription().trim().isEmpty()) {
+            throw new AssertionError("줄 누적 조건이 제거되면, 발동된 아이템 설명은 비어 있어야 합니다.");
         }
 
         testCumulativeItemActivation();
@@ -172,19 +172,19 @@ public class ItemModeEngineTest {
         engine.setItemMode(true);
 
         if (engine.activateRandomItemForClearedLines(2)) {
-            throw new AssertionError("2줄 누적은 아직 아이템 발동 조건이 아닙니다.");
+            throw new AssertionError("2줄 제거만으로는 아이템이 발동하면 안 됩니다.");
         }
 
-        if (engine.getLinesUntilItemActivation() != 1) {
-            throw new AssertionError("2줄 누적 후 남은 줄 수는 1줄이어야 합니다.");
+        if (engine.getLinesUntilItemActivation() != 0) {
+            throw new AssertionError("줄 누적 조건이 제거되면 남은 줄 수는 0이어야 합니다.");
         }
 
-        if (!engine.activateRandomItemForClearedLines(1)) {
-            throw new AssertionError("누적 3줄에서 아이템이 발동해야 합니다.");
+        if (engine.activateRandomItemForClearedLines(3)) {
+            throw new AssertionError("3줄 제거만으로도 아이템이 발동하면 안 됩니다.");
         }
 
-        if (engine.getLinesUntilItemActivation() != 3) {
-            throw new AssertionError("아이템 발동 후 누적 카운트는 다시 3줄로 초기화되어야 합니다.");
+        if (engine.getLinesUntilItemActivation() != 0) {
+            throw new AssertionError("아이템 발동 조건이 제거되면 누적 카운트는 0이어야 합니다.");
         }
     }
 }

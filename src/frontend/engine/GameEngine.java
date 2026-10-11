@@ -40,7 +40,6 @@ public class GameEngine {
     private static final int COMBO_BONUS = 10;
     private static final int ITEM_SPAWN_MIN = 1;
     private static final int ITEM_SPAWN_MAX = 5;
-    private static final int ITEM_ACTIVATION_LINES = 3;
 
     private boolean isFallingFinished = false;
     private boolean isStarted = false;
@@ -92,15 +91,7 @@ public class GameEngine {
         if (!itemMode || linesCleared <= 0)
             return false;
 
-        accumulatedItemLines += linesCleared;
-        if (accumulatedItemLines >= ITEM_ACTIVATION_LINES) {
-            ItemType itemType = randomItemType();
-            triggerItemEffect(itemType);
-            lastItemName = itemType.getLabel();
-            lastItemDescription = itemType.getDescription();
-            accumulatedItemLines = 0;
-            return true;
-        }
+        accumulatedItemLines = 0;
         return false;
     }
 
@@ -403,9 +394,7 @@ public class GameEngine {
     }
 
     public int getLinesUntilItemActivation() {
-        if (!itemMode)
-            return 0;
-        return Math.max(0, ITEM_ACTIVATION_LINES - accumulatedItemLines);
+        return 0;
     }
 
     public String getLastItemName() {
