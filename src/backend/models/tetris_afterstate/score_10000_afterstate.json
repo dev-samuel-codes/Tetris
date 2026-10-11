@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "env": {
+    "duration_ticks": 3600,
+    "gravity_ticks": 8,
+    "think_ticks": 4,
+    "tick_ms": 50
+  },
+  "reward": "score",
+  "train": {
+    "n_envs": 4,
+    "n_steps": 512,
+    "batch_size": 256,
+    "n_epochs": 10,
+    "learning_rate": 0.0003,
+    "gamma": 1.0,
+    "gae_lambda": 0.95,
+    "clip_range": 0.2,
+    "ent_coef": 0.01,
+    "net_arch": [
+      256,
+      256
+    ],
+    "seed": 11,
+    "device": "cuda",
+    "torch_threads": 1,
+    "eval_freq": 25000,
+    "eval_episodes": 20,
+    "checkpoint_freq": 25000,
+    "score_checkpoint_interval": 100,
+    "target_score": 10000
+  },
+  "evaluation": {
+    "validation_seed_start": 1000000,
+    "test_seed_start": 2000000,
+    "test_episodes": 500
+  },
+  "observation": "afterstate"
+}
