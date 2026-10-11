@@ -229,10 +229,11 @@ java -cp out backend.network.ScoreServer 5000 server-data
 
 현재 개인 서버의 작업 폴더는 `/home/samuel/server/tetris-network-check`이며, 점수는 그 아래 `server-data/scores.tsv`에 저장됩니다. 해당 작업 폴더는 Docker 볼륨에 연결되어 있습니다. 다른 배포 환경에서도 저장 폴더를 볼륨에 연결해야 컨테이너를 교체할 때 기록을 유지할 수 있습니다.
 
-2026-10-10에는 `releases/online-20261010-01/tetris-server.jar`로 온라인 지원 서버를 반영했습니다.
-같은 작업 폴더에서 `java -Djava.awt.headless=true -jar releases/online-20261010-01/tetris-server.jar 5000 server-data`로 실행합니다.
-이전 `out/` 실행 파일과 배포 시점 점수·로그 백업은 보존했습니다. 새 배포가 있으면 실제 실행 중인 버전과 저장 경로를 먼저 확인합니다.
-배포 당일 외부 주소에서 두 클라이언트의 방 생성·참가·준비·조작·승패와 랭킹 조회를 확인했으며, 기존 점수 파일 해시는 배포 전후 동일했습니다.
+2026-10-11에는 `releases/online-20261011-201345-b6f0bcb/tetris-server.jar`로 아이템 지원 서버를 반영했습니다.
+`b6f0bcb` 기준 코드에 아이템 효과의 난수를 분리하는 수정을 포함해, 한쪽만 제거 아이템을 사용해도 같은 순번의 블록이 유지됩니다.
+같은 작업 폴더에서 `java -Djava.awt.headless=true -jar releases/online-20261011-201345-b6f0bcb/tetris-server.jar 5000 server-data`로 실행합니다.
+배포 폴더에 소스 묶음·수정 패치·파일 해시와 `pre-deploy-backup/` 점수·로그 백업을 보존했습니다. 이전 `releases/online-20261010-01/` JAR도 유지합니다.
+새 배포가 있으면 실제 실행 중인 버전과 저장 경로를 먼저 확인합니다. 이번 배포는 외부 주소에서 두 클라이언트의 방 생성·참가·준비·조작·승패와 랭킹 조회를 통과했으며, 기존 점수 파일 해시는 배포 전후 동일했습니다.
 
 점수 파일 보존과 Java 프로세스 자동 실행은 별개입니다. 현재 컨테이너의 시작 명령은 SSH 서버이므로 컨테이너를 재시작하면 점수 서버도 다시 실행해야 합니다. 자동 실행은 서버 노트북의 Docker 시작 설정에 위 명령을 등록해야 합니다.
 
@@ -271,6 +272,9 @@ java -cp out frontend.network.ConnectionTestClient 131.186.39.107 5000
 `INPUT LEFT|RIGHT|ROTATE_LEFT|ROTATE_RIGHT|SOFT_DROP|HARD_DROP`, `LEAVE`를 한 줄씩 요청합니다.
 각 요청에 서버가 한 줄의 `ONLINE/1 STATE ...` 스냅숏을 응답하며 두 보드와 점수, 준비 상태, 승패를 포함합니다.
 `LEAVE`의 응답은 `ONLINE/1 BYE`이고 오류는 `ERROR <코드>`입니다. 상세 필드와 검증은 `shared.network.OnlineFrame`에 있습니다.
+
+아이템 상태가 추가된 현재 응답은 31개 토큰이며, 이전 23개 토큰 형식과 호환되지 않습니다.
+서버는 새 JAR로 교체하고, 접속하는 컴퓨터도 최신 소스를 다시 컴파일해 버전을 함께 맞춰야 합니다.
 
 대전은 최대 16개 방과 32개 접속을 사용하며 점수 요청과 별도 작업 풀에서 처리합니다.
 클라이언트는 응답 후 50ms 간격으로 상태를 조회하지만 실제 중력은 서버 타이머가 독립적으로 진행합니다.
