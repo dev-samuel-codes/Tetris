@@ -166,12 +166,12 @@ public class GameEngine {
     }
 
     public void rotateLeft() {
-        if (canControlPiece() && rotationLockRemaining <= 0)
+        if (canControlPiece() && !rotationLocked)
             tryMove(curPiece.rotateLeft(), curX, curY);
     }
 
     public void rotateRight() {
-        if (canControlPiece() && rotationLockRemaining <= 0)
+        if (canControlPiece() && !rotationLocked)
             tryMove(curPiece.rotateRight(), curX, curY);
     }
 
