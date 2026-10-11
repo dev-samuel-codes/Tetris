@@ -439,6 +439,8 @@ public final class OnlineMatchWindow extends JFrame {
             // 서버에서 받은 안개 상태 저장
             canvas.fogActive = player.isFogActive();
             canvas.fogRemaining = player.getFogRemaining();
+            // 서버에서 받은 회전 금지 상태 저장
+            canvas.rotationLockRemaining = player.getRotationLockRemaining();
 
             canvas.ended = started && !empty && !player.isAlive();
             next.shape = player.getNextShape();
@@ -453,6 +455,7 @@ public final class OnlineMatchWindow extends JFrame {
         boolean fogActive;
         int fogRemaining;
         boolean ended;
+        int rotationLockRemaining;
 
         BoardCanvas() {
             setOpaque(false);
@@ -500,6 +503,10 @@ public final class OnlineMatchWindow extends JFrame {
                 // 안개 효과 표시
                 if (fogActive)
                     drawFog(g, left, top, size);
+                // 회전 금지 상태 표시
+                if (rotationLockRemaining > 0)
+                    drawRotationLock(g, left, top, width);
+
                 g.setColor(Style.BOARD_BORDER);
                 g.drawRect(left - 1, top - 1, width + 1, height + 1);
                 if (ended) {
@@ -557,8 +564,23 @@ public final class OnlineMatchWindow extends JFrame {
                     top + fogHeight / 2
             );
         }
-    }
 
+
+        // 회전 금지 아이템 효과를 보드 위에 표시
+        private void drawRotationLock(Graphics2D g, int left, int top, int width) {
+            String text = "회전 금지 " + rotationLockRemaining;
+
+            g.setFont(Style.BUTTON_FONT.deriveFont(14f));
+            FontMetrics metrics = g.getFontMetrics();
+
+            g.setColor(Style.PINK);
+            g.drawString(
+                    text,
+                    left + (width - metrics.stringWidth(text)) / 2,
+                    top + 20
+            );
+        }
+    }
     static final class NextCanvas extends JPanel {
         int shape;
 

@@ -338,11 +338,8 @@ public final class OnlineMatchService implements AutoCloseable {
         int[] cells = new int[GameEngine.BOARD_WIDTH * GameEngine.BOARD_HEIGHT];
         int[] itemTypes = new int[GameEngine.BOARD_WIDTH * GameEngine.BOARD_HEIGHT];
         if (connection == null)
-            return new OnlineFrame.Player(
-                    "", false, 0, 0, false, 0,
-                    cells, itemTypes,
-                    false, 0
-            );
+            return new OnlineFrame.Player("", false, 0, 0, false, 0,
+                    cells, itemTypes, false, 0, 0);
         GameEngine engine = connection.engine;
         // 이미 착지한 블록과 아이템 위치 저장
         for (int y = 0; y < GameEngine.BOARD_HEIGHT; y++) {
@@ -378,7 +375,8 @@ public final class OnlineMatchService implements AutoCloseable {
                 cells,
                 itemTypes,
                 engine.isFogActive(),
-                engine.getFogRemaining()
+                engine.getFogRemaining(),
+                engine.getRotationLockRemaining()
         );
     }
 
