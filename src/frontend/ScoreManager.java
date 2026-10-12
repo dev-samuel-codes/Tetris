@@ -3,6 +3,7 @@ package frontend;
 import frontend.network.ScoreClient;
 import frontend.network.ScoreClient.RankingPage;
 import frontend.score.LocalScoreStore;
+import shared.score.ScoreMode;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Map;
@@ -60,32 +61,44 @@ public final class ScoreManager {
     }
 
     public static int getCachedBestScore(String nickname) {
+        return getCachedBestScore(ScoreMode.CLASSIC, nickname);
+    }
+
+    public static int getCachedBestScore(ScoreMode mode, String nickname) {
         try {
-            return INSTANCE.local == null ? 0 : INSTANCE.local.getBestScore(nickname);
+            return INSTANCE.local == null ? 0 : INSTANCE.local.getBestScore(mode, nickname);
         } catch (IllegalArgumentException e) {
             return 0;
         }
     }
 
     public static void loadBestScore(String nickname, Consumer<Result<Integer>> callback) {
+        loadBestScore(ScoreMode.CLASSIC, nickname, callback);
+    }
+
+    public static void loadBestScore(ScoreMode mode, String nickname, Consumer<Result<Integer>> callback) {
         INSTANCE.worker.execute(() -> {
             try {
-                INSTANCE.uploadPending();
-                int best = INSTANCE.requireClient().loadBestScore(nickname);
-                INSTANCE.requireLocal().cacheBestScore(nickname, best);
+                INSTANCE.uploadPending(mode);
+                int best = INSTANCE.requireClient().loadBestScore(mode, nickname);
+                INSTANCE.requireLocal().cacheBestScore(mode, nickname, best);
                 deliver(callback, Result.success(best, "서버 기록을 불러왔습니다."));
             } catch (IOException | IllegalArgumentException e) {
-                deliver(callback, Result.failure(getCachedBestScore(nickname),
+                deliver(callback, Result.failure(getCachedBestScore(mode, nickname),
                         "서버 조회 실패 · 이 기기에 보관된 기록입니다.", e));
             }
         });
     }
 
     public static void loadRanking(int offset, int limit, Consumer<Result<RankingPage>> callback) {
+        loadRanking(ScoreMode.CLASSIC, offset, limit, callback);
+    }
+
+    public static void loadRanking(ScoreMode mode, int offset, int limit, Consumer<Result<RankingPage>> callback) {
         INSTANCE.worker.execute(() -> {
             try {
-                INSTANCE.uploadPending();
-                RankingPage page = INSTANCE.requireClient().loadRanking(offset, limit);
+                INSTANCE.uploadPending(mode);
+                RankingPage page = INSTANCE.requireClient().loadRanking(mode, offset, limit);
                 deliver(callback, Result.success(page, "서버 랭킹을 불러왔습니다."));
             } catch (IOException | IllegalArgumentException e) {
                 deliver(callback, Result.failure(null, "랭킹을 불러오지 못했습니다. 새로고침해 주세요.", e));
@@ -94,19 +107,23 @@ public final class ScoreManager {
     }
 
     public static void saveScore(String nickname, int score, Consumer<Result<Integer>> callback) {
+        saveScore(ScoreMode.CLASSIC, nickname, score, callback);
+    }
+
+    public static void saveScore(ScoreMode mode, String nickname, int score, Consumer<Result<Integer>> callback) {
         try {
             // 네트워크 전송 전에 저장하므로 업로드 도중 종료해도 기록이 남음
-            INSTANCE.requireLocal().queueScore(nickname, score);
+            INSTANCE.requireLocal().queueScore(mode, nickname, score);
         } catch (IOException | IllegalArgumentException e) {
             deliver(callback, Result.failure(score, "점수 임시 저장 실패", e));
             return;
         }
         INSTANCE.worker.execute(() -> {
             try {
-                INSTANCE.uploadPending();
-                deliver(callback, Result.success(getCachedBestScore(nickname), "서버 저장 완료"));
+                INSTANCE.uploadPending(mode);
+                deliver(callback, Result.success(getCachedBestScore(mode, nickname), "서버 저장 완료"));
             } catch (IOException e) {
-                deliver(callback, Result.pending(getCachedBestScore(nickname), "임시 저장 · 재연결 대기", e));
+                deliver(callback, Result.pending(getCachedBestScore(mode, nickname), "임시 저장 · 재연결 대기", e));
             }
         });
     }
@@ -125,11 +142,26 @@ public final class ScoreManager {
 
     // 최고 점수만 전송하므로 응답이 유실되어 다시 보내도 랭킹이 중복되지 않음
     private void uploadPending() throws IOException {
-        for (Map.Entry<String, Integer> entry : requireLocal().pendingScores().entrySet()) {
-            int best = requireClient().submitScore(entry.getKey(), entry.getValue());
+        IOException failure = null;
+        for (ScoreMode mode : ScoreMode.values()) {
+            try {
+                uploadPending(mode);
+            } catch (IOException e) {
+                // 한 모드의 전송 실패가 다른 모드의 대기 기록까지 막지 않도록 계속 시도
+                if (failure == null)
+                    failure = e;
+            }
+        }
+        if (failure != null)
+            throw failure;
+    }
+
+    private void uploadPending(ScoreMode mode) throws IOException {
+        for (Map.Entry<String, Integer> entry : requireLocal().pendingScores(mode).entrySet()) {
+            int best = requireClient().submitScore(mode, entry.getKey(), entry.getValue());
             if (best < entry.getValue())
                 throw new IOException("서버가 전송한 점수를 저장하지 못했습니다.");
-            requireLocal().acknowledge(entry.getKey(), entry.getValue(), best);
+            requireLocal().acknowledge(mode, entry.getKey(), entry.getValue(), best);
         }
     }
 
