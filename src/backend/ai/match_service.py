@@ -41,6 +41,25 @@ def ai_pace_ticks(human_ticks: int, difficulty_id: str = "normal") -> int:
 class UntimedTetrisEngine(TetrisEngine):
     """원본 엔진에서 시간 종료 조건을 제거한 대전용 엔진."""
 
+    def reset(self, seed: int = 0, sequence: list[int] | None = None):
+        super().reset(seed, sequence)
+        self.last_cleared_row = -1
+
+    def _lock(self, spawn: bool = True):
+        # 현재 블록까지 놓았을 때 가득 차는 줄을 확인
+        preview = self.board.copy()
+
+        for dx, dy in self._offsets():
+            preview[self.y - dy, self.x + dx] = self.piece
+
+        rows = np.flatnonzero(np.all(preview != 0, axis=1))
+
+        if len(rows):
+            self.last_cleared_row = int(rows[0])
+
+        # 실제 블록 고정과 줄 삭제는 기존 엔진에서 처리
+        super()._lock(spawn)
+
     def _tick(self, command: str, spawn: bool = True) -> bool:
         if self.terminated or not self.piece:
             return False
@@ -263,11 +282,30 @@ class Match:
         self.elapsed_ticks += 1
         return self.frame()
 
-    def frame(self) -> str:
-        fields = ["FRAME", str(self.elapsed_ticks), str(int(self.ended)), self.winner]
-        for engine in (self.human, self.ai):
-            fields.extend((str(engine.score), str(engine.lines), str(int(engine.terminated)), engine.end_reason or "-", board_string(engine)))
-        return "\t".join(fields)
+        def frame(self) -> str:
+            fields = [
+                "FRAME",
+                str(self.elapsed_ticks),
+                str(int(self.ended)),
+                self.winner
+            ]
+
+            for engine in (self.human, self.ai):
+                fields.extend((
+                    str(engine.score),
+                    str(engine.lines),
+                    str(int(engine.terminated)),
+                    engine.end_reason or "-",
+                    board_string(engine)
+                ))
+
+            # 사람과 AI가 마지막으로 삭제한 줄 위치 전달
+            fields.extend((
+                str(self.human.last_cleared_row),
+                str(self.ai.last_cleared_row)
+            ))
+
+            return "\t".join(fields)
 
 
 class MatchService:

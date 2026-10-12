@@ -26,25 +26,53 @@ public final class MatchFrame {
     public BoardState getAi() { return ai; }
 
     public static final class BoardState {
+
         private final int score;
         private final int lines;
         private final boolean ended;
         private final String reason;
         private final int[] board;
+        private final int lastClearedRow;
 
-        BoardState(int score, int lines, boolean ended, String reason, int[] board) {
+        // 기존 생성자도 사용할 수 있도록 유지
+        BoardState(int score, int lines, boolean ended,
+                   String reason, int[] board) {
+            this(score, lines, ended, reason, board, -1);
+        }
+
+        // 삭제한 줄 위치까지 전달받는 생성자
+        BoardState(int score, int lines, boolean ended,
+                   String reason, int[] board, int lastClearedRow) {
             this.score = score;
             this.lines = lines;
             this.ended = ended;
             this.reason = reason;
             this.board = board.clone();
+            this.lastClearedRow = lastClearedRow;
         }
 
-        public int getScore() { return score; }
-        public int getLines() { return lines; }
-        public boolean isEnded() { return ended; }
-        public String getReason() { return reason; }
-        // 맨 아래 줄부터 저장하며 현재 떨어지는 블록도 포함
-        public int[] getBoard() { return board.clone(); }
+        public int getScore() {
+            return score;
+        }
+
+        public int getLines() {
+            return lines;
+        }
+
+        public boolean isEnded() {
+            return ended;
+        }
+
+        public String getReason() {
+            return reason;
+        }
+
+        public int[] getBoard() {
+            return board.clone();
+        }
+
+        public int getLastClearedRow() {
+            return lastClearedRow;
+        }
     }
 }
