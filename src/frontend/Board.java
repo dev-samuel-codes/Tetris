@@ -371,21 +371,22 @@ public class Board extends JPanel implements ActionListener {
     private void drawFog(Graphics2D g, int left, int top, int size) {
         int width = BOARD_WIDTH * size;
         int fogHeight = FOG_ROWS * size;
-        Color fog = new Color(0x2B, 0x30, 0x3A);
+        Color fog = new Color(0x5A, 0x60, 0x6E);
+        int fogAlpha = 225;
 
         // 위쪽 : 거의 안보임
-        g.setColor(new Color(fog.getRed(), fog.getGreen(), fog.getBlue(), 245));
+        g.setColor(new Color(fog.getRed(), fog.getGreen(), fog.getBlue(), fogAlpha));
         g.fillRect(left, top, width, fogHeight - size);
 
         // 마지막 : 그라데이션
         g.setPaint(new GradientPaint(left, top + fogHeight - size,
-                new Color(fog.getRed(), fog.getGreen(), fog.getBlue(), 245),
+                new Color(fog.getRed(), fog.getGreen(), fog.getBlue(), fogAlpha),
                 left, top + fogHeight,
                 new Color(fog.getRed(), fog.getGreen(), fog.getBlue(), 0)));
         g.fillRect(left, top + fogHeight - size, width, size);
 
-        // 안개 몇 블록 남았는지 가운데 표시
-        String text = "먹구름 ";
+        // 먹구름 글자를 가운데 표시
+        String text = "먹구름";
         g.setFont(Style.BUTTON_FONT.deriveFont((float) Math.max(10, size * .7)));
         FontMetrics metrics = g.getFontMetrics();
         g.setColor(Style.MUTED_TEXT);
