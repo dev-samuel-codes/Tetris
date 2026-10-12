@@ -9,6 +9,12 @@ import java.util.Queue;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.io.OutputStreamWriter;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 
 // 화면과 독립적으로 게임 상태와 블록 이동, 충돌, 줄 제거를 관리
 public class GameEngine {
@@ -56,6 +62,8 @@ public class GameEngine {
     private boolean pendingBombItem = false;
 	private int numLinesRemoved = 0;
 	private int score = 0;
+	private int classicHighScore = 0;
+	private int itemModeHighScore = 0;
 	private int combo = 0;
 	private int curX = 0;
 	private int curY = 0;
