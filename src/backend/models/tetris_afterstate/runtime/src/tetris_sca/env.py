@@ -6,6 +6,7 @@ import numpy as np
 
 from .config import rules_from_config, validate_config
 from .engine import TetrisEngine
+from .untimed import NORMALIZATION_DURATION_TICKS, UntimedTetrisEngine
 
 
 BOARD_OBSERVATION_VERSION = "bottomfirst-248-v1"
@@ -25,7 +26,9 @@ class TetrisEnv(gym.Env):
         if render_mode not in (None, "ansi"):
             raise ValueError("render_mode must be None or ansi")
         self.render_mode = render_mode
-        self.engine = TetrisEngine(rules_from_config(self.config))
+        # 0은 무제한이며 엔진의 3600틱 값은 관측 정규화에만 사용합니다.
+        engine_class = UntimedTetrisEngine if self.config['env']['duration_ticks'] == 0 else TetrisEngine
+        self.engine = engine_class(rules_from_config(self.config))
         self.action_space = gym.spaces.Discrete(40)
         state_space = gym.spaces.Box(0.0, 1.0, (248,), np.float32)
         if self.config["observation"] == "afterstate":
@@ -41,15 +44,16 @@ class TetrisEnv(gym.Env):
         state = self.engine.observation()
         if self.config["observation"] == "board":
             return state
-        # Reuse the engine's current-piece simulations and cache. Their paths
-        # stop before drawing another piece, including at the intrinsic deadline.
+        # 후보는 현재 블록까지만 계산하며 무제한 모드에서도 미래 블록을 뽑지 않습니다.
         candidates = np.zeros((40, len(CANDIDATE_FEATURE_NAMES)), dtype=np.float32)
         for action, candidate in self.engine.candidates().items():
             candidates[action] = (
                 1.0, candidate.score_delta / 800, candidate.lines_cleared / 4,
                 candidate.holes / 220, candidate.aggregate_height / 220,
                 candidate.bumpiness / 198,
-                candidate.ticks / self.engine.rules.duration_ticks,
+                candidate.ticks / (NORMALIZATION_DURATION_TICKS
+                                   if isinstance(self.engine, UntimedTetrisEngine)
+                                   else self.engine.rules.duration_ticks),
             )
         return {"state": state, "candidates": candidates}
 

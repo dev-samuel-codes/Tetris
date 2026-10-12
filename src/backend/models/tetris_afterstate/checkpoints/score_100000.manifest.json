@@ -1,0 +1,313 @@
+{
+  "schema_version": 1,
+  "rules_version": "java-iid-placement40-timed-v1",
+  "observation_version": "afterstate-candidates40x7-v1",
+  "engine_sha256": "b37b7c9929f5ee99c43002747ee3e685469e13bced613be2d540ff8699b8120d",
+  "policy_class": "CandidateActorCriticPolicy",
+  "config": {
+    "schema_version": 1,
+    "env": {
+      "duration_ticks": 0,
+      "gravity_ticks": 8,
+      "think_ticks": 4,
+      "tick_ms": 50
+    },
+    "reward": "score",
+    "observation": "afterstate",
+    "train": {
+      "n_envs": 4,
+      "n_steps": 512,
+      "batch_size": 256,
+      "n_epochs": 10,
+      "learning_rate": 0.0003,
+      "gamma": 1.0,
+      "gae_lambda": 0.95,
+      "clip_range": 0.2,
+      "ent_coef": 0.01,
+      "net_arch": [
+        256,
+        256
+      ],
+      "seed": 11,
+      "device": "cuda",
+      "torch_threads": 1,
+      "eval_freq": 25000,
+      "eval_episodes": 20,
+      "checkpoint_freq": 25000,
+      "score_checkpoint_interval": 100,
+      "target_score": 100000
+    },
+    "evaluation": {
+      "validation_seed_start": 1000000,
+      "test_seed_start": 2000000,
+      "test_episodes": 500
+    }
+  },
+  "device": "cuda",
+  "requested_additional_steps": 20000000,
+  "initial_env_stream_offset": 75000,
+  "resume_from": "/home/workspace/samuel/sca/runs/ppo-afterstate-2m-seed11-20261007-182618/best.zip",
+  "training_mode": "duration_change_warm_start",
+  "allow_duration_change": true,
+  "duration_ticks_from": 3600,
+  "duration_ticks_to": 0,
+  "episode_limit_mode": "unlimited",
+  "untimed_engine_sha256": "b281c9f6ce258eafac8ba79e046b89a42ec6a71a2d2a2c961828c6b666c03f19",
+  "python_version": "3.12.13",
+  "packages": {
+    "torch": "2.11.0+cu128",
+    "gymnasium": "1.3.0",
+    "stable-baselines3": "2.9.0",
+    "sb3-contrib": "2.9.0",
+    "numpy": "2.5.3"
+  },
+  "initial_timesteps": 75000,
+  "rollout_size": 2048,
+  "best_mean_score": 104295.0,
+  "last_mean_score": 104295.0,
+  "last_validation_timesteps": 2450000,
+  "highest_score_milestone": 99900,
+  "target_score": 100000,
+  "target_reached": true,
+  "stopping_reason": "target_score",
+  "num_timesteps": 2450000,
+  "score_milestone": 100000,
+  "validation": {
+    "agent": "ppo",
+    "seed_start": 1000000,
+    "episode_count": 20,
+    "episodes": [
+      {
+        "seed": 1000000,
+        "score": 99400,
+        "lines": 904,
+        "ticks": 21557,
+        "pieces_placed": 2304,
+        "survival_seconds": 1077.85,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000001,
+        "score": 452800,
+        "lines": 4123,
+        "ticks": 96964,
+        "pieces_placed": 10343,
+        "survival_seconds": 4848.2,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000002,
+        "score": 197500,
+        "lines": 1799,
+        "ticks": 42797,
+        "pieces_placed": 4539,
+        "survival_seconds": 2139.85,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000003,
+        "score": 88300,
+        "lines": 802,
+        "ticks": 19052,
+        "pieces_placed": 2044,
+        "survival_seconds": 952.6,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000004,
+        "score": 78100,
+        "lines": 714,
+        "ticks": 17052,
+        "pieces_placed": 1828,
+        "survival_seconds": 852.6,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000005,
+        "score": 37700,
+        "lines": 346,
+        "ticks": 8461,
+        "pieces_placed": 902,
+        "survival_seconds": 423.05,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000006,
+        "score": 61100,
+        "lines": 557,
+        "ticks": 13395,
+        "pieces_placed": 1433,
+        "survival_seconds": 669.75,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000007,
+        "score": 74900,
+        "lines": 690,
+        "ticks": 16503,
+        "pieces_placed": 1767,
+        "survival_seconds": 825.15,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000008,
+        "score": 19300,
+        "lines": 176,
+        "ticks": 4506,
+        "pieces_placed": 483,
+        "survival_seconds": 225.3,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000009,
+        "score": 40100,
+        "lines": 362,
+        "ticks": 8809,
+        "pieces_placed": 942,
+        "survival_seconds": 440.45,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000010,
+        "score": 5600,
+        "lines": 53,
+        "ticks": 1571,
+        "pieces_placed": 168,
+        "survival_seconds": 78.55,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000011,
+        "score": 78500,
+        "lines": 706,
+        "ticks": 16766,
+        "pieces_placed": 1807,
+        "survival_seconds": 838.3,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000012,
+        "score": 64900,
+        "lines": 596,
+        "ticks": 14378,
+        "pieces_placed": 1533,
+        "survival_seconds": 718.9,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000013,
+        "score": 138600,
+        "lines": 1246,
+        "ticks": 29588,
+        "pieces_placed": 3157,
+        "survival_seconds": 1479.4,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000014,
+        "score": 74000,
+        "lines": 672,
+        "ticks": 16086,
+        "pieces_placed": 1716,
+        "survival_seconds": 804.3,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000015,
+        "score": 39000,
+        "lines": 345,
+        "ticks": 8464,
+        "pieces_placed": 906,
+        "survival_seconds": 423.2,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000016,
+        "score": 9700,
+        "lines": 93,
+        "ticks": 2571,
+        "pieces_placed": 274,
+        "survival_seconds": 128.55,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000017,
+        "score": 123800,
+        "lines": 1139,
+        "ticks": 27099,
+        "pieces_placed": 2889,
+        "survival_seconds": 1354.95,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000018,
+        "score": 332300,
+        "lines": 3051,
+        "ticks": 71865,
+        "pieces_placed": 7663,
+        "survival_seconds": 3593.25,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000019,
+        "score": 70300,
+        "lines": 629,
+        "ticks": 15007,
+        "pieces_placed": 1608,
+        "survival_seconds": 750.35,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      }
+    ],
+    "aggregate": {
+      "mean_score": 104295.0,
+      "std_score": 107332.54620570593,
+      "min_score": 5600,
+      "max_score": 452800,
+      "mean_lines": 950.15,
+      "mean_ticks": 22624.55,
+      "mean_survival_seconds": 1131.2274999999997,
+      "timeout_survival_rate": 0.0,
+      "invalid_actions": 0
+    }
+  }
+}

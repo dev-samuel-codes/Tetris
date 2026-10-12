@@ -19,6 +19,7 @@ import numpy as np
 from tetris_sca.config import validate_config
 from tetris_sca.engine import TetrisEngine
 from tetris_sca.env import TetrisEnv
+from tetris_sca.untimed import UntimedTetrisEngine
 
 PROTOCOL_VERSION = 2
 RULES_VERSION = "java-iid-placement40-timed-v1"
@@ -33,64 +34,32 @@ MAX_PACE_TICKS = 120
 
 
 def ai_pace_ticks(human_ticks: int, difficulty_id: str = "normal") -> int:
-    # 지옥은 75%, 나머지는 85% 배치 간격을 틱 단위로 올림
-    percentage = 75 if difficulty_id == "hell" else 85
+    # 지옥은 70%, 나머지는 80% 배치 간격을 틱 단위로 올림
+    percentage = 70 if difficulty_id == "hell" else 80
     return (human_ticks * percentage + 99) // 100
 
 
-class UntimedTetrisEngine(TetrisEngine):
-    """원본 엔진에서 시간 종료 조건을 제거한 대전용 엔진."""
+class MatchTetrisEngine(UntimedTetrisEngine):
+    """공용 무제한 엔진에 대전 화면의 줄 삭제 위치만 추가."""
 
-    def _tick(self, command: str, spawn: bool = True) -> bool:
-        if self.terminated or not self.piece:
-            return False
-        self.ticks += 1
-        if self.think_remaining:
-            self.think_remaining -= 1
-            command = 'WAIT'
-        moved = True
-        before_placed = self.pieces_placed
-        if command == 'HARD_DROP':
-            while self._fits(self.x, self.y - 1, self.rotation):
-                self.y -= 1
-            self._lock(spawn)
-        elif command in ('LEFT', 'RIGHT', 'ROTATE_LEFT', 'ROTATE_RIGHT', 'WAIT'):
-            new_x, new_rotation = self.x, self.rotation
-            if command == 'LEFT':
-                new_x -= 1
-            elif command == 'RIGHT':
-                new_x += 1
-            elif self.piece != 5 and command in ('ROTATE_LEFT', 'ROTATE_RIGHT'):
-                new_rotation = (self.rotation + (1 if command == 'ROTATE_RIGHT' else -1)) % 4
-            if command != 'WAIT':
-                moved = self._fits(new_x, self.y, new_rotation)
-                if moved:
-                    self.x, self.rotation = new_x, new_rotation
-            self.gravity_remaining -= 1
-            if self.gravity_remaining == 0:
-                self.gravity_remaining = self.rules.gravity_ticks
-                if self._fits(self.x, self.y - 1, self.rotation):
-                    self.y -= 1
-                else:
-                    self._lock(spawn)
-        else:
-            raise ValueError(f'Unknown command: {command}')
-        assert self.pieces_placed - before_placed <= 1
-        return moved
+    def reset(self, seed: int = 0, sequence: list[int] | None = None):
+        super().reset(seed, sequence)
+        self.last_cleared_row = -1
 
-    def _simulation(self):
-        # 후보 배치 계산에도 같은 무제한 규칙 적용
-        sim = object.__new__(type(self))
-        sim.__dict__ = self.__dict__.copy()
-        sim._simulation_mode = True
-        sim._last_action = None
-        return sim
+    def _lock(self, spawn: bool = True):
+        # 현재 블록까지 놓았을 때 가득 차는 줄을 확인
+        preview = self.board.copy()
 
-    def observation(self) -> np.ndarray:
-        observation = super().observation()
-        # 학습 입력 크기는 유지하고 남은 시간은 항상 충분한 상태로 전달
-        observation[245] = 1.0
-        return observation
+        for dx, dy in self._offsets():
+            preview[self.y - dy, self.x + dx] = self.piece
+
+        rows = np.flatnonzero(np.all(preview != 0, axis=1))
+
+        if len(rows):
+            self.last_cleared_row = int(rows[0])
+
+        # 실제 블록 고정과 줄 삭제는 기존 엔진에서 처리
+        super()._lock(spawn)
 
 
 @dataclass(frozen=True)
@@ -98,42 +67,60 @@ class Difficulty:
     score: int
     checkpoint: str
     observation: str
+    duration_ticks: int = 3600
+    require_completed_target: bool = False
 
 
 DIFFICULTIES = {
-    "easy": Difficulty(200, "checkpoints/score_00200.zip", "board"),
-    "normal": Difficulty(500, "checkpoints/score_00500.zip", "board"),
-    "hard": Difficulty(1000, "checkpoints/score_01000.zip", "afterstate"),
-    "very_hard": Difficulty(5000, "checkpoints/score_05000.zip", "afterstate"),
-    "hell": Difficulty(10000, "best.zip", "afterstate"),
+    "easy": Difficulty(300, "checkpoints/score_00300.zip", "board"),
+    "normal": Difficulty(1000, "checkpoints/score_01000.zip", "afterstate"),
+    "hard": Difficulty(5000, "checkpoints/score_05000.zip", "afterstate"),
+    "very_hard": Difficulty(50000, "checkpoints/score_50000.zip", "afterstate", duration_ticks=0),
+    "hell": Difficulty(100000, "checkpoints/score_100000.zip", "afterstate", duration_ticks=0, require_completed_target=True),
 }
 
 
-def validate_manifest(manifest: dict, difficulty: Difficulty, engine_path: Path | None = None) -> dict:
+def difficulty_rules(difficulty: Difficulty) -> dict:
+    return {**RULE_SETTINGS, "duration_ticks": difficulty.duration_ticks}
+
+
+def normalized_sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+
+
+def validate_manifest(
+    manifest: dict, difficulty: Difficulty, engine_path: Path | None = None,
+    untimed_engine_path: Path | None = None,
+) -> dict:
     if not isinstance(manifest, dict) or manifest.get("schema_version") != 1:
         raise ValueError("Unsupported checkpoint manifest schema")
     if manifest.get("rules_version") != RULES_VERSION:
         raise ValueError("Checkpoint rules version is incompatible")
     engine_path = engine_path or RUNTIME_ROOT / "tetris_sca" / "engine.py"
-    engine_bytes = engine_path.read_bytes().replace(b"\r\n", b"\n")
-    if manifest.get("engine_sha256") != ENGINE_SHA256 or hashlib.sha256(engine_bytes).hexdigest() != ENGINE_SHA256:
+    if manifest.get("engine_sha256") != ENGINE_SHA256 or normalized_sha256(engine_path) != ENGINE_SHA256:
         raise ValueError("Checkpoint engine hash is incompatible")
     config = validate_config(manifest.get("config"))
-    if config["env"] != RULE_SETTINGS or config["reward"] != "score":
-        raise ValueError("Checkpoint must use the 180 second score-race rules")
+    if config["env"] != difficulty_rules(difficulty) or config["reward"] != "score":
+        raise ValueError("Checkpoint rules are incompatible with the selected difficulty")
+    if difficulty.duration_ticks == 0:
+        if manifest.get("episode_limit_mode") != "unlimited":
+            raise ValueError("Unlimited checkpoint must declare episode_limit_mode=unlimited")
+        untimed_engine_path = untimed_engine_path or RUNTIME_ROOT / "tetris_sca" / "untimed.py"
+        if manifest.get("untimed_engine_sha256") != normalized_sha256(untimed_engine_path):
+            raise ValueError("Checkpoint untimed engine hash is incompatible")
     if config["observation"] != difficulty.observation or manifest.get("observation_version") != OBSERVATION_VERSIONS[difficulty.observation]:
         raise ValueError("Checkpoint observation version is incompatible")
     expected_policy = "CandidateActorCriticPolicy" if difficulty.observation == "afterstate" else "MaskableActorCriticPolicy"
     if manifest.get("policy_class", "MaskableActorCriticPolicy") != expected_policy:
         raise ValueError("Checkpoint policy class is incompatible")
-    if difficulty.checkpoint == "best.zip":
-        if manifest.get("target_score") != difficulty.score or manifest.get("target_reached") is not True:
-            raise ValueError("Hell checkpoint must be the completed 10000 point target model")
-    else:
-        # 해당 파일을 저장한 점수 기준 확인
+    if difficulty.checkpoint != "best.zip":
+        # 중간 체크포인트는 훈련의 최종 목표와 구분하여 저장 점수를 확인합니다.
         identity = manifest.get("score_milestone", manifest.get("score_checkpoint"))
         if identity != difficulty.score:
             raise ValueError(f"Checkpoint score milestone must be {difficulty.score}")
+    if difficulty.require_completed_target or difficulty.checkpoint == "best.zip":
+        if manifest.get("target_score") != difficulty.score or manifest.get("target_reached") is not True:
+            raise ValueError(f"Checkpoint must have reached the {difficulty.score} point target")
     return config
 
 
@@ -166,7 +153,20 @@ def load_policy(difficulty_id: str, model_root: Path = MODEL_ROOT):
 
 def board_string(engine: TetrisEngine) -> str:
     visible = engine.board.copy()
+
     if not engine.terminated and engine.piece:
+        # 현재 블록이 착지할 위치 계산
+        ghost_y = engine.y
+        while engine._fits(engine.x, ghost_y - 1, engine.rotation):
+            ghost_y -= 1
+        # 8은 고스트 블록을 의미
+        for dx, dy in engine._offsets():
+            x = engine.x + dx
+            y = ghost_y - dy
+
+            if visible[y, x] == 0:
+                visible[y, x] = 8
+        # 현재 블록은 고스트 위에 표시
         for dx, dy in engine._offsets():
             visible[engine.y - dy, engine.x + dx] = engine.piece
     return "".join(str(int(value)) for value in visible.ravel())
@@ -178,14 +178,14 @@ class Match:
             raise ValueError(f"Unknown difficulty: {difficulty_id}")
         self.difficulty_id = difficulty_id
         self.config = validate_config(config)
-        if self.config["env"] != RULE_SETTINGS or self.config["reward"] != "score":
-            raise ValueError("Match requires the 180 second score-race rules")
+        if self.config["env"] != difficulty_rules(DIFFICULTIES[difficulty_id]) or self.config["reward"] != "score":
+            raise ValueError("Match rules are incompatible with the selected difficulty")
         self.policy = policy
         self.ai_env = TetrisEnv(self.config)
-        self.ai_env.engine = UntimedTetrisEngine(self.ai_env.engine.rules, seed=seed)
+        self.ai_env.engine = MatchTetrisEngine(self.ai_env.engine.rules, seed=seed)
         self.ai_env.reset(seed=seed)
         self.ai = self.ai_env.engine
-        self.human = UntimedTetrisEngine(self.ai.rules, seed=seed)
+        self.human = MatchTetrisEngine(self.ai.rules, seed=seed)
         self.elapsed_ticks = 0
         self.ai_path: deque[str] = deque()
         self.human_intervals: deque[int] = deque(maxlen=8)
@@ -264,9 +264,28 @@ class Match:
         return self.frame()
 
     def frame(self) -> str:
-        fields = ["FRAME", str(self.elapsed_ticks), str(int(self.ended)), self.winner]
+        fields = [
+            "FRAME",
+            str(self.elapsed_ticks),
+            str(int(self.ended)),
+            self.winner
+        ]
+
         for engine in (self.human, self.ai):
-            fields.extend((str(engine.score), str(engine.lines), str(int(engine.terminated)), engine.end_reason or "-", board_string(engine)))
+            fields.extend((
+                str(engine.score),
+                str(engine.lines),
+                str(int(engine.terminated)),
+                engine.end_reason or "-",
+                board_string(engine)
+            ))
+
+        # 사람과 AI가 마지막으로 삭제한 줄 위치 전달
+        fields.extend((
+            str(self.human.last_cleared_row),
+            str(self.ai.last_cleared_row)
+        ))
+
         return "\t".join(fields)
 
 

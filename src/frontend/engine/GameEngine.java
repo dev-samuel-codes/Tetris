@@ -32,6 +32,7 @@ public class GameEngine {
         private final String label;
         private final String description;
 
+
         ItemType(String label, String description) {
             this.label = label;
             this.description = description;
@@ -65,6 +66,7 @@ public class GameEngine {
 	private int classicHighScore = 0;
 	private int itemModeHighScore = 0;
 	private int combo = 0;
+    private int maxCombo = 0;
 	private int curX = 0;
 	private int curY = 0;
 	private int accumulatedItemLines = 0;
@@ -82,7 +84,7 @@ public class GameEngine {
     // 아이템 사용 횟수가 달라도 같은 시드의 블록 순서는 유지하도록 효과 난수 분리
     private final Random itemEffectRandom;
     private List<Tetrominoes> bag;
-
+    private int lastClearedRow = -1; // 방금 몇번째 줄을 지웠는지
     private void refillBag() {
         bag = new ArrayList<>();
         for (Tetrominoes t : Tetrominoes.values()) {
@@ -149,6 +151,7 @@ public class GameEngine {
         numLinesRemoved = 0;
         score = 0;
         combo = 0;
+        maxCombo = 0;
         rotationLockRemaining = 0;
         rotationLocked = false;
         fogRemaining = 0;
@@ -158,6 +161,7 @@ public class GameEngine {
         nextItemSpawnInterval = randomBetween(ITEM_SPAWN_MIN, ITEM_SPAWN_MAX);
         currentItemType = null;
         lastItemType = null;
+        lastClearedRow = -1;
 		clearBoard();
 		chooseNextPiece(); // 다음 블록을 먼저 뽑기
 		newPiece();
@@ -338,7 +342,9 @@ public class GameEngine {
             // 가득 찬 줄을 위쪽 줄로 덮어씀
 			if (lineIsFull) {
 				++numFullLines;
-                for (int j = 0; j < BOARD_WIDTH; ++j) {
+                if (lineIsFull)
+                    lastClearedRow = i;
+                    for (int j = 0; j < BOARD_WIDTH; ++j) {
                     ItemType removedItem = boardItemTypeAt(j, i); // 제거 줄 블록 기억
                     boardItemTypes[toIndex(j, i)] = null;
                     if (removedItem != null) {
@@ -362,6 +368,7 @@ public class GameEngine {
 		if (numFullLines > 0) {
 			numLinesRemoved += numFullLines;
 			combo++;
+            maxCombo = Math.max(maxCombo, combo);
 			score += LINE_SCORES[numFullLines];
 			if ((combo > 1)) {
 				score += COMBO_BONUS;
@@ -646,6 +653,11 @@ public class GameEngine {
         return true;
     }
 
+    // 마지막으로 삭제된 줄 위치 반환
+    public int getLastClearedRow() {
+        return lastClearedRow;
+    }
+
 
     public boolean isStarted() {
         return isStarted;
@@ -677,6 +689,13 @@ public class GameEngine {
 
     public int getPieceY(int index) {
         return curPiece.y(index);
+    }
+    public int getCombo() {
+        return combo;
+    }
+
+    public int getMaxCombo() {
+        return maxCombo;
     }
 
     public int getScore() {

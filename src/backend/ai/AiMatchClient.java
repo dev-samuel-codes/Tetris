@@ -215,7 +215,10 @@ public final class AiMatchClient implements Closeable {
     static MatchFrame parseFrame(String line) throws IOException {
         if (line == null || line.length() > MAX_LINE) throw invalid("응답 길이");
         String[] fields = line.split("\t", -1);
-        if (fields.length != 14 || !"FRAME".equals(fields[0])) throw invalid("필드 수 또는 FRAME 표식");
+        if ((fields.length != 14 && fields.length != 16)
+                || !"FRAME".equals(fields[0])) {
+            throw invalid("필드 수 또는 FRAME 표식");
+        }
         long elapsed = elapsedTicks(fields[1]);
         boolean ended = flag(fields[2]);
         String winner = fields[3];
@@ -223,8 +226,15 @@ public final class AiMatchClient implements Closeable {
             throw invalid("승자");
         }
         if (ended == "NONE".equals(winner)) throw invalid("종료 및 승자 상태");
-        MatchFrame.BoardState human = board(fields, 4);
-        MatchFrame.BoardState ai = board(fields, 9);
+        MatchFrame.BoardState human = board(
+                fields, 4,
+                fields.length == 16 ? clearedRow(fields[14]) : -1
+        );
+
+        MatchFrame.BoardState ai = board(
+                fields, 9,
+                fields.length == 16 ? clearedRow(fields[15]) : -1
+        );
         // 한쪽이 끝나도 살아 있는 쪽이 점수를 넘기면 승패가 확정됨
         boolean settled = (human.isEnded() && ai.isEnded())
                 || (human.isEnded() && ai.getScore() > human.getScore())
@@ -238,7 +248,8 @@ public final class AiMatchClient implements Closeable {
         return new MatchFrame(elapsed, ended, winner, human, ai);
     }
 
-    private static MatchFrame.BoardState board(String[] fields, int index) throws IOException {
+    private static MatchFrame.BoardState board(
+            String[] fields, int index, int clearedRow) throws IOException {
         int score = number(fields[index], Integer.MAX_VALUE, "점수");
         int lines = number(fields[index + 1], Integer.MAX_VALUE, "제거 줄 수");
         boolean ended = flag(fields[index + 2]);
@@ -250,16 +261,28 @@ public final class AiMatchClient implements Closeable {
         int[] board = new int[digits.length()];
         for (int i = 0; i < digits.length(); i++) {
             char digit = digits.charAt(i);
-            if (digit < '0' || digit > '7') throw invalid("블록 번호");
+            // 0: 빈칸, 1~7: 일반 블록, 8: 고스트 블록
+            if (digit < '0' || digit > '8')
+                throw invalid("블록 번호");
             board[i] = digit - '0';
         }
-        return new MatchFrame.BoardState(score, lines, ended, reason, board);
+        return new MatchFrame.BoardState(
+                score, lines, ended, reason, board, clearedRow
+        );
     }
 
     private static boolean flag(String token) throws IOException {
         if ("0".equals(token)) return false;
         if ("1".equals(token)) return true;
         throw invalid("불리언 값");
+    }
+
+    private static int clearedRow(String token) throws IOException {
+        if ("-1".equals(token)) {
+            return -1;
+        }
+
+        return number(token, 21, "삭제 줄 위치");
     }
 
     private static int number(String token, int maximum, String name) throws IOException {
