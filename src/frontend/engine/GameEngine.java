@@ -57,6 +57,7 @@ public class GameEngine {
 	private int numLinesRemoved = 0;
 	private int score = 0;
 	private int combo = 0;
+    private int maxCombo = 0;
 	private int curX = 0;
 	private int curY = 0;
 	private int accumulatedItemLines = 0;
@@ -141,6 +142,7 @@ public class GameEngine {
         numLinesRemoved = 0;
         score = 0;
         combo = 0;
+        maxCombo = 0;
         rotationLockRemaining = 0;
         rotationLocked = false;
         fogRemaining = 0;
@@ -354,6 +356,7 @@ public class GameEngine {
 		if (numFullLines > 0) {
 			numLinesRemoved += numFullLines;
 			combo++;
+            maxCombo = Math.max(maxCombo, combo);
 			score += LINE_SCORES[numFullLines];
 			if ((combo > 1)) {
 				score += COMBO_BONUS;
@@ -669,6 +672,13 @@ public class GameEngine {
 
     public int getPieceY(int index) {
         return curPiece.y(index);
+    }
+    public int getCombo() {
+        return combo;
+    }
+
+    public int getMaxCombo() {
+        return maxCombo;
     }
 
     public int getScore() {

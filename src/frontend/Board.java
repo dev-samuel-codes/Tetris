@@ -42,7 +42,19 @@ public class Board extends JPanel implements ActionListener {
     private boolean defaultKeysEnabled = true;
     private String battleMessage = "";
     private final Timer battleMessageTimer;
+    private static final int COMBO_EFFECT_MS = 900;
+    private final Timer comboTimer;
+    private int previousCombo = 0;
+    private int comboShown = 0;
+    private long comboStartTime = 0;
     private boolean battleMode = false;
+    private GameOverListener gameOverListener;
+
+    // 게임 종료 인터페이스
+    public interface GameOverListener {
+        void onGameOver(int score, int linesRemoved, int maxCombo, int elapsedSeconds);
+    }
+
 
     public Board(JLabel statusbar, SidePanel sidePanel) {
         this(statusbar, sidePanel, false);
@@ -73,6 +85,14 @@ public class Board extends JPanel implements ActionListener {
             repaint();
         });
         battleMessageTimer.setRepeats(false);
+        // 이펙트 16ms 간격으로 다시그림
+        comboTimer = new Timer(16, e -> {
+            if (System.currentTimeMillis() - comboStartTime >= COMBO_EFFECT_MS) {
+                comboShown = 0;
+                ((Timer) e.getSource()).stop();
+            }
+            repaint();
+        });
         addKeyListener(new TAdapter());
     }
 
@@ -125,6 +145,9 @@ public class Board extends JPanel implements ActionListener {
     }
 
     public void start() {
+        elapsedSeconds = 0;
+        previousCombo = 0;
+        comboShown = 0;
         isStopped = false;
         engine.start();
         elapsedSeconds = 0;
@@ -135,12 +158,18 @@ public class Board extends JPanel implements ActionListener {
     }
 
     public void stop() {
+        battleMessageTimer.stop();
+        comboTimer.stop();
         isStopped = true;
         timer.stop();
         clockTimer.stop();
         levelTimer.stop();
         battleMessageTimer.stop();
         levelMessage = "";
+    }
+
+    public void setGameOverListener(GameOverListener listener) {
+        this.gameOverListener = listener;
     }
 
     public void setBattleMode(boolean battleMode) {
@@ -195,6 +224,15 @@ public class Board extends JPanel implements ActionListener {
         }
         previousLinesRemoved = currentLinesRemoved;
 
+        // 콤보 2 이상 이펙트
+        int combo = engine.getCombo();
+        if (combo >= 2 && combo > previousCombo) {
+            comboShown = combo;
+            comboStartTime = System.currentTimeMillis();
+            comboTimer.restart();
+        }
+        previousCombo = combo;
+
         if (wasStarted && !engine.isStarted()) {
             SoundManager.stopBgm();
             SoundManager.playGameOver();
@@ -207,6 +245,12 @@ public class Board extends JPanel implements ActionListener {
                     statusbar.setToolTipText(result.getMessage() + " · " + result.getDetail());
                 }
             });
+
+            // 클래식만 결과 창을 띄움
+            if (gameOverListener != null && !battleMode) {
+                gameOverListener.onGameOver(engine.getScore(), engine.getNumLinesRemoved(),
+                        engine.getMaxCombo(), elapsedSeconds);
+            }
         }
         wasStarted = engine.isStarted();
 
@@ -246,11 +290,14 @@ public class Board extends JPanel implements ActionListener {
             graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             drawGrid(graphics, left, top, size);
             drawPieces(graphics, left, top, size);
-            if (engine.isFogActive()) {                 // ← 추가
-                drawFog(graphics, left, top, size);     // ← 추가
-            }                                           // ← 추가
+            if (engine.isFogActive()) {
+                drawFog(graphics, left, top, size);
+            }
             if (!battleMessage.isEmpty()) {
                 drawBattleMessage(graphics, left, top, size);
+            }
+            if (comboShown >= 2) {
+                drawComboEffect(graphics, left, top, size);
             }
             if (engine.isPaused()) {
                 drawOverlay(graphics, left, top, size, "PAUSED", "P 키를 눌러 계속하기");
@@ -264,6 +311,32 @@ public class Board extends JPanel implements ActionListener {
         }
     }
 
+    // 콤보 이펙트
+    private void drawComboEffect(Graphics2D g, int left, int top, int size) {
+        long elapsed = System.currentTimeMillis() - comboStartTime;
+        float t = Math.min(1f, elapsed / (float) COMBO_EFFECT_MS); // 진행도 0.0(시작) ~ 1.0(끝)
+        float alpha = t < 0.6f ? 1f : 1f - (t - 0.6f) / 0.4f;      // 뒤 40% 동안 1.0 → 0.0으로 사라짐
+
+        // 콤보별 색상 주황,금,보라
+        Color color = comboShown >= 4 ? Style.PINK : comboShown == 3 ? Style.GOLD : Style.ACCENT;
+
+        Graphics2D effect = (Graphics2D) g.create();
+        try {
+            effect.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0f, alpha)));
+            effect.setFont(Style.DISPLAY_FONT.deriveFont(size * 1.1f));
+            String text = "COMBO x" + comboShown;
+            int centerX = left + BOARD_WIDTH * size / 2;
+            int baselineY = top + BOARD_HEIGHT * size / 2;
+
+            effect.setColor(Style.BOARD_BACKGROUND);
+            drawCentered(effect, text, centerX + 2, baselineY + 2);
+            effect.setColor(color);
+            drawCentered(effect, text, centerX, baselineY);
+        } finally {
+            effect.dispose();
+        }
+    }
+
     // 안개 아이템 : 보드 위쪽 가림, 경계는 1칸마다 흐리게 품
     private static final int FOG_ROWS = 10;
     private void drawFog(Graphics2D g, int left, int top, int size) {
@@ -271,7 +344,7 @@ public class Board extends JPanel implements ActionListener {
         int fogHeight = FOG_ROWS * size;
         Color fog = new Color(24, 24, 30);
 
-        // 위쪽 : 잘 안보임
+        // 위쪽 : 거의 안보임
         g.setColor(new Color(fog.getRed(), fog.getGreen(), fog.getBlue(), 245));
         g.fillRect(left, top, width, fogHeight - size);
 
