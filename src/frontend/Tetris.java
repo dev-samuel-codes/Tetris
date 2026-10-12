@@ -18,6 +18,7 @@ public class Tetris extends JFrame {
 	JLabel statusbar;
 	private final Board board; // 메뉴로 돌아갈 때 게임 정지에 사용
 	private final String modeName;
+	private GameOverDialog gameOverDialog; // 게임 종료 창
 
 	public Tetris(Resolution resolution) {
 		this(resolution, "클래식");
@@ -69,6 +70,8 @@ public class Tetris extends JFrame {
 
 		// 게임판
 		board = new Board(statusbar, sidePanel, "아이템".equals(modeName));
+		// 종료
+		board.setGameOverListener(this::showGameOver);
 		board.setMinimumSize(new Dimension(Board.BOARD_WIDTH * MIN_CELL_SIZE, Board.BOARD_HEIGHT * MIN_CELL_SIZE));
 		// 게임판과 정보 패널을 같은 배율로 확대
 		JPanel background = new JPanel(new GameAreaLayout(board, sidePanel, resolution.getCellSize()));
@@ -134,9 +137,33 @@ public class Tetris extends JFrame {
 		menu.setVisible(true);
 	}
 
+	// 게임 결과 창 표시
+	// GameOver 다음 결과창
+	private void showGameOver(int score, int linesRemoved, int maxCombo, int elapsedSeconds) {
+		SwingUtilities.invokeLater(() -> {
+			if (!isDisplayable())
+				return;
+			gameOverDialog = new GameOverDialog(this, score, linesRemoved, maxCombo, elapsedSeconds,
+					this::restartGame, this::returnToMenu);
+			gameOverDialog.setVisible(true);
+		});
+	}
+
+	// 다시하기
+	private void restartGame() {
+		if (!isDisplayable())
+			return;
+		Tetris game = new Tetris(GameSettings.getResolution(), modeName);
+		game.setLocationRelativeTo(this);
+		dispose();
+		game.setVisible(true);
+	}
+
 	// 창을 닫을 때 타이머와 BGM도 같이 정지
 	@Override
 	public void dispose() {
+		if (gameOverDialog != null)
+			gameOverDialog.dispose();
 		board.stop();
 		SoundManager.stopBgm();
 		super.dispose();
