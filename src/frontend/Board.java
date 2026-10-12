@@ -17,6 +17,7 @@ import javax.swing.Timer;
 
 import frontend.engine.GameEngine;
 import frontend.style.Style;
+import shared.score.ScoreMode;
 import java.awt.AlphaComposite;
 
 // 게임 입력과 타이머를 엔진에 전달하고, 현재 상태를 화면에 표시
@@ -253,17 +254,21 @@ public class Board extends JPanel implements ActionListener {
         if (wasStarted && !engine.isStarted()) {
             SoundManager.stopBgm();
             SoundManager.playGameOver();
-            scoreSaveStatus = "점수 저장 중";
-            ScoreManager.saveScore(playerNickname, engine.getScore(), result -> {
-                if (!isStopped) {
-                    scoreSaveStatus = result.isSuccess() ? "서버 저장 완료"
-                            : result.isPending() ? "재전송 대기" : "저장 실패";
-                    statusbar.setText(scoreSaveStatus);
-                    statusbar.setToolTipText(result.getMessage() + " · " + result.getDetail());
-                }
-            });
+            // 1PC 대전의 두 보드는 같은 닉네임을 사용하므로 싱글 랭킹에 저장하지 않음
+            if (!battleMode) {
+                ScoreMode scoreMode = engine.isItemMode() ? ScoreMode.ITEM : ScoreMode.CLASSIC;
+                scoreSaveStatus = "점수 저장 중";
+                ScoreManager.saveScore(scoreMode, playerNickname, engine.getScore(), result -> {
+                    if (!isStopped) {
+                        scoreSaveStatus = result.isSuccess() ? "서버 저장 완료"
+                                : result.isPending() ? "재전송 대기" : "저장 실패";
+                        statusbar.setText(scoreSaveStatus);
+                        statusbar.setToolTipText(result.getMessage() + " · " + result.getDetail());
+                    }
+                });
+            }
 
-            // 클래식만 결과 창을 띄움
+            // 싱글 게임은 등록된 종료 리스너에 결과 전달
             if (gameOverListener != null && !battleMode) {
                 gameOverListener.onGameOver(engine.getScore(), engine.getNumLinesRemoved(),
                         engine.getMaxCombo(), elapsedSeconds);

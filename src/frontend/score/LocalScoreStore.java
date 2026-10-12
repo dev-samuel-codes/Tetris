@@ -1,6 +1,7 @@
 package frontend.score;
 
 import frontend.network.ScoreClient;
+import shared.score.ScoreMode;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
@@ -46,13 +47,24 @@ public final class LocalScoreStore {
     }
 
     public synchronized int getBestScore(String nickname) {
+        return getBestScore(ScoreMode.CLASSIC, nickname);
+    }
+
+    public synchronized int getBestScore(ScoreMode mode, String nickname) {
+        String prefix = prefix("best", mode);
         if (nickname == null || nickname.isEmpty())
             return 0;
-        return number("best." + ScoreClient.encodeNickname(nickname));
+        return number(prefix + ScoreClient.encodeNickname(nickname));
     }
 
     public synchronized void cacheBestScore(String nickname, int score) throws IOException {
-        String key = "best." + ScoreClient.encodeNickname(nickname);
+        cacheBestScore(ScoreMode.CLASSIC, nickname, score);
+    }
+
+    public synchronized void cacheBestScore(ScoreMode mode, String nickname, int score) throws IOException {
+        String key = prefix("best", mode) + ScoreClient.encodeNickname(nickname);
+        if (score < 0)
+            throw new IllegalArgumentException("점수는 0 이상이어야 합니다.");
         if (score <= number(key))
             return;
         Properties updated = copy();
@@ -62,32 +74,61 @@ public final class LocalScoreStore {
 
     // 먼저 디스크에 기록하여 업로드 중 앱을 닫아도 다음 실행에서 재전송 가능
     public synchronized void queueScore(String nickname, int score) throws IOException {
+        queueScore(ScoreMode.CLASSIC, nickname, score);
+    }
+
+    public synchronized void queueScore(ScoreMode mode, String nickname, int score) throws IOException {
         if (score < 0)
             throw new IllegalArgumentException("점수는 0 이상이어야 합니다.");
         String token = ScoreClient.encodeNickname(nickname);
+        String bestKey = prefix("best", mode) + token;
+        String pendingKey = prefix("pending", mode) + token;
         Properties updated = copy();
-        updated.setProperty("best." + token, String.valueOf(Math.max(score, number("best." + token))));
-        updated.setProperty("pending." + token, String.valueOf(Math.max(score, number("pending." + token))));
+        updated.setProperty(bestKey, String.valueOf(Math.max(score, number(bestKey))));
+        updated.setProperty(pendingKey, String.valueOf(Math.max(score, number(pendingKey))));
         persist(updated);
     }
 
     public synchronized Map<String, Integer> pendingScores() throws IOException {
+        return pendingScores(ScoreMode.CLASSIC);
+    }
+
+    public synchronized Map<String, Integer> pendingScores(ScoreMode mode) throws IOException {
+        String prefix = prefix("pending", mode);
         Map<String, Integer> result = new LinkedHashMap<>();
         for (String key : values.stringPropertyNames()) {
-            if (key.startsWith("pending."))
-                result.put(ScoreClient.decodeNickname(key.substring(8)), number(key));
+            if (key.startsWith(prefix)) {
+                String token = key.substring(prefix.length());
+                if (token.indexOf('.') == -1)
+                    result.put(ScoreClient.decodeNickname(token), number(key));
+            }
         }
         return result;
     }
 
     // 서버의 저장 확인을 받은 점수만 대기 목록에서 제거
     public synchronized void acknowledge(String nickname, int submittedScore, int serverBest) throws IOException {
+        acknowledge(ScoreMode.CLASSIC, nickname, submittedScore, serverBest);
+    }
+
+    public synchronized void acknowledge(ScoreMode mode, String nickname, int submittedScore, int serverBest) throws IOException {
+        if (submittedScore < 0 || serverBest < 0)
+            throw new IllegalArgumentException("점수는 0 이상이어야 합니다.");
         String token = ScoreClient.encodeNickname(nickname);
+        String bestKey = prefix("best", mode) + token;
+        String pendingKey = prefix("pending", mode) + token;
         Properties updated = copy();
-        updated.setProperty("best." + token, String.valueOf(Math.max(serverBest, number("best." + token))));
-        if (number("pending." + token) <= submittedScore)
-            updated.remove("pending." + token);
+        updated.setProperty(bestKey, String.valueOf(Math.max(serverBest, number(bestKey))));
+        if (number(pendingKey) <= submittedScore)
+            updated.remove(pendingKey);
         persist(updated);
+    }
+
+    // 예전 저장 키를 클래식에 그대로 사용하고 아이템 기록만 별도 구분
+    private String prefix(String kind, ScoreMode mode) {
+        if (mode == null)
+            throw new IllegalArgumentException("점수 모드를 확인해 주세요.");
+        return kind + (mode == ScoreMode.CLASSIC ? "." : "." + mode.name() + ".");
     }
 
     private int number(String key) {
@@ -107,7 +148,10 @@ public final class LocalScoreStore {
                 ScoreClient.normalizeNickname(nickname);
             for (String key : values.stringPropertyNames()) {
                 if (key.startsWith("best.") || key.startsWith("pending.")) {
-                    ScoreClient.decodeNickname(key.substring(key.indexOf('.') + 1));
+                    String token = key.substring(key.indexOf('.') + 1);
+                    if (token.startsWith("ITEM."))
+                        token = token.substring(5);
+                    ScoreClient.decodeNickname(token);
                     if (number(key) < 0)
                         throw new IllegalArgumentException();
                 }

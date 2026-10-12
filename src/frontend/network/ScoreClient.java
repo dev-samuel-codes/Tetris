@@ -1,5 +1,6 @@
 package frontend.network;
 
+import shared.score.ScoreMode;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -33,20 +34,32 @@ public final class ScoreClient {
     }
 
     public int submitScore(String nickname, int score) throws IOException {
+        return submitScore(ScoreMode.CLASSIC, nickname, score);
+    }
+
+    public int submitScore(ScoreMode mode, String nickname, int score) throws IOException {
         if (score < 0)
             throw new IllegalArgumentException("점수는 0 이상이어야 합니다.");
-        return exchange("SUBMIT " + encodeNickname(nickname) + " " + score,
+        return exchange("SUBMIT " + modeName(mode) + " " + encodeNickname(nickname) + " " + score,
                 reader -> readValue(reader, "OK"));
     }
 
     public int loadBestScore(String nickname) throws IOException {
-        return exchange("BEST " + encodeNickname(nickname), reader -> readValue(reader, "BEST"));
+        return loadBestScore(ScoreMode.CLASSIC, nickname);
+    }
+
+    public int loadBestScore(ScoreMode mode, String nickname) throws IOException {
+        return exchange("BEST " + modeName(mode) + " " + encodeNickname(nickname), reader -> readValue(reader, "BEST"));
     }
 
     public RankingPage loadRanking(int offset, int limit) throws IOException {
+        return loadRanking(ScoreMode.CLASSIC, offset, limit);
+    }
+
+    public RankingPage loadRanking(ScoreMode mode, int offset, int limit) throws IOException {
         if (offset < 0 || limit < 1 || limit > 100)
             throw new IllegalArgumentException("랭킹 조회 범위를 확인해 주세요.");
-        return exchange("RANKING " + offset + " " + limit, reader -> {
+        return exchange("RANKING " + modeName(mode) + " " + offset + " " + limit, reader -> {
             String[] header = readLine(reader).split(" ");
             if (header.length != 3 || !"RANKING".equals(header[0]))
                 throw new IOException("랭킹 응답을 확인하지 못했습니다.");
@@ -68,6 +81,12 @@ public final class ScoreClient {
                 throw new IOException("랭킹 응답이 끝나지 않았습니다.");
             return new RankingPage(total, entries);
         });
+    }
+
+    private static String modeName(ScoreMode mode) {
+        if (mode == null)
+            throw new IllegalArgumentException("점수 모드를 확인해 주세요.");
+        return mode.name();
     }
 
     // 닉네임은 한글 등 문자, 숫자, 밑줄, 하이픈을 사용하며 대소문자는 구분

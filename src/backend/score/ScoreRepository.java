@@ -19,26 +19,27 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import shared.score.ScoreMode;
 
-// 닉네임마다 최고 점수 한 개만 저장하고 서버를 다시 켜도 이어서 읽음
+// 모드마다 닉네임별 최고 점수 한 개를 저장하고 서버를 다시 켜도 이어서 읽음
 public final class ScoreRepository implements AutoCloseable {
     public static final int MAX_PLAYERS = 10000;
     private static final long MAX_FILE_BYTES = 2L * 1024 * 1024;
     private static final int MAX_ROW_LENGTH = 100;
     private final Path directory;
-    private final Path scoresFile;
     private final FileChannel lockChannel;
     private final FileLock directoryLock;
-    private Map<String, Integer> scores = new HashMap<String, Integer>();
+    private final Map<ScoreMode, Map<String, Integer>> scoresByMode =
+            new EnumMap<ScoreMode, Map<String, Integer>>(ScoreMode.class);
     private boolean closed;
 
     public ScoreRepository(Path directory) throws IOException {
         this.directory = directory.toAbsolutePath().normalize();
         Files.createDirectories(this.directory);
-        this.scoresFile = this.directory.resolve("scores.tsv");
         FileChannel channel = FileChannel.open(this.directory.resolve("scores.lock"),
                 StandardOpenOption.CREATE, StandardOpenOption.WRITE);
         FileLock lock = null;
@@ -50,7 +51,8 @@ public final class ScoreRepository implements AutoCloseable {
             }
             if (lock == null)
                 throw new IOException("같은 저장 폴더를 쓰는 서버가 이미 실행 중입니다.");
-            load();
+            for (ScoreMode mode : ScoreMode.values())
+                scoresByMode.put(mode, load(mode));
         } catch (IOException | RuntimeException e) {
             if (lock != null)
                 lock.release();
@@ -100,7 +102,12 @@ public final class ScoreRepository implements AutoCloseable {
     }
 
     public synchronized int best(String nickname) throws IOException {
+        return best(ScoreMode.CLASSIC, nickname);
+    }
+
+    public synchronized int best(ScoreMode mode, String nickname) throws IOException {
         ensureOpen();
+        Map<String, Integer> scores = modeScores(mode);
         validateNickname(nickname);
         Integer value = scores.get(nickname);
         return value == null ? 0 : value;
@@ -108,7 +115,12 @@ public final class ScoreRepository implements AutoCloseable {
 
     // 저장이 끝나기 전에는 메모리 점수나 성공 응답을 바꾸지 않음
     public synchronized int submit(String nickname, int score) throws IOException {
+        return submit(ScoreMode.CLASSIC, nickname, score);
+    }
+
+    public synchronized int submit(ScoreMode mode, String nickname, int score) throws IOException {
         ensureOpen();
+        Map<String, Integer> scores = modeScores(mode);
         validateNickname(nickname);
         if (score < 0)
             throw new IllegalArgumentException("점수는 0 이상이어야 합니다.");
@@ -119,13 +131,18 @@ public final class ScoreRepository implements AutoCloseable {
             throw new CapacityException();
         Map<String, Integer> next = new HashMap<String, Integer>(scores);
         next.put(nickname, score);
-        persist(next);
-        scores = next;
+        persist(mode, next);
+        scoresByMode.put(mode, next);
         return score;
     }
 
     public synchronized RankingPage ranking(int offset, int limit) throws IOException {
+        return ranking(ScoreMode.CLASSIC, offset, limit);
+    }
+
+    public synchronized RankingPage ranking(ScoreMode mode, int offset, int limit) throws IOException {
         ensureOpen();
+        Map<String, Integer> scores = modeScores(mode);
         if (offset < 0 || limit < 1 || limit > 100)
             throw new IllegalArgumentException("랭킹 조회 범위가 잘못되었습니다.");
         List<Map.Entry<String, Integer>> sorted = new ArrayList<Map.Entry<String, Integer>>(scores.entrySet());
@@ -145,9 +162,22 @@ public final class ScoreRepository implements AutoCloseable {
         return new RankingPage(sorted.size(), Collections.unmodifiableList(rows));
     }
 
-    private void load() throws IOException {
+    private Map<String, Integer> modeScores(ScoreMode mode) {
+        if (mode == null)
+            throw new IllegalArgumentException("게임 모드를 지정해 주세요.");
+        return scoresByMode.get(mode);
+    }
+
+    // 기존 기록은 클래식 파일에 남기고 아이템 기록만 별도 파일로 시작
+    private Path scoresFile(ScoreMode mode) {
+        return directory.resolve(mode == ScoreMode.CLASSIC ? "scores.tsv" : "scores-item.tsv");
+    }
+
+    private Map<String, Integer> load(ScoreMode mode) throws IOException {
+        Path scoresFile = scoresFile(mode);
+        Map<String, Integer> scores = new HashMap<String, Integer>();
         if (!Files.exists(scoresFile))
-            return;
+            return scores;
         if (Files.size(scoresFile) > MAX_FILE_BYTES)
             throw new IOException("점수 파일이 허용된 크기를 넘었습니다. 원본 파일을 확인해 주세요.");
         try (BufferedReader reader = new BufferedReader(new java.io.InputStreamReader(
@@ -169,6 +199,7 @@ public final class ScoreRepository implements AutoCloseable {
                 }
             }
         }
+        return scores;
     }
 
     // 파일도 길이를 제한해서 손상된 한 줄 때문에 메모리를 많이 쓰지 않도록 함
@@ -185,7 +216,7 @@ public final class ScoreRepository implements AutoCloseable {
         return line.length() == 0 ? null : line.toString();
     }
 
-    private void persist(Map<String, Integer> next) throws IOException {
+    private void persist(ScoreMode mode, Map<String, Integer> next) throws IOException {
         Path temporary = Files.createTempFile(directory, "scores-", ".tmp");
         try {
             List<String> names = new ArrayList<String>(next.keySet());
@@ -203,7 +234,7 @@ public final class ScoreRepository implements AutoCloseable {
                 file.force(true);
             }
             // 원자 교체를 지원하지 않는 파일 시스템에서는 오류로 끝내고 기존 파일을 유지
-            Files.move(temporary, scoresFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            Files.move(temporary, scoresFile(mode), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             // 운영체제에서 디렉터리 fsync를 지원하면 교체된 이름까지 디스크에 반영
             try (FileChannel folder = FileChannel.open(directory, StandardOpenOption.READ)) {
                 folder.force(true);
