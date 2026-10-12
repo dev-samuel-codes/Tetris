@@ -4,6 +4,7 @@ import backend.ai.AiDifficulty;
 import backend.ai.AiMatchClient;
 import backend.ai.MatchFrame;
 import frontend.BlockPainter;
+import frontend.LineClearFlash;
 import frontend.Main;
 import frontend.Resolution;
 import frontend.Tetrominoes;
@@ -581,6 +582,7 @@ public final class AiMatchWindow extends JFrame {
         void update(MatchFrame.BoardState state) {
             scoreLabel.setText(score(state.getScore()));
             linesLabel.setText(state.getLines() + "줄");
+            canvas.lineFlash.update(state.getLines(), state.getLastClearedRow());
             canvas.cells = state.getBoard();
             canvas.ended = state.isEnded();
             canvas.repaint();
@@ -593,6 +595,7 @@ public final class AiMatchWindow extends JFrame {
     }
 
     private static final class BoardCanvas extends JPanel {
+        private final LineClearFlash lineFlash = new LineClearFlash(this);
         private int[] cells = new int[BOARD_WIDTH * BOARD_HEIGHT];
         private boolean ended;
         private boolean paused;
@@ -601,6 +604,11 @@ public final class AiMatchWindow extends JFrame {
             setOpaque(false);
             setPreferredSize(new Dimension(300, 660));
             setMinimumSize(new Dimension(100, 220));
+        }
+        @Override
+        public void removeNotify() {
+            lineFlash.stop();
+            super.removeNotify();
         }
 
         @Override
@@ -629,6 +637,7 @@ public final class AiMatchWindow extends JFrame {
                             BlockPainter.drawSquare(g, left + x * size, top + (BOARD_HEIGHT - y - 1) * size, size, shapes[value]);
                     }
                 }
+                lineFlash.draw(g, left, top, size);
                 g.setColor(Style.BOARD_BORDER);
                 g.drawRect(left - 1, top - 1, width + 1, height + 1);
                 if (ended || paused) {

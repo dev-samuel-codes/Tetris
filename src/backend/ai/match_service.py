@@ -282,30 +282,30 @@ class Match:
         self.elapsed_ticks += 1
         return self.frame()
 
-        def frame(self) -> str:
-            fields = [
-                "FRAME",
-                str(self.elapsed_ticks),
-                str(int(self.ended)),
-                self.winner
-            ]
+    def frame(self) -> str:
+        fields = [
+            "FRAME",
+            str(self.elapsed_ticks),
+            str(int(self.ended)),
+            self.winner
+        ]
 
-            for engine in (self.human, self.ai):
-                fields.extend((
-                    str(engine.score),
-                    str(engine.lines),
-                    str(int(engine.terminated)),
-                    engine.end_reason or "-",
-                    board_string(engine)
-                ))
-
-            # 사람과 AI가 마지막으로 삭제한 줄 위치 전달
+        for engine in (self.human, self.ai):
             fields.extend((
-                str(self.human.last_cleared_row),
-                str(self.ai.last_cleared_row)
+                str(engine.score),
+                str(engine.lines),
+                str(int(engine.terminated)),
+                engine.end_reason or "-",
+                board_string(engine)
             ))
 
-            return "\t".join(fields)
+        # 사람과 AI가 마지막으로 삭제한 줄 위치 전달
+        fields.extend((
+            str(self.human.last_cleared_row),
+            str(self.ai.last_cleared_row)
+        ))
+
+        return "\t".join(fields)
 
 
 class MatchService:
