@@ -43,6 +43,8 @@ public class Board extends JPanel implements ActionListener {
     private String battleMessage = "";
     private final Timer battleMessageTimer;
     private boolean battleMode = false;
+    private final Timer lineFlashTimer;
+    private int flashRow = -1;
 
     public Board(JLabel statusbar, SidePanel sidePanel) {
         this(statusbar, sidePanel, false);
@@ -68,6 +70,12 @@ public class Board extends JPanel implements ActionListener {
             repaint();
         });
         levelTimer.setRepeats(false);
+        // 줄 삭제 플래시를 잠깐 보여주는 타이머
+        lineFlashTimer = new Timer(120, e -> {
+            flashRow = -1;
+            repaint();
+        });
+        lineFlashTimer.setRepeats(false);
         battleMessageTimer = new Timer(3000, e -> {
             battleMessage = "";
             repaint();
@@ -141,6 +149,8 @@ public class Board extends JPanel implements ActionListener {
         levelTimer.stop();
         battleMessageTimer.stop();
         levelMessage = "";
+        lineFlashTimer.stop();
+        flashRow = -1;
     }
 
     public void setBattleMode(boolean battleMode) {
@@ -192,6 +202,10 @@ public class Board extends JPanel implements ActionListener {
         int currentLinesRemoved = engine.getNumLinesRemoved();
         if (currentLinesRemoved > previousLinesRemoved) {
             SoundManager.playLineClear();
+
+            // 방금 삭제된 줄을 짧게 번쩍이게 표시
+            flashRow = engine.getLastClearedRow();
+            lineFlashTimer.restart();
         }
         previousLinesRemoved = currentLinesRemoved;
 
@@ -246,6 +260,12 @@ public class Board extends JPanel implements ActionListener {
             graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             drawGrid(graphics, left, top, size);
             drawPieces(graphics, left, top, size);
+            // 줄 삭제 순간 흰색 플래시 표시
+            if (flashRow >= 0) {
+                graphics.setColor(new java.awt.Color(255, 255, 255, 180));
+                int screenY = top + (BOARD_HEIGHT - 1 - flashRow) * size;
+                graphics.fillRect(left, screenY, BOARD_WIDTH * size, size);
+            }
             if (engine.isFogActive()) {                 // ← 추가
                 drawFog(graphics, left, top, size);     // ← 추가
             }                                           // ← 추가
