@@ -264,11 +264,12 @@ public class Board extends JPanel implements ActionListener {
         }
     }
 
-    // 안개 아이템 : 보드 위쪽 절반 가림, 경계는 1칸마다 흐리게 품
+    // 안개 아이템 : 보드 위쪽 가림, 경계는 1칸마다 흐리게 품
+    private static final int FOG_ROWS = 10;
     private void drawFog(Graphics2D g, int left, int top, int size) {
         int width = BOARD_WIDTH * size;
-        int fogHeight = (BOARD_HEIGHT / 2) * size;
-        Color fog = new Color(0x2B, 0x30, 0x3A);
+        int fogHeight = FOG_ROWS * size;
+        Color fog = new Color(24, 24, 30);
 
         // 위쪽 : 잘 안보임
         g.setColor(new Color(fog.getRed(), fog.getGreen(), fog.getBlue(), 245));
@@ -305,8 +306,10 @@ public class Board extends JPanel implements ActionListener {
     }
 
     private void drawPieces(Graphics2D g, int left, int top, int size) {
-        // 현재 블록이 착지할 위치를 반투명하게 표시
-        drawGhostPiece(g, left, top, size);
+        // 현재 블록이 착지할 위치를 반투명하게 표시 (안개아이템 시 제외)
+        if (!engine.isFogActive()) {
+            drawGhostPiece(g, left, top, size);
+        }
 
         for (int i = 0; i < BOARD_HEIGHT; ++i) {
             for (int j = 0; j < BOARD_WIDTH; ++j) {
