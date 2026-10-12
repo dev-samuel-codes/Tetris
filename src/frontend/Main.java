@@ -8,6 +8,7 @@ import frontend.ai.AiMatchWindow;
 import frontend.online.OnlineMatchWindow;
 import frontend.network.ScoreClient.RankingEntry;
 import frontend.network.ScoreClient.RankingPage;
+import shared.score.ScoreMode;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -98,17 +99,31 @@ public class Main extends JFrame {
         identityPanel.add(nicknameArea, BorderLayout.CENTER);
 
         JPanel recordArea = transparent(new BorderLayout(0, 3));
-        recordArea.setPreferredSize(new Dimension(198, 84));
+        recordArea.setPreferredSize(new Dimension(222, 90));
         recordArea.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createMatteBorder(0, 1, 0, 0, Style.BORDER),
                 BorderFactory.createEmptyBorder(0, 24, 0, 0)));
         recordArea.add(label("최고 점수", Style.MUTED_TEXT, Style.SMALL_FONT), BorderLayout.NORTH);
         // 로컬 캐시 점수를 먼저 표시해 서버 응답을 기다리는 동안 기록 영역을 비워 두지 않음
-        JLabel bestScore = fittingLabel(playerName.isEmpty() ? "—" : score(ScoreManager.getCachedBestScore(playerName)),
-                Style.ACCENT, Style.DISPLAY_FONT.deriveFont(30f));
+        JLabel bestScore = fittingLabel(playerName.isEmpty() ? "—" : score(ScoreManager.getCachedBestScore(ScoreMode.CLASSIC, playerName)),
+                Style.ACCENT, Style.DISPLAY_FONT.deriveFont(24f));
         bestScore.setToolTipText("클래식 모드 최고 점수");
-        recordArea.add(bestScore, BorderLayout.CENTER);
-        recordArea.add(label("클래식 최고 점수", Style.MUTED_TEXT, Style.SMALL_FONT), BorderLayout.SOUTH);
+        bestScore.getAccessibleContext().setAccessibleName("클래식 최고 점수");
+        JLabel itemBestScore = fittingLabel(playerName.isEmpty() ? "—" : score(ScoreManager.getCachedBestScore(ScoreMode.ITEM, playerName)),
+                Style.GREEN, Style.DISPLAY_FONT.deriveFont(24f));
+        itemBestScore.setToolTipText("아이템 모드 최고 점수");
+        itemBestScore.getAccessibleContext().setAccessibleName("아이템 최고 점수");
+        JPanel records = transparent(new GridLayout(2, 1, 0, 3));
+        JLabel[] values = { bestScore, itemBestScore };
+        ScoreMode[] scoreModes = { ScoreMode.CLASSIC, ScoreMode.ITEM };
+        for (int i = 0; i < values.length; i++) {
+            JPanel recordRow = transparent(new BorderLayout(10, 0));
+            recordRow.add(label(scoreModes[i].getDisplayName(), Style.MUTED_TEXT, Style.SMALL_FONT), BorderLayout.WEST);
+            values[i].setHorizontalAlignment(SwingConstants.RIGHT);
+            recordRow.add(values[i], BorderLayout.CENTER);
+            records.add(recordRow);
+        }
+        recordArea.add(records, BorderLayout.CENTER);
         identityPanel.add(recordArea, BorderLayout.EAST);
         content.add(identityPanel, BorderLayout.NORTH);
 
@@ -119,7 +134,7 @@ public class Main extends JFrame {
         JPanel modes = transparent(new GridLayout(1, 3, 14, 0));
         ModeCard classicButton = new ModeCard("클래식", new String[] { "혼자 즐기는 기본 테트리스" }, "게임 시작", "닉네임 적용 후 시작",
                 Style.CLASSIC_BUTTON, Style.TEXT, Style.ACCENT, 0);
-        // 닉네임이 저장되기 전에는 클래식 게임을 시작하지 않음
+        // 닉네임이 저장되기 전에는 싱글 게임을 시작하지 않음
         classicButton.setEnabled(!playerName.isEmpty());
         classicButton.setToolTipText(playerName.isEmpty() ? "닉네임을 적용하면 게임을 시작할 수 있습니다." : "클래식 게임 시작");
         classicButton.addActionListener(e -> {
@@ -128,8 +143,10 @@ public class Main extends JFrame {
             game.setVisible(true);
             dispose();
         });
-        ModeCard itemButton = new ModeCard("아이템", new String[] { "아이템 셀 기반 커스텀 규칙" }, "게임 시작", "아이템 모드 시작",
+        ModeCard itemButton = new ModeCard("아이템", new String[] { "아이템 셀 기반 커스텀 규칙" }, "게임 시작", "닉네임 적용 후 시작",
                 Style.ITEM_BUTTON, Style.TEXT, Style.GREEN, 1);
+        itemButton.setEnabled(!playerName.isEmpty());
+        itemButton.setToolTipText(playerName.isEmpty() ? "닉네임을 적용하면 게임을 시작할 수 있습니다." : "아이템 게임 시작");
         itemButton.addActionListener(e -> {
             Tetris game = new Tetris(GameSettings.getResolution(), "아이템");
             game.setLocationRelativeTo(Main.this);
@@ -164,15 +181,30 @@ public class Main extends JFrame {
 
         // 서버 조회는 비동기로 진행하고 응답은 현재 화면에만 표시
         if (!playerName.isEmpty()) {
-            ScoreManager.loadBestScore(playerName, result -> {
-                // 닉네임 변경·화면 이동·게임 시작 후 도착한 이전 응답은 반영하지 않음
-                if (!isDisplayable() || getContentPane() != mainContainer)
-                    return;
-                bestScore.setText(score(result.getValue()));
-                connectionStatus.setText(result.getMessage());
-                connectionStatus.setToolTipText(result.getDetail());
-                connectionStatus.setForeground(result.isSuccess() ? Style.ACCENT : Style.MUTED_TEXT);
-            });
+            int[] remaining = { scoreModes.length };
+            boolean[] failed = { false };
+            for (int i = 0; i < scoreModes.length; i++) {
+                ScoreMode mode = scoreModes[i];
+                JLabel valueLabel = values[i];
+                ScoreManager.loadBestScore(mode, playerName, result -> {
+                    // 닉네임 변경·화면 이동·게임 시작 후 도착한 이전 응답은 반영하지 않음
+                    if (!isDisplayable() || getContentPane() != mainContainer)
+                        return;
+                    valueLabel.setText(score(result.getValue()));
+                    remaining[0]--;
+                    // 두 기록을 모두 불러오면 한 줄로 안내하고, 조회 실패는 성공 응답으로 덮지 않음
+                    if (!result.isSuccess()) {
+                        failed[0] = true;
+                        connectionStatus.setText(result.getMessage());
+                        connectionStatus.setToolTipText(mode.getDisplayName() + ": " + result.getDetail());
+                        connectionStatus.setForeground(Style.PINK);
+                    } else if (remaining[0] == 0 && !failed[0]) {
+                        connectionStatus.setText("서버 기록을 불러왔습니다");
+                        connectionStatus.setToolTipText(null);
+                        connectionStatus.setForeground(Style.ACCENT);
+                    }
+                });
+            }
         }
     }
 
@@ -224,14 +256,31 @@ public class Main extends JFrame {
 
     // 서버의 전체 랭킹을 한 페이지에 5명씩 표시
     private void showRankingMenu() {
-        showRankingMenu(0);
+        showRankingMenu(ScoreMode.CLASSIC, 0);
     }
 
     // 나중에 랭킹 검색이나 정렬 조건이 늘어나면 별도 화면 클래스로 나눠도 괜찮을 것 같음
-    private void showRankingMenu(int pageIndex) {
-        JPanel container = createPage("전체 랭킹", "닉네임별 클래식 최고 점수");
+    private void showRankingMenu(ScoreMode mode, int pageIndex) {
+        JPanel container = createPage("전체 랭킹", "닉네임별 " + mode.getDisplayName() + " 최고 점수");
         JPanel content = transparent(new BorderLayout(0, 12));
         JLabel status = label("서버 랭킹을 불러오는 중입니다.", Style.MUTED_TEXT, Style.BODY_FONT);
+        JPanel rankingHeader = transparent(new BorderLayout(0, 10));
+        JPanel modeTabs = transparent(new GridLayout(1, 2, 10, 0));
+        ButtonGroup modeGroup = new ButtonGroup();
+        for (ScoreMode tabMode : ScoreMode.values()) {
+            JToggleButton tab = new JToggleButton(tabMode.getDisplayName());
+            Style.applyButtonStyle(tab, Style.ACCENT, Style.PANEL);
+            tab.setSelected(tabMode == mode);
+            tab.getAccessibleContext().setAccessibleName(tabMode.getDisplayName() + " 랭킹");
+            tab.addActionListener(e -> {
+                if (tabMode != mode)
+                    showRankingMenu(tabMode, 0);
+            });
+            modeGroup.add(tab);
+            modeTabs.add(tab);
+        }
+        rankingHeader.add(modeTabs, BorderLayout.NORTH);
+        rankingHeader.add(status, BorderLayout.SOUTH);
         JPanel table = Style.framedPanel(new BorderLayout(0, 0), Style.PANEL);
         table.setBorder(BorderFactory.createEmptyBorder(16, 18, 12, 18));
         JPanel headings = rankingColumns("순위", "닉네임", "최고 점수");
@@ -267,21 +316,21 @@ public class Main extends JFrame {
         previous.setEnabled(pageIndex > 0);
         next.setEnabled(false);
         refresh.setEnabled(false);
-        previous.addActionListener(e -> showRankingMenu(pageIndex - 1));
-        next.addActionListener(e -> showRankingMenu(pageIndex + 1));
-        refresh.addActionListener(e -> showRankingMenu(pageIndex));
+        previous.addActionListener(e -> showRankingMenu(mode, pageIndex - 1));
+        next.addActionListener(e -> showRankingMenu(mode, pageIndex + 1));
+        refresh.addActionListener(e -> showRankingMenu(mode, pageIndex));
         paging.add(previous);
         paging.add(pageLabel);
         paging.add(next);
         navigation.add(paging, BorderLayout.CENTER);
         navigation.add(refresh, BorderLayout.EAST);
-        content.add(status, BorderLayout.NORTH);
+        content.add(rankingHeader, BorderLayout.NORTH);
         content.add(table, BorderLayout.CENTER);
         content.add(navigation, BorderLayout.SOUTH);
         container.add(content, BorderLayout.CENTER);
         showSubmenu(container);
 
-        ScoreManager.loadRanking(pageIndex * RANKING_PAGE_SIZE, RANKING_PAGE_SIZE, result -> {
+        ScoreManager.loadRanking(mode, pageIndex * RANKING_PAGE_SIZE, RANKING_PAGE_SIZE, result -> {
             // 다른 메뉴로 이동한 뒤 받은 응답은 이전 화면에만 해당하므로 무시
             if (!isDisplayable() || getContentPane() != container)
                 return;
@@ -298,10 +347,10 @@ public class Main extends JFrame {
             RankingPage page = result.getValue();
             // 조회 사이에 인원이 줄어 현재 페이지가 비면 마지막 유효 페이지로 이동
             if (pageIndex > 0 && page.getEntries().isEmpty()) {
-                showRankingMenu(Math.max(0, (page.getTotalPlayers() - 1) / RANKING_PAGE_SIZE));
+                showRankingMenu(mode, Math.max(0, (page.getTotalPlayers() - 1) / RANKING_PAGE_SIZE));
                 return;
             }
-            status.setText("전체 " + page.getTotalPlayers() + "명 · 클래식 모드 최고 점수");
+            status.setText("전체 " + page.getTotalPlayers() + "명 · " + mode.getDisplayName() + " 모드 최고 점수");
             pageLabel.setText((pageIndex + 1) + " / " + Math.max(1,
                     (page.getTotalPlayers() + RANKING_PAGE_SIZE - 1) / RANKING_PAGE_SIZE));
             next.setEnabled((pageIndex + 1) * RANKING_PAGE_SIZE < page.getTotalPlayers());
@@ -548,7 +597,7 @@ public class Main extends JFrame {
         logo.getAccessibleContext().setAccessibleName("TETRIS");
         logo.getAccessibleContext().setAccessibleDescription("테트리스 메인 메뉴");
         header.add(logo, BorderLayout.CENTER);
-        JLabel description = label("클래식 게임 · 최고 점수 기록", Style.MUTED_TEXT, Style.BODY_FONT);
+        JLabel description = label("클래식 · 아이템 게임 · 모드별 최고 점수", Style.MUTED_TEXT, Style.BODY_FONT);
         description.setHorizontalAlignment(SwingConstants.CENTER);
         header.add(description, BorderLayout.SOUTH);
         container.add(header, BorderLayout.NORTH);
