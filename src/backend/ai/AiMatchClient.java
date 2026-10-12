@@ -261,7 +261,9 @@ public final class AiMatchClient implements Closeable {
         int[] board = new int[digits.length()];
         for (int i = 0; i < digits.length(); i++) {
             char digit = digits.charAt(i);
-            if (digit < '0' || digit > '7') throw invalid("블록 번호");
+            // 0: 빈칸, 1~7: 일반 블록, 8: 고스트 블록
+            if (digit < '0' || digit > '8')
+                throw invalid("블록 번호");
             board[i] = digit - '0';
         }
         return new MatchFrame.BoardState(
