@@ -6,6 +6,9 @@ import frontend.Shape;
 import frontend.Tetrominoes;
 import java.util.ArrayDeque;
 import java.util.Queue;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Collections;
 
 // 화면과 독립적으로 게임 상태와 블록 이동, 충돌, 줄 제거를 관리
 public class GameEngine {
@@ -70,6 +73,17 @@ public class GameEngine {
     private final Random random;
     // 아이템 사용 횟수가 달라도 같은 시드의 블록 순서는 유지하도록 효과 난수 분리
     private final Random itemEffectRandom;
+    private List<Tetrominoes> bag;
+
+    private void refillBag() {
+        bag = new ArrayList<>();
+        for (Tetrominoes t : Tetrominoes.values()) {
+            if (t != Tetrominoes.NoShape && t != Tetrominoes.BombShape) {
+                bag.add(t);
+            }
+        }
+        Collections.shuffle(bag, random);
+    }
     private int piecesSinceLastItem = 0;
     private int nextItemSpawnInterval = ITEM_SPAWN_MIN;
     private ItemType currentItemType = null;
@@ -87,16 +101,16 @@ public class GameEngine {
     private GameEngine(Random random, Random itemEffectRandom) {
         this.random = random;
         this.itemEffectRandom = itemEffectRandom;
+        refillBag();
         clearBoard();
     }
 
     private void chooseNextPiece() {
-        Tetrominoes[] values = Tetrominoes.values();
-        int index;
-        do {
-            index = randomBetween(1, values.length - 1);
-        } while (values[index] == Tetrominoes.BombShape);
-        nextPiece.setShape(values[index]);
+        if (bag.isEmpty()) {
+            refillBag();
+        }
+        Tetrominoes t = bag.remove(random.nextInt(bag.size()));
+        nextPiece.setShape(t);
     }
 
     public boolean activateRandomItemForClearedLines(int linesCleared) {
