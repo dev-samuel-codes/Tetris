@@ -185,7 +185,20 @@ def load_policy(difficulty_id: str, model_root: Path = MODEL_ROOT):
 
 def board_string(engine: TetrisEngine) -> str:
     visible = engine.board.copy()
+
     if not engine.terminated and engine.piece:
+        # 현재 블록이 착지할 위치 계산
+        ghost_y = engine.y
+        while engine._fits(engine.x, ghost_y - 1, engine.rotation):
+            ghost_y -= 1
+        # 8은 고스트 블록을 의미
+        for dx, dy in engine._offsets():
+            x = engine.x + dx
+            y = ghost_y - dy
+
+            if visible[y, x] == 0:
+                visible[y, x] = 8
+        # 현재 블록은 고스트 위에 표시
         for dx, dy in engine._offsets():
             visible[engine.y - dy, engine.x + dx] = engine.piece
     return "".join(str(int(value)) for value in visible.ravel())
