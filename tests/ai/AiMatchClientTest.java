@@ -33,11 +33,11 @@ public final class AiMatchClientTest {
         check(AiDifficulty.values().length == 5, "난이도 개수");
         check("쉬움".equals(AiDifficulty.EASY.toString()), "난이도 표시");
         check("very_hard".equals(AiDifficulty.VERY_HARD.getId()), "난이도 ID");
-        check(AiDifficulty.EASY.getCheckpointScore() == 200, "쉬움 체크포인트");
-        check(AiDifficulty.NORMAL.getCheckpointScore() == 500, "보통 체크포인트");
-        check(AiDifficulty.HARD.getCheckpointScore() == 1000, "어려움 체크포인트");
-        check(AiDifficulty.VERY_HARD.getCheckpointScore() == 5000, "매우 어려움 체크포인트");
-        check(AiDifficulty.HELL.getCheckpointScore() == 10000, "지옥 체크포인트");
+        check(AiDifficulty.EASY.getCheckpointScore() == 300, "쉬움 체크포인트");
+        check(AiDifficulty.NORMAL.getCheckpointScore() == 1000, "보통 체크포인트");
+        check(AiDifficulty.HARD.getCheckpointScore() == 5000, "어려움 체크포인트");
+        check(AiDifficulty.VERY_HARD.getCheckpointScore() == 50000, "매우 어려움 체크포인트");
+        check(AiDifficulty.HELL.getCheckpointScore() == 100000, "지옥 체크포인트");
     }
 
     private static void testFrame() throws IOException {
@@ -51,6 +51,17 @@ public final class AiMatchClientTest {
         check(board.length == 220 && board[0] == 7, "보드 순서");
         board[0] = 0;
         check(parsed.getHuman().getBoard()[0] == 7, "보드 방어적 복사");
+        check(parsed.getHuman().getLastClearedRow() == -1
+                && parsed.getAi().getLastClearedRow() == -1, "이전 응답의 삭제 줄 기본값");
+        // 확장된 응답은 고스트와 양쪽 삭제 줄 위치도 함께 전달
+        String[] effects = tokens(frame(1) + "\t0\t21");
+        effects[8] = "8" + effects[8].substring(1);
+        effects[13] = effects[13].substring(0, 219) + "8";
+        MatchFrame effectFrame = AiMatchClient.parseFrame(join(effects));
+        check(effectFrame.getHuman().getBoard()[0] == 8
+                && effectFrame.getAi().getBoard()[219] == 8, "양쪽 고스트 블록 전달");
+        check(effectFrame.getHuman().getLastClearedRow() == 0
+                && effectFrame.getAi().getLastClearedRow() == 21, "삭제 줄의 아래·위 경계 전달");
         parsed = AiMatchClient.parseFrame(frame(3601));
         check(parsed.getElapsedTicks() == 3601 && !parsed.isEnded(), "3분 이후에도 진행");
         parsed = AiMatchClient.parseFrame(frame(2147483648L));
@@ -83,8 +94,10 @@ public final class AiMatchClientTest {
         invalidField(7, "timeout");
         invalidField(7, "unexpected");
         invalidField(8, "0");
-        invalidField(8, repeat('8', 220));
+        invalidField(8, repeat('9', 220));
         invalidField(13, repeat('a', 220));
+        expectInvalid(frame(0) + "\t-2\t-1");
+        expectInvalid(frame(0) + "\t-1\t22");
         String[] fields = tokens(frame(3600));
         fields[2] = "1";
         fields[3] = "AI";
