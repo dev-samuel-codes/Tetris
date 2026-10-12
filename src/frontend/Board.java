@@ -371,7 +371,7 @@ public class Board extends JPanel implements ActionListener {
     private void drawFog(Graphics2D g, int left, int top, int size) {
         int width = BOARD_WIDTH * size;
         int fogHeight = FOG_ROWS * size;
-        Color fog = new Color(24, 24, 30);
+        Color fog = new Color(53, 53, 66);
 
         // 위쪽 : 거의 안보임
         g.setColor(new Color(fog.getRed(), fog.getGreen(), fog.getBlue(), 245));
