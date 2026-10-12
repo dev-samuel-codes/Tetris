@@ -633,8 +633,24 @@ public final class AiMatchWindow extends JFrame {
                 for (int y = 0; y < BOARD_HEIGHT; y++) {
                     for (int x = 0; x < BOARD_WIDTH; x++) {
                         int value = cells[y * BOARD_WIDTH + x];
-                        if (value > 0 && value < shapes.length)
-                            BlockPainter.drawSquare(g, left + x * size, top + (BOARD_HEIGHT - y - 1) * size, size, shapes[value]);
+
+                        int blockX = left + x * size;
+                        int blockY = top + (BOARD_HEIGHT - y - 1) * size;
+
+                        if (value == 8) {
+                            // 고스트 내부를 흐리게 표시
+                            g.setColor(new Color(255, 255, 255, 30));
+                            g.fillRect(blockX + 1, blockY + 1, size - 2, size - 2);
+
+                            // 고스트 테두리 표시
+                            g.setColor(new Color(255, 255, 255, 100));
+                            g.drawRect(blockX + 1, blockY + 1, size - 3, size - 3);
+
+                        } else if (value > 0 && value < shapes.length) {
+                            BlockPainter.drawSquare(
+                                    g, blockX, blockY, size, shapes[value]
+                            );
+                        }
                     }
                 }
                 lineFlash.draw(g, left, top, size);
