@@ -14,6 +14,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import shared.score.ScoreMode;
 
 // 개인 서버에서 닉네임별 최고 점수와 전체 랭킹을 관리하는 TCP 서버
 public final class ScoreServer {
@@ -102,32 +103,39 @@ public final class ScoreServer {
             return;
         }
         try {
-            if (parts.length == 2 && "BEST".equals(parts[0])) {
-                String nickname = nickname(parts[1]);
-                respond(writer, "BEST " + scores.best(nickname));
+            if ((parts.length == 2 || parts.length == 3) && "BEST".equals(parts[0])) {
+                ScoreMode mode = parts.length == 3 ? mode(parts[1]) : ScoreMode.CLASSIC;
+                String nickname = nickname(parts[parts.length - 1]);
+                respond(writer, "BEST " + scores.best(mode, nickname));
             } else if (parts.length == 3 && "SUBMIT".equals(parts[0])) {
-                String nickname = nickname(parts[1]);
+                // 구버전은 게임 모드를 보내지 않아 아이템 기록이 클래식에 섞일 수 있음
+                respond(writer, "ERROR MODE_REQUIRED");
+            } else if (parts.length == 4 && "SUBMIT".equals(parts[0])) {
+                ScoreMode mode = mode(parts[1]);
+                String nickname = nickname(parts[2]);
                 int score;
                 try {
-                    score = nonnegativeInteger(parts[2]);
+                    score = nonnegativeInteger(parts[3]);
                 } catch (IllegalArgumentException e) {
                     respond(writer, "ERROR INVALID_SCORE");
                     return;
                 }
-                respond(writer, "OK " + scores.submit(nickname, score));
-            } else if (parts.length == 3 && "RANKING".equals(parts[0])) {
+                respond(writer, "OK " + scores.submit(mode, nickname, score));
+            } else if ((parts.length == 3 || parts.length == 4) && "RANKING".equals(parts[0])) {
+                ScoreMode mode = parts.length == 4 ? mode(parts[1]) : ScoreMode.CLASSIC;
+                int position = parts.length == 4 ? 2 : 1;
                 int offset;
                 int limit;
                 try {
-                    offset = nonnegativeInteger(parts[1]);
-                    limit = nonnegativeInteger(parts[2]);
+                    offset = nonnegativeInteger(parts[position]);
+                    limit = nonnegativeInteger(parts[position + 1]);
                     if (limit < 1 || limit > 100)
                         throw new IllegalArgumentException();
                 } catch (IllegalArgumentException e) {
                     respond(writer, "ERROR BAD_REQUEST");
                     return;
                 }
-                ScoreRepository.RankingPage page = scores.ranking(offset, limit);
+                ScoreRepository.RankingPage page = scores.ranking(mode, offset, limit);
                 writer.write("RANKING " + page.totalPlayers + " " + page.rows.size() + "\n");
                 for (ScoreRepository.RankingRow row : page.rows)
                     writer.write("ROW " + row.rank + " " + row.nicknameToken + " " + row.score + "\n");
@@ -135,12 +143,22 @@ public final class ScoreServer {
             } else {
                 respond(writer, "ERROR BAD_REQUEST");
             }
+        } catch (InvalidModeException e) {
+            respond(writer, "ERROR INVALID_MODE");
         } catch (InvalidNicknameException e) {
             respond(writer, "ERROR INVALID_NICKNAME");
         } catch (ScoreRepository.CapacityException e) {
             respond(writer, "ERROR SERVER_FULL");
         } catch (IOException e) {
             respond(writer, "ERROR STORAGE");
+        }
+    }
+
+    private static ScoreMode mode(String token) throws InvalidModeException {
+        try {
+            return ScoreMode.valueOf(token);
+        } catch (IllegalArgumentException e) {
+            throw new InvalidModeException();
         }
     }
 
@@ -189,6 +207,10 @@ public final class ScoreServer {
     }
 
     private static final class InvalidNicknameException extends Exception {
+        private static final long serialVersionUID = 1L;
+    }
+
+    private static final class InvalidModeException extends Exception {
         private static final long serialVersionUID = 1L;
     }
 }
