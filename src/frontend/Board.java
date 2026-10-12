@@ -343,8 +343,8 @@ public class Board extends JPanel implements ActionListener {
     // 콤보 이펙트
     private void drawComboEffect(Graphics2D g, int left, int top, int size) {
         long elapsed = System.currentTimeMillis() - comboStartTime;
-        float t = Math.min(1f, elapsed / (float) COMBO_EFFECT_MS); // 진행도 0.0(시작) ~ 1.0(끝)
-        float alpha = t < 0.6f ? 1f : 1f - (t - 0.6f) / 0.4f;      // 뒤 40% 동안 1.0 → 0.0으로 사라짐
+        float t = Math.min(1f, elapsed / (float) COMBO_EFFECT_MS); // 콤보 이미지 지속시간
+        float alpha = t < 0.6f ? 1f : 1f - (t - 0.6f) / 0.4f;      // 서서히 사라지게
 
         // 콤보별 색상 주황,금,보라
         Color color = comboShown >= 4 ? Style.PINK : comboShown == 3 ? Style.GOLD : Style.ACCENT;
@@ -367,11 +367,11 @@ public class Board extends JPanel implements ActionListener {
     }
 
     // 안개 아이템 : 보드 위쪽 가림, 경계는 1칸마다 흐리게 품
-    private static final int FOG_ROWS = 10;
+    private static final int FOG_ROWS = 8;
     private void drawFog(Graphics2D g, int left, int top, int size) {
         int width = BOARD_WIDTH * size;
         int fogHeight = FOG_ROWS * size;
-        Color fog = new Color(53, 53, 66);
+        Color fog = new Color(0x2B, 0x30, 0x3A);
 
         // 위쪽 : 거의 안보임
         g.setColor(new Color(fog.getRed(), fog.getGreen(), fog.getBlue(), 245));
@@ -385,7 +385,7 @@ public class Board extends JPanel implements ActionListener {
         g.fillRect(left, top + fogHeight - size, width, size);
 
         // 안개 몇 블록 남았는지 가운데 표시
-        String text = "안개 " + (engine.getFogRemaining() + 1);
+        String text = "먹구름 ";
         g.setFont(Style.BUTTON_FONT.deriveFont((float) Math.max(10, size * .7)));
         FontMetrics metrics = g.getFontMetrics();
         g.setColor(Style.MUTED_TEXT);
