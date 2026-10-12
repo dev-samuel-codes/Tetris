@@ -54,7 +54,7 @@ def validate_config(config: dict | None = None) -> dict:
     if c['observation'] not in ('board', 'afterstate'):
         raise ValueError('observation must be board or afterstate')
     for key, value in c['env'].items():
-        _integer(value, f'env.{key}', 0 if key == 'think_ticks' else 1)
+        _integer(value, f'env.{key}', 0 if key in ('duration_ticks', 'think_ticks') else 1)
     t = c['train']
     for key in ('n_envs', 'n_steps', 'batch_size', 'n_epochs', 'torch_threads', 'eval_episodes'):
         _integer(t[key], f'train.{key}', 2 if key in ('n_steps', 'batch_size') else 1)

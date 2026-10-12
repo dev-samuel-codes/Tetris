@@ -38,11 +38,13 @@ def make_match(seed=123):
 
 def fields(frame):
     parts = frame.split("\t")
-    assert len(parts) == 14
+    assert len(parts) == 16
     assert parts[0] == "FRAME"
     for index in (8, 13):
         assert len(parts[index]) == 220
-        assert set(parts[index]) <= set("01234567")
+        assert set(parts[index]) <= set("012345678")
+    for index in (14, 15):
+        assert -1 <= int(parts[index]) < 22
     return parts
 
 
@@ -51,7 +53,9 @@ def test_frame_has_active_overlay_and_one_shared_tick():
     initial = fields(match.frame())
     assert initial[1:4] == ["0", "0", "NONE"]
     assert initial[8] == initial[13]
-    assert sum(char != "0" for char in initial[8]) == 4
+    assert sum(char in "1234567" for char in initial[8]) == 4
+    assert initial[8].count("8") == 4
+    assert initial[14:16] == ["-1", "-1"]
     for tick in range(1, 6):
         frame = fields(match.step("LEFT"))
         assert frame[1] == str(tick)
@@ -61,6 +65,57 @@ def test_frame_has_active_overlay_and_one_shared_tick():
     assert match.policy.calls == 0
     match.step("WAIT")
     assert match.policy.calls == 1
+
+
+def test_ghost_lands_above_stack_and_active_piece_overlays_it_without_mutation():
+    engine = make_match().human
+    engine.board.fill(0)
+    engine.board[2, 4:6] = 7
+    engine.piece, engine.rotation, engine.x, engine.y = 5, 0, 4, 10
+    before = engine.board.copy()
+    expected = before.copy()
+    expected[3:5, 4:6] = 8
+    expected[9:11, 4:6] = 5
+    visible = np.array(list(service.board_string(engine)), dtype=np.uint8).reshape(22, 10)
+    np.testing.assert_array_equal(visible, expected)
+    np.testing.assert_array_equal(engine.board, before)
+    assert engine.y == 10
+    engine.y = 4
+    landed = service.board_string(engine)
+    assert "8" not in landed and landed.count("5") == 4
+    engine._finish("top_out")
+    np.testing.assert_array_equal(
+        np.array(list(service.board_string(engine)), dtype=np.uint8).reshape(22, 10), before)
+
+
+@pytest.mark.parametrize("engine_name, field_index", [("human", 14), ("ai", 15)])
+def test_line_clear_row_changes_only_on_real_lock_and_resets(engine_name, field_index):
+    match = make_match()
+    engine = getattr(match, engine_name)
+    engine.board.fill(0)
+    engine.board[2, 4:6] = 7
+    engine.board[3] = 7
+    engine.board[3, 4:6] = 0
+    engine.piece, engine.rotation, engine.x, engine.y = 5, 0, 4, 21
+    engine.think_remaining = 0
+    before_board = engine.board.copy()
+    before_frame, before_rng = match.frame(), engine._rng.getstate()
+    assert any(candidate.lines_cleared for candidate in engine.candidates().values())
+    assert engine.last_cleared_row == -1 and engine.lines == engine.ticks == 0
+    assert match.frame() == before_frame and engine._rng.getstate() == before_rng
+    np.testing.assert_array_equal(engine.board, before_board)
+    engine._tick("HARD_DROP")
+    assert engine.lines == 1 and engine.score == 100
+    assert fields(match.frame())[field_index] == "3"
+    assert fields(match.frame())[15 if engine_name == "human" else 14] == "-1"
+    # 줄을 지우지 않은 다음 고정에서는 마지막 삭제 위치를 유지합니다.
+    engine.board.fill(0)
+    engine.think_remaining = 0
+    engine._tick("HARD_DROP")
+    assert engine.lines == 1 and engine.last_cleared_row == 3
+    engine.reset(seed=123)
+    assert fields(match.frame())[field_index] == "-1"
+    assert engine.lines == engine.score == 0
 
 
 def test_candidate_path_matches_whole_engine_step_without_using_it(monkeypatch):
@@ -79,7 +134,7 @@ def test_candidate_path_matches_whole_engine_step_without_using_it(monkeypatch):
         assert getattr(match.ai, attr) == getattr(reference, attr)
     assert match.ai._rng.getstate() == reference._rng.getstate()
     assert match.policy.calls == 1
-    assert match.ai.ticks == 34
+    assert match.ai.ticks == 32
 
 
 def test_same_iid_sequence_at_different_human_ai_speeds():
@@ -98,8 +153,12 @@ def test_same_iid_sequence_at_different_human_ai_speeds():
     assert history["human"][:len(history["ai"])] == history["ai"]
 
 
-def test_match_continues_beyond_3600_ticks():
-    match = make_match()
+@pytest.mark.parametrize("difficulty_id", ["normal", "very_hard", "hell"])
+def test_match_continues_beyond_3600_ticks(difficulty_id):
+    difficulty = service.DIFFICULTIES[difficulty_id]
+    match = service.Match(FakePolicy(), {"observation": difficulty.observation,
+                          "env": {"duration_ticks": difficulty.duration_ticks}}, 123, difficulty_id)
+    assert match.ai.rules.duration_ticks == match.human.rules.duration_ticks == 3600
     for _ in range(3700):
         match.step("HARD_DROP")
         match.human.board.fill(0)
@@ -187,6 +246,7 @@ def test_survivor_overtakes_on_actual_line_clear_tick(survivor_name, frozen_name
             match.ai_target_ticks = 1
         frame = fields(match.step("HARD_DROP"))
         assert survivor.score == expected_score and survivor.lines == expected_score // 100
+        assert frame[14 if survivor_name == "human" else 15] == "0"
         assert frozen.score == 100 and frozen.ticks == 0
         assert survivor.terminated is False and survivor.end_reason is None
         if expected_score == 100:
@@ -244,7 +304,7 @@ def drive_human_intervals(match, intervals):
     return ai_intervals
 
 
-@pytest.mark.parametrize("human_ticks, human_pace, ai_pace", [(5, 10, 9), (80, 80, 68), (150, 120, 102)])
+@pytest.mark.parametrize("human_ticks, human_pace, ai_pace", [(5, 10, 8), (80, 80, 64), (150, 120, 96)])
 def test_ai_tracks_fast_slow_and_clamped_human_pace(human_ticks, human_pace, ai_pace):
     match = service.Match(NearPolicy(), {"observation": "board"}, 9821)
     measured = drive_human_intervals(match, [human_ticks] * 20)
@@ -254,27 +314,28 @@ def test_ai_tracks_fast_slow_and_clamped_human_pace(human_ticks, human_pace, ai_
     assert measured[-3:] == [ai_pace] * 3
 
 
-@pytest.mark.parametrize("human_ticks, ai_ticks", [(40, 34), (20, 17), (60, 51), (10, 9), (120, 102)])
-def test_ai_pace_is_85_percent_rounded_up(human_ticks, ai_ticks):
+@pytest.mark.parametrize("human_ticks, ai_ticks", [(40, 32), (20, 16), (60, 48), (10, 8), (120, 96), (11, 9)])
+def test_ai_pace_is_80_percent_rounded_up(human_ticks, ai_ticks):
     assert service.ai_pace_ticks(human_ticks) == ai_ticks
 
 
-@pytest.mark.parametrize("human_ticks, ai_ticks", [(40, 30), (20, 15), (60, 45), (10, 8), (120, 90)])
-def test_hell_pace_is_75_percent_rounded_up(human_ticks, ai_ticks):
+@pytest.mark.parametrize("human_ticks, ai_ticks", [(40, 28), (20, 14), (60, 42), (10, 7), (120, 84), (11, 8)])
+def test_hell_pace_is_70_percent_rounded_up(human_ticks, ai_ticks):
     assert service.ai_pace_ticks(human_ticks, "hell") == ai_ticks
 
 
-@pytest.mark.parametrize("difficulty_id, expected_ticks", [("easy", 34), ("normal", 34), ("hard", 34), ("very_hard", 34), ("hell", 30)])
+@pytest.mark.parametrize("difficulty_id, expected_ticks", [("easy", 32), ("normal", 32), ("hard", 32), ("very_hard", 32), ("hell", 28)])
 def test_start_passes_difficulty_pace_and_restart_resets_measurements(difficulty_id, expected_ticks):
     def loader(selected):
-        return NearPolicy(), {"observation": service.DIFFICULTIES[selected].observation}
+        return NearPolicy(), {"observation": service.DIFFICULTIES[selected].observation,
+                              "env": {"duration_ticks": service.DIFFICULTIES[selected].duration_ticks}}
     controller = service.MatchService(loader)
     controller.request(f"START\t{difficulty_id}\t9821")
     match = controller.match
     assert match.difficulty_id == difficulty_id and match.ai_target_ticks == expected_ticks
     drive_human_intervals(match, [80] * 3)
     assert match.human_pace_ticks == 80
-    assert match.ai_target_ticks == (60 if difficulty_id == "hell" else 68)
+    assert match.ai_target_ticks == (56 if difficulty_id == "hell" else 64)
     controller.request(f"START\t{difficulty_id}\t9821")
     restarted = controller.match
     assert restarted is not match and restarted.difficulty_id == difficulty_id
@@ -283,28 +344,28 @@ def test_start_passes_difficulty_pace_and_restart_resets_measurements(difficulty
     assert restarted.human_pace_ticks == 40 and restarted.ai_target_ticks == expected_ticks
     other = "normal" if difficulty_id == "hell" else "hell"
     controller.request(f"START\t{other}\t9821")
-    assert controller.match.ai_target_ticks == (34 if other == "normal" else 30)
+    assert controller.match.ai_target_ticks == (32 if other == "normal" else 28)
 
 
 def test_hell_minimum_pace_keeps_reaction_and_current_piece_target():
-    match = service.Match(NearPolicy(), {"observation": "afterstate"}, 9821, "hell")
+    match = service.Match(NearPolicy(), {"observation": "afterstate", "env": {"duration_ticks": 0}}, 9821, "hell")
     drive_human_intervals(match, [5])
-    assert match.human_pace_ticks == 10 and match.ai_target_ticks == 30
+    assert match.human_pace_ticks == 10 and match.ai_target_ticks == 28
     assert match.policy.calls == 0 and match.ai.pieces_placed == 0
     match.step("WAIT")
     assert match.policy.calls == 0
     match.step("WAIT")
     assert match.policy.calls == 1
     measured = drive_human_intervals(match, [5] * 30)
-    assert match.human_pace_ticks == 10 and match.ai_target_ticks == 8
-    assert measured[-3:] == [8] * 3
+    assert match.human_pace_ticks == 10 and match.ai_target_ticks == 7
+    assert measured[-3:] == [7] * 3
 
 
 def test_recent_eight_median_updates_only_next_ai_piece_and_ignores_scores():
     match = service.Match(NearPolicy(), {"observation": "board"}, 79)
     drive_human_intervals(match, [5])
     assert match.human_pace_ticks == 10
-    assert match.ai_target_ticks == 34 and match.ai.pieces_placed == 0
+    assert match.ai_target_ticks == 32 and match.ai.pieces_placed == 0
     match.human.score = 100000
     match.ai.score = 1
     drive_human_intervals(match, [80] * 4 + [20] * 5)
@@ -337,7 +398,7 @@ def test_last_hard_drop_waits_without_consuming_path_or_moving_target():
         assert match.ai.pieces_placed == 0 and match.policy.calls == 1
     assert match.ai.y < y
     match.step("WAIT")
-    assert match.elapsed_ticks == 34 and match.ai.pieces_placed == 1
+    assert match.elapsed_ticks == 32 and match.ai.pieces_placed == 1
     assert not match.ai_path
 
 
@@ -355,7 +416,7 @@ def test_gravity_lock_discards_stale_path_and_restarts_reaction(during_reaction)
     match.step("WAIT")
     assert match.ai.pieces_placed == 1
     assert not match.ai_path and match.ai_spawn_tick == match.elapsed_ticks
-    assert match.human_pace_ticks == 40 and match.ai_target_ticks == 34
+    assert match.human_pace_ticks == 40 and match.ai_target_ticks == 32
     for _ in range(service.AI_REACTION_TICKS):
         match.step("WAIT")
     assert match.policy.calls == previous_calls
@@ -377,7 +438,7 @@ def test_ai_continues_at_last_human_pace_after_human_topout():
             measured.append(match.elapsed_ticks - last_lock)
             last_lock = match.elapsed_ticks
         match.ai.board.fill(0)
-    assert measured == [51] * 5
+    assert measured == [48] * 5
     assert match.human.ticks == frozen_ticks and match.human_pace_ticks == 60
     assert match.ended is False
 
@@ -398,7 +459,7 @@ def test_restart_bad_command_and_protocol_recovery():
     assert controller.request("START\teasy\t42") == start
     assert controller.match.human_intervals == service.deque([], maxlen=8)
     assert controller.match.last_human_lock_tick == controller.match.ai_spawn_tick == 0
-    assert controller.match.human_pace_ticks == 40 and controller.match.ai_target_ticks == 34
+    assert controller.match.human_pace_ticks == 40 and controller.match.ai_target_ticks == 32
     assert loader_calls == ["easy"]
     output = StringIO()
     service.serve(StringIO("STEP\tWAIT\nSTART\teasy\t42\nSTEP\tINVALID\nSTEP\tWAIT\nQUIT\n"), output, service.MatchService(loader))
@@ -418,7 +479,7 @@ def test_bad_protocol_request(line):
 def test_manifest_rejects_incompatible_rules_and_identity():
     path = service.MODEL_ROOT / "best.manifest.json"
     manifest = service.json.loads(path.read_text())
-    difficulty = service.DIFFICULTIES["hell"]
+    difficulty = service.Difficulty(10000, "best.zip", "afterstate", require_completed_target=True)
     assert service.validate_manifest(manifest, difficulty)["observation"] == "afterstate"
     for key, value, error in (("rules_version", "wrong", "rules"), ("engine_sha256", "wrong", "hash"), ("target_score", 500, "10000"), ("observation_version", "wrong", "observation")):
         changed = deepcopy(manifest)
@@ -427,31 +488,31 @@ def test_manifest_rejects_incompatible_rules_and_identity():
             service.validate_manifest(changed, difficulty)
     changed = deepcopy(manifest)
     changed["config"]["env"]["gravity_ticks"] = 7
-    with pytest.raises(ValueError, match="180 second"):
+    with pytest.raises(ValueError, match="rules are incompatible"):
         service.validate_manifest(changed, difficulty)
 
 
-@pytest.mark.parametrize("difficulty_id, score, checkpoint, observation", [
-    ("easy", 200, "checkpoints/score_00200.zip", "board"),
-    ("normal", 500, "checkpoints/score_00500.zip", "board"),
-    ("hard", 1000, "checkpoints/score_01000.zip", "afterstate"),
-    ("very_hard", 5000, "checkpoints/score_05000.zip", "afterstate"),
-    ("hell", 10000, "best.zip", "afterstate"),
+@pytest.mark.parametrize("difficulty_id, score, checkpoint, observation, duration, completed", [
+    ("easy", 300, "checkpoints/score_00300.zip", "board", 3600, False),
+    ("normal", 1000, "checkpoints/score_01000.zip", "afterstate", 3600, False),
+    ("hard", 5000, "checkpoints/score_05000.zip", "afterstate", 3600, False),
+    ("very_hard", 50000, "checkpoints/score_50000.zip", "afterstate", 0, False),
+    ("hell", 100000, "checkpoints/score_100000.zip", "afterstate", 0, True),
 ])
-def test_difficulty_checkpoint_mapping(difficulty_id, score, checkpoint, observation):
-    assert service.DIFFICULTIES[difficulty_id] == service.Difficulty(score, checkpoint, observation)
+def test_difficulty_checkpoint_mapping(difficulty_id, score, checkpoint, observation, duration, completed):
+    assert service.DIFFICULTIES[difficulty_id] == service.Difficulty(score, checkpoint, observation, duration, completed)
 
 
 @pytest.mark.parametrize("difficulty_id", ["easy", "normal", "hard", "very_hard"])
 def test_milestone_models_accept_unreached_target_but_reject_wrong_milestone(difficulty_id):
     difficulty = service.DIFFICULTIES[difficulty_id]
-    manifest = service.json.loads((service.MODEL_ROOT / "best.manifest.json").read_text())
+    manifest = checkpoint_manifest(difficulty_id)
     manifest["config"]["observation"] = difficulty.observation
     manifest["observation_version"] = service.OBSERVATION_VERSIONS[difficulty.observation]
     manifest["policy_class"] = "CandidateActorCriticPolicy" if difficulty.observation == "afterstate" else "MaskableActorCriticPolicy"
     manifest["target_reached"] = False
     manifest["score_milestone"] = difficulty.score
-    assert manifest["target_score"] == 10000
+    assert manifest["target_score"] == (100000 if difficulty.duration_ticks == 0 else 10000)
     assert service.validate_manifest(manifest, difficulty)["observation"] == difficulty.observation
     manifest["score_milestone"] += 100
     with pytest.raises(ValueError, match=f"milestone must be {difficulty.score}"):
@@ -517,12 +578,13 @@ def test_afterstate_tick_normalization_keeps_training_scale():
 @pytest.mark.parametrize("difficulty_id", list(service.DIFFICULTIES))
 def test_real_checkpoint_smoke(difficulty_id):
     difficulty = service.DIFFICULTIES[difficulty_id]
-    if not (service.MODEL_ROOT / difficulty.checkpoint).is_file():
-        pytest.skip("Checkpoint not downloaded")
+    assert (service.MODEL_ROOT / difficulty.checkpoint).is_file()
     model, config = service.load_policy(difficulty_id)
     match = service.Match(model, config, 1000003, difficulty_id)
     for _ in range(50):
         fields(match.step("WAIT"))
+    assert config["env"]["duration_ticks"] == difficulty.duration_ticks
+    assert match.ai.rules.duration_ticks == match.human.rules.duration_ticks == 3600
     assert match.ai.ticks == match.human.ticks == 50
     assert str(model.device) == "cpu"
     assert match.ai.pieces_placed >= 1
@@ -558,4 +620,88 @@ def test_real_service_very_hard_and_hell_first_lock_pace():
             if controller.match.ai.pieces_placed:
                 measured[difficulty_id] = int(frame[1])
                 break
-    assert measured == {"very_hard": 34, "hell": 30}
+    assert measured == {"very_hard": 32, "hell": 28}
+
+
+def checkpoint_manifest(difficulty_id):
+    difficulty = service.DIFFICULTIES[difficulty_id]
+    return service.json.loads((service.MODEL_ROOT / difficulty.checkpoint).with_suffix(".manifest.json").read_text())
+
+
+@pytest.mark.parametrize("difficulty_id", list(service.DIFFICULTIES))
+def test_difficulty_rejects_training_duration_from_the_other_mode(difficulty_id):
+    difficulty = service.DIFFICULTIES[difficulty_id]
+    manifest = checkpoint_manifest(difficulty_id)
+    manifest["config"]["env"]["duration_ticks"] = 3600 if difficulty.duration_ticks == 0 else 0
+    with pytest.raises(ValueError, match="rules are incompatible"):
+        service.validate_manifest(manifest, difficulty)
+    with pytest.raises(ValueError, match="rules are incompatible"):
+        service.Match(FakePolicy(), manifest["config"], 123, difficulty_id)
+
+
+@pytest.mark.parametrize("difficulty_id", ["easy", "very_hard", "hell"])
+@pytest.mark.parametrize("key, value", [("gravity_ticks", 7), ("think_ticks", 5), ("tick_ms", 40)])
+def test_match_and_manifest_reject_other_rule_changes(difficulty_id, key, value):
+    manifest = checkpoint_manifest(difficulty_id)
+    manifest["config"]["env"][key] = value
+    with pytest.raises(ValueError, match="rules are incompatible"):
+        service.validate_manifest(manifest, service.DIFFICULTIES[difficulty_id])
+    with pytest.raises(ValueError, match="rules are incompatible"):
+        service.Match(FakePolicy(), manifest["config"], 123, difficulty_id)
+
+
+@pytest.mark.parametrize("key, value, error", [
+    ("episode_limit_mode", None, "episode_limit_mode"),
+    ("episode_limit_mode", "timed", "episode_limit_mode"),
+    ("untimed_engine_sha256", None, "untimed engine hash"),
+    ("untimed_engine_sha256", "wrong", "untimed engine hash"),
+    ("score_milestone", 10000, "milestone must be 100000"),
+    ("target_score", 10000, "100000 point target"),
+    ("target_reached", False, "100000 point target"),
+    ("policy_class", "MaskableActorCriticPolicy", "policy class"),
+    ("observation_version", "wrong", "observation version"),
+    ("schema_version", 2, "manifest schema"),
+])
+def test_unlimited_manifest_requires_mode_engine_identity_and_completed_target(key, value, error):
+    manifest = checkpoint_manifest("hell")
+    manifest[key] = value
+    with pytest.raises(ValueError, match=error):
+        service.validate_manifest(manifest, service.DIFFICULTIES["hell"])
+
+
+@pytest.mark.parametrize("difficulty_id", ["very_hard", "hell"])
+def test_unlimited_manifest_hash_normalizes_crlf_and_rejects_changed_runtime(tmp_path, difficulty_id):
+    manifest = checkpoint_manifest(difficulty_id)
+    engine = tmp_path / "engine.py"
+    untimed = tmp_path / "untimed.py"
+    runtime = service.RUNTIME_ROOT / "tetris_sca"
+    for name, target in (("engine.py", engine), ("untimed.py", untimed)):
+        target.write_bytes((runtime / name).read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
+    assert service.validate_manifest(manifest, service.DIFFICULTIES[difficulty_id], engine, untimed)["env"]["duration_ticks"] == 0
+    untimed.write_bytes(untimed.read_bytes() + b"# altered runtime\r\n")
+    with pytest.raises(ValueError, match="untimed engine hash"):
+        service.validate_manifest(manifest, service.DIFFICULTIES[difficulty_id], engine, untimed)
+    engine.write_bytes(engine.read_bytes() + b"# altered engine\r\n")
+    with pytest.raises(ValueError, match="engine hash"):
+        service.validate_manifest(manifest, service.DIFFICULTIES[difficulty_id], engine, untimed)
+
+
+def test_unlimited_training_env_uses_shared_engine_and_normalization():
+    from tetris_sca.engine import Rules
+    from tetris_sca.untimed import UntimedTetrisEngine
+    assert service.UntimedTetrisEngine is UntimedTetrisEngine
+    env = service.TetrisEnv({"observation": "afterstate", "env": {"duration_ticks": 0}})
+    assert isinstance(env.engine, UntimedTetrisEngine)
+    assert env.config["env"]["duration_ticks"] == 0
+    assert env.engine.rules.duration_ticks == 3600
+    env.reset(seed=123)
+    env.engine.ticks = 3599
+    action = min(env.engine.candidates())
+    observation, _, terminated, truncated, _ = env.step(action)
+    assert env.engine.ticks > 3600
+    assert terminated is truncated is False
+    assert observation["state"][245] == 1.0
+    zero_rules_engine = UntimedTetrisEngine(Rules(duration_ticks=0), seed=123)
+    assert zero_rules_engine.rules.duration_ticks == 3600
+    for action, candidate in env.engine.candidates().items():
+        assert observation["candidates"][action, 6] == pytest.approx(candidate.ticks / 3600)
