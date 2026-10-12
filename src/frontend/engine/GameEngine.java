@@ -26,6 +26,7 @@ public class GameEngine {
         private final String label;
         private final String description;
 
+
         ItemType(String label, String description) {
             this.label = label;
             this.description = description;
@@ -75,7 +76,7 @@ public class GameEngine {
     // 아이템 사용 횟수가 달라도 같은 시드의 블록 순서는 유지하도록 효과 난수 분리
     private final Random itemEffectRandom;
     private List<Tetrominoes> bag;
-
+    private int lastClearedRow = -1; // 방금 몇번째 줄을 지웠는지
     private void refillBag() {
         bag = new ArrayList<>();
         for (Tetrominoes t : Tetrominoes.values()) {
@@ -152,6 +153,7 @@ public class GameEngine {
         nextItemSpawnInterval = randomBetween(ITEM_SPAWN_MIN, ITEM_SPAWN_MAX);
         currentItemType = null;
         lastItemType = null;
+        lastClearedRow = -1;
 		clearBoard();
 		chooseNextPiece(); // 다음 블록을 먼저 뽑기
 		newPiece();
@@ -332,7 +334,9 @@ public class GameEngine {
             // 가득 찬 줄을 위쪽 줄로 덮어씀
 			if (lineIsFull) {
 				++numFullLines;
-                for (int j = 0; j < BOARD_WIDTH; ++j) {
+                if (lineIsFull)
+                    lastClearedRow = i;
+                    for (int j = 0; j < BOARD_WIDTH; ++j) {
                     ItemType removedItem = boardItemTypeAt(j, i); // 제거 줄 블록 기억
                     boardItemTypes[toIndex(j, i)] = null;
                     if (removedItem != null) {
@@ -639,6 +643,11 @@ public class GameEngine {
                 return false;
         }
         return true;
+    }
+
+    // 마지막으로 삭제된 줄 위치 반환
+    public int getLastClearedRow() {
+        return lastClearedRow;
     }
 
 
