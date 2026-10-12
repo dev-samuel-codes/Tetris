@@ -1,0 +1,305 @@
+{
+  "schema_version": 1,
+  "rules_version": "java-iid-placement40-timed-v1",
+  "observation_version": "bottomfirst-248-v1",
+  "engine_sha256": "b37b7c9929f5ee99c43002747ee3e685469e13bced613be2d540ff8699b8120d",
+  "config": {
+    "schema_version": 1,
+    "env": {
+      "duration_ticks": 3600,
+      "gravity_ticks": 8,
+      "think_ticks": 4,
+      "tick_ms": 50
+    },
+    "reward": "score",
+    "train": {
+      "n_envs": 4,
+      "n_steps": 512,
+      "batch_size": 256,
+      "n_epochs": 10,
+      "learning_rate": 0.0003,
+      "gamma": 1.0,
+      "gae_lambda": 0.95,
+      "clip_range": 0.2,
+      "ent_coef": 0.01,
+      "net_arch": [
+        256,
+        256
+      ],
+      "seed": 11,
+      "device": "cuda",
+      "torch_threads": 1,
+      "eval_freq": 25000,
+      "eval_episodes": 20,
+      "checkpoint_freq": 25000,
+      "score_checkpoint_interval": 100,
+      "target_score": 10000
+    },
+    "evaluation": {
+      "validation_seed_start": 1000000,
+      "test_seed_start": 2000000,
+      "test_episodes": 500
+    }
+  },
+  "device": "cuda",
+  "requested_additional_steps": 50000000,
+  "initial_env_stream_offset": 925000,
+  "resume_from": "/home/workspace/samuel/sca/runs/ppo-score-seed11-20261003-130030/best.zip",
+  "python_version": "3.12.13",
+  "packages": {
+    "torch": "2.11.0+cu128",
+    "gymnasium": "1.3.0",
+    "stable-baselines3": "2.9.0",
+    "sb3-contrib": "2.9.0",
+    "numpy": "2.5.3"
+  },
+  "initial_timesteps": 925000,
+  "rollout_size": 2048,
+  "best_mean_score": 305.0,
+  "last_mean_score": 305.0,
+  "last_validation_timesteps": 3425000,
+  "highest_score_milestone": 200,
+  "target_score": 10000,
+  "target_reached": false,
+  "stopping_reason": null,
+  "num_timesteps": 3425000,
+  "score_milestone": 300,
+  "validation": {
+    "agent": "ppo",
+    "seed_start": 1000000,
+    "episode_count": 20,
+    "episodes": [
+      {
+        "seed": 1000000,
+        "score": 300,
+        "lines": 3,
+        "ticks": 321,
+        "pieces_placed": 36,
+        "survival_seconds": 16.05,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000001,
+        "score": 200,
+        "lines": 2,
+        "ticks": 286,
+        "pieces_placed": 33,
+        "survival_seconds": 14.3,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000002,
+        "score": 0,
+        "lines": 0,
+        "ticks": 203,
+        "pieces_placed": 23,
+        "survival_seconds": 10.15,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000003,
+        "score": 400,
+        "lines": 4,
+        "ticks": 286,
+        "pieces_placed": 34,
+        "survival_seconds": 14.3,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000004,
+        "score": 400,
+        "lines": 4,
+        "ticks": 324,
+        "pieces_placed": 35,
+        "survival_seconds": 16.2,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000005,
+        "score": 300,
+        "lines": 3,
+        "ticks": 244,
+        "pieces_placed": 29,
+        "survival_seconds": 12.2,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000006,
+        "score": 200,
+        "lines": 2,
+        "ticks": 299,
+        "pieces_placed": 34,
+        "survival_seconds": 14.95,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000007,
+        "score": 300,
+        "lines": 3,
+        "ticks": 312,
+        "pieces_placed": 36,
+        "survival_seconds": 15.6,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000008,
+        "score": 600,
+        "lines": 5,
+        "ticks": 373,
+        "pieces_placed": 41,
+        "survival_seconds": 18.65,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000009,
+        "score": 100,
+        "lines": 1,
+        "ticks": 230,
+        "pieces_placed": 27,
+        "survival_seconds": 11.5,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000010,
+        "score": 300,
+        "lines": 3,
+        "ticks": 261,
+        "pieces_placed": 30,
+        "survival_seconds": 13.05,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000011,
+        "score": 500,
+        "lines": 5,
+        "ticks": 387,
+        "pieces_placed": 43,
+        "survival_seconds": 19.35,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000012,
+        "score": 600,
+        "lines": 6,
+        "ticks": 434,
+        "pieces_placed": 49,
+        "survival_seconds": 21.7,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000013,
+        "score": 600,
+        "lines": 5,
+        "ticks": 418,
+        "pieces_placed": 45,
+        "survival_seconds": 20.9,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000014,
+        "score": 300,
+        "lines": 3,
+        "ticks": 289,
+        "pieces_placed": 34,
+        "survival_seconds": 14.45,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000015,
+        "score": 100,
+        "lines": 1,
+        "ticks": 196,
+        "pieces_placed": 23,
+        "survival_seconds": 9.8,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000016,
+        "score": 100,
+        "lines": 1,
+        "ticks": 235,
+        "pieces_placed": 28,
+        "survival_seconds": 11.75,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000017,
+        "score": 300,
+        "lines": 3,
+        "ticks": 325,
+        "pieces_placed": 38,
+        "survival_seconds": 16.25,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000018,
+        "score": 200,
+        "lines": 2,
+        "ticks": 327,
+        "pieces_placed": 37,
+        "survival_seconds": 16.35,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      },
+      {
+        "seed": 1000019,
+        "score": 300,
+        "lines": 3,
+        "ticks": 344,
+        "pieces_placed": 37,
+        "survival_seconds": 17.2,
+        "survived_timeout": false,
+        "end_reason": "top_out",
+        "invalid_actions": 0
+      }
+    ],
+    "aggregate": {
+      "mean_score": 305.0,
+      "std_score": 168.74537030686204,
+      "min_score": 0,
+      "max_score": 600,
+      "mean_lines": 2.95,
+      "mean_ticks": 304.7,
+      "mean_survival_seconds": 15.235,
+      "timeout_survival_rate": 0.0,
+      "invalid_actions": 0
+    }
+  }
+}
