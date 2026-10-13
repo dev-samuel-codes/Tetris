@@ -18,6 +18,7 @@ public class Tetris extends JFrame {
 	JLabel statusbar;
 	private final Board board; // 메뉴로 돌아갈 때 게임 정지에 사용
 	private final String modeName;
+	private JButton pauseButton;
 	private GameOverDialog gameOverDialog; // 게임 종료 창
 
 	public Tetris(Resolution resolution) {
@@ -54,14 +55,25 @@ public class Tetris extends JFrame {
 		Style.applyButtonStyle(menuButton, Style.ACCENT, Style.PANEL);
 		menuButton.setFont(Style.BODY_FONT);
 		menuButton.setBorder(BorderFactory.createEmptyBorder(10, 14, 10, 14));
-		menuButton.setFocusable(false); // 버튼이 게임 키 입력 포커스를 가져가지 않도록 설정
+		menuButton.setFocusable(false); // 진행 중 Space가 버튼을 실행하지 않도록 게임판에 포커스 유지
 		menuButton.addActionListener(e -> returnToMenu());
 
 		// 하단에 제거한 줄 수와 메뉴 버튼 표시
 		JPanel footer = new JPanel(new BorderLayout(12, 0));
 		footer.setOpaque(false);
 		footer.add(statusbar, BorderLayout.CENTER);
-		footer.add(menuButton, BorderLayout.EAST);
+		pauseButton = new JButton("Ⅱ 일시정지");
+        Style.applyButtonStyle(pauseButton, Style.ACCENT, Style.PANEL);
+        pauseButton.setFont(Style.BODY_FONT);
+        pauseButton.setBorder(BorderFactory.createEmptyBorder(10, 14, 10, 14));
+        pauseButton.setToolTipText("ESC 또는 " + GameSettings.keyName(GameSettings.getPauseKey()));
+        pauseButton.setFocusable(false);
+        pauseButton.addActionListener(e -> togglePause());
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        actions.setOpaque(false);
+        actions.add(pauseButton);
+        actions.add(menuButton);
+        footer.add(actions, BorderLayout.EAST);
 		root.add(footer, BorderLayout.SOUTH);
 
 		// 점수와 다음 블록, 조작 안내 패널
@@ -72,6 +84,15 @@ public class Tetris extends JFrame {
 		board = new Board(statusbar, sidePanel, "아이템".equals(modeName));
 		// 종료
 		board.setGameOverListener(this::showGameOver);
+        board.addPropertyChangeListener("paused", event -> {
+            boolean paused = board.getEngine().isPaused();
+            pauseButton.setText(paused ? "▶ 계속하기" : "Ⅱ 일시정지");
+            pauseButton.getAccessibleContext().setAccessibleName(pauseButton.getText());
+            // 일시정지 중에는 Tab으로 버튼을 이용하고, 재개하면 게임 조작으로 돌아갑니다.
+            pauseButton.setFocusable(paused);
+            menuButton.setFocusable(paused);
+            if (!paused) board.requestFocusInWindow();
+        });
 		board.setMinimumSize(new Dimension(Board.BOARD_WIDTH * MIN_CELL_SIZE, Board.BOARD_HEIGHT * MIN_CELL_SIZE));
 		// 게임판과 정보 패널을 같은 배율로 확대
 		JPanel background = new JPanel(new GameAreaLayout(board, sidePanel, resolution.getCellSize()));
@@ -96,14 +117,25 @@ public class Tetris extends JFrame {
 		addComponentListener(resizeHandler);
 		setResizable(true);
 		setTitle("Tetris");
-		setDefaultCloseOperation(EXIT_ON_CLOSE);
+		setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
 		addWindowListener(new WindowAdapter() {
+            @Override public void windowClosing(WindowEvent event) { returnToMenu(); }
 			@Override
 			public void windowOpened(WindowEvent event) {
 				board.requestFocusInWindow(); // 게임 화면을 열자마자 키보드 조작 가능
 			}
 		});
+        addWindowFocusListener(new WindowAdapter() {
+            @Override public void windowLostFocus(WindowEvent event) {
+                board.clearPressedKeys();
+                board.setPaused(true, "창을 벗어나 자동으로 멈췄습니다");
+            }
+        });
 	}
+
+    private void togglePause() {
+        board.togglePause();
+    }
 
 	private void fitOnScreen() {
 		GraphicsConfiguration configuration = getGraphicsConfiguration();
@@ -143,6 +175,7 @@ public class Tetris extends JFrame {
 		SwingUtilities.invokeLater(() -> {
 			if (!isDisplayable())
 				return;
+            pauseButton.setEnabled(false);
 			gameOverDialog = new GameOverDialog(this, score, linesRemoved, maxCombo, elapsedSeconds,
 					this::restartGame, this::returnToMenu);
 			gameOverDialog.setVisible(true);
@@ -153,9 +186,11 @@ public class Tetris extends JFrame {
 	private void restartGame() {
 		if (!isDisplayable())
 			return;
+        Point previousLocation = getLocation();
+        // 이전 창의 전역 BGM 정리를 끝낸 뒤 새 게임의 음악을 시작합니다.
+        dispose();
 		Tetris game = new Tetris(GameSettings.getResolution(), modeName);
-		game.setLocationRelativeTo(this);
-		dispose();
+        game.setLocation(previousLocation);
 		game.setVisible(true);
 	}
 
