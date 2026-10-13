@@ -8,6 +8,7 @@ import frontend.ai.AiMatchWindow;
 import frontend.online.OnlineMatchWindow;
 import frontend.network.ScoreClient.RankingEntry;
 import frontend.network.ScoreClient.RankingPage;
+import shared.score.ScoreMode;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -31,10 +32,8 @@ import javax.swing.JToggleButton;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
-import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import javax.swing.JScrollPane;
-import javax.swing.plaf.basic.BasicScrollBarUI;
 
 // 앱 메인 화면
 // 나중에 메뉴 화면이 더 늘어나면 화면별 JPanel로 나눠도 괜찮을 것 같음
@@ -47,7 +46,8 @@ public class Main extends JFrame {
         // 기본 메뉴 크기는 유지하고 작은 화면에서는 화면 바깥으로 벗어나지 않게 제한
         Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
         setSize(Math.min(960, screen.width - 48), Math.min(740, screen.height - 64));
-        setResizable(false);
+        setResizable(true);
+        setMinimumSize(new Dimension(Math.min(800, getWidth()), Math.min(650, getHeight())));
         setLocationRelativeTo(null);
         // 처음 실행 시 메인 메뉴 표시
         showMainMenu();
@@ -98,17 +98,31 @@ public class Main extends JFrame {
         identityPanel.add(nicknameArea, BorderLayout.CENTER);
 
         JPanel recordArea = transparent(new BorderLayout(0, 3));
-        recordArea.setPreferredSize(new Dimension(198, 84));
+        recordArea.setPreferredSize(new Dimension(222, 90));
         recordArea.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createMatteBorder(0, 1, 0, 0, Style.BORDER),
                 BorderFactory.createEmptyBorder(0, 24, 0, 0)));
         recordArea.add(label("최고 점수", Style.MUTED_TEXT, Style.SMALL_FONT), BorderLayout.NORTH);
         // 로컬 캐시 점수를 먼저 표시해 서버 응답을 기다리는 동안 기록 영역을 비워 두지 않음
-        JLabel bestScore = fittingLabel(playerName.isEmpty() ? "—" : score(ScoreManager.getCachedBestScore(playerName)),
-                Style.ACCENT, Style.DISPLAY_FONT.deriveFont(30f));
+        JLabel bestScore = fittingLabel(playerName.isEmpty() ? "—" : score(ScoreManager.getCachedBestScore(ScoreMode.CLASSIC, playerName)),
+                Style.ACCENT, Style.DISPLAY_FONT.deriveFont(24f));
         bestScore.setToolTipText("클래식 모드 최고 점수");
-        recordArea.add(bestScore, BorderLayout.CENTER);
-        recordArea.add(label("클래식 최고 점수", Style.MUTED_TEXT, Style.SMALL_FONT), BorderLayout.SOUTH);
+        bestScore.getAccessibleContext().setAccessibleName("클래식 최고 점수");
+        JLabel itemBestScore = fittingLabel(playerName.isEmpty() ? "—" : score(ScoreManager.getCachedBestScore(ScoreMode.ITEM, playerName)),
+                Style.GREEN, Style.DISPLAY_FONT.deriveFont(24f));
+        itemBestScore.setToolTipText("아이템 모드 최고 점수");
+        itemBestScore.getAccessibleContext().setAccessibleName("아이템 최고 점수");
+        JPanel records = transparent(new GridLayout(2, 1, 0, 3));
+        JLabel[] values = { bestScore, itemBestScore };
+        ScoreMode[] scoreModes = { ScoreMode.CLASSIC, ScoreMode.ITEM };
+        for (int i = 0; i < values.length; i++) {
+            JPanel recordRow = transparent(new BorderLayout(10, 0));
+            recordRow.add(label(scoreModes[i].getDisplayName(), Style.MUTED_TEXT, Style.SMALL_FONT), BorderLayout.WEST);
+            values[i].setHorizontalAlignment(SwingConstants.RIGHT);
+            recordRow.add(values[i], BorderLayout.CENTER);
+            records.add(recordRow);
+        }
+        recordArea.add(records, BorderLayout.CENTER);
         identityPanel.add(recordArea, BorderLayout.EAST);
         content.add(identityPanel, BorderLayout.NORTH);
 
@@ -117,9 +131,9 @@ public class Main extends JFrame {
         JPanel modeHeading = transparent(new BorderLayout());
         modeHeading.add(label("게임 모드", Style.TEXT, Style.BUTTON_FONT.deriveFont(16f)), BorderLayout.WEST);
         JPanel modes = transparent(new GridLayout(1, 3, 14, 0));
-        ModeCard classicButton = new ModeCard("클래식", new String[] { "혼자 즐기는 기본 테트리스" }, "게임 시작", "닉네임 적용 후 시작",
+        ModeCard classicButton = new ModeCard("클래식", new String[] { "한 줄씩 쌓아 올리는 나만의 기록", "줄 제거 · 콤보 · 최고 점수" }, "게임 시작", "닉네임 적용 후 시작",
                 Style.CLASSIC_BUTTON, Style.TEXT, Style.ACCENT, 0);
-        // 닉네임이 저장되기 전에는 클래식 게임을 시작하지 않음
+        // 닉네임이 저장되기 전에는 싱글 게임을 시작하지 않음
         classicButton.setEnabled(!playerName.isEmpty());
         classicButton.setToolTipText(playerName.isEmpty() ? "닉네임을 적용하면 게임을 시작할 수 있습니다." : "클래식 게임 시작");
         classicButton.addActionListener(e -> {
@@ -128,15 +142,17 @@ public class Main extends JFrame {
             game.setVisible(true);
             dispose();
         });
-        ModeCard itemButton = new ModeCard("아이템", new String[] { "아이템 셀 기반 커스텀 규칙" }, "게임 시작", "아이템 모드 시작",
+        ModeCard itemButton = new ModeCard("아이템", new String[] { "블록 속 아이템으로 만드는 반전", "폭탄 · 줄 제거 · 점수 보너스" }, "게임 시작", "닉네임 적용 후 시작",
                 Style.ITEM_BUTTON, Style.TEXT, Style.GREEN, 1);
+        itemButton.setEnabled(!playerName.isEmpty());
+        itemButton.setToolTipText(playerName.isEmpty() ? "닉네임을 적용하면 게임을 시작할 수 있습니다." : "아이템 게임 시작");
         itemButton.addActionListener(e -> {
             Tetris game = new Tetris(GameSettings.getResolution(), "아이템");
             game.setLocationRelativeTo(Main.this);
             game.setVisible(true);
             dispose();
         });
-        ModeCard multiplayerButton = new ModeCard("멀티플레이", new String[] { "1PC 2인 · AI · 네트워크 대전" }, "모드 보기", "준비 중",
+        ModeCard multiplayerButton = new ModeCard("멀티플레이", new String[] { "함께할 때 더 짜릿한 점수 대결", "1PC 2인 · AI · 온라인" }, "모드 보기", "준비 중",
                 Style.MULTIPLAYER_BUTTON, Style.TEXT, Style.PINK, 2);
         multiplayerButton.addActionListener(e -> showMultiplayerMenu());
         modes.add(classicButton);
@@ -146,7 +162,7 @@ public class Main extends JFrame {
         modeSection.add(modes, BorderLayout.CENTER);
         content.add(modeSection, BorderLayout.CENTER);
 
-        JPanel utilities = transparent(new GridLayout(1, 2, 14, 0));
+        JPanel utilities = transparent(new GridLayout(1, 3, 14, 0));
         JButton rankingButton = createButton("전체 랭킹  →");
         rankingButton.getAccessibleContext().setAccessibleName("랭킹");
         JButton settingsButton = createButton("게임 설정  →");
@@ -155,33 +171,61 @@ public class Main extends JFrame {
         settingsButton.addActionListener(e -> showSettingsMenu());
         utilities.add(rankingButton);
         utilities.add(settingsButton);
+        JButton guideButton = createButton("플레이 가이드  →");
+        guideButton.getAccessibleContext().setAccessibleName("플레이 가이드");
+        guideButton.addActionListener(e -> showGuide());
+        utilities.add(guideButton);
         content.add(utilities, BorderLayout.SOUTH);
         mainContainer.add(content, BorderLayout.CENTER);
-        JLabel controls = label("← → 이동　 ↑ ↓ 회전　 D 하강　 SPACE 즉시 낙하　 P 일시정지", Style.MUTED_TEXT, Style.SMALL_FONT);
+        JLabel controls = label(GameSettings.controlsSummary(), Style.MUTED_TEXT, Style.SMALL_FONT);
         controls.setHorizontalAlignment(SwingConstants.CENTER);
         mainContainer.add(controls, BorderLayout.SOUTH);
         showPage(mainContainer, playerName.isEmpty() ? applyNickname : classicButton);
 
         // 서버 조회는 비동기로 진행하고 응답은 현재 화면에만 표시
         if (!playerName.isEmpty()) {
-            ScoreManager.loadBestScore(playerName, result -> {
-                // 닉네임 변경·화면 이동·게임 시작 후 도착한 이전 응답은 반영하지 않음
-                if (!isDisplayable() || getContentPane() != mainContainer)
-                    return;
-                bestScore.setText(score(result.getValue()));
-                connectionStatus.setText(result.getMessage());
-                connectionStatus.setToolTipText(result.getDetail());
-                connectionStatus.setForeground(result.isSuccess() ? Style.ACCENT : Style.MUTED_TEXT);
-            });
+            int[] remaining = { scoreModes.length };
+            boolean[] failed = { false };
+            for (int i = 0; i < scoreModes.length; i++) {
+                ScoreMode mode = scoreModes[i];
+                JLabel valueLabel = values[i];
+                ScoreManager.loadBestScore(mode, playerName, result -> {
+                    // 닉네임 변경·화면 이동·게임 시작 후 도착한 이전 응답은 반영하지 않음
+                    if (!isDisplayable() || getContentPane() != mainContainer)
+                        return;
+                    valueLabel.setText(score(result.getValue()));
+                    remaining[0]--;
+                    // 두 기록을 모두 불러오면 한 줄로 안내하고, 조회 실패는 성공 응답으로 덮지 않음
+                    if (!result.isSuccess()) {
+                        failed[0] = true;
+                        connectionStatus.setText(result.getMessage());
+                        connectionStatus.setToolTipText(mode.getDisplayName() + ": " + result.getDetail());
+                        connectionStatus.setForeground(Style.PINK);
+                    } else if (remaining[0] == 0 && !failed[0]) {
+                        connectionStatus.setText("서버 기록을 불러왔습니다");
+                        connectionStatus.setToolTipText(null);
+                        connectionStatus.setForeground(Style.ACCENT);
+                    }
+                });
+            }
         }
     }
 
     private void showMultiplayerMenu() {
         JPanel container = createPage("멀티플레이", "한 컴퓨터에서 함께 플레이하거나 AI·온라인 상대와 점수 대결");
-        JPanel content = transparent(new GridBagLayout());
-        JButton twoPlayerButton = createModeButton("1PC 2인 게임", "한 컴퓨터에서 두 명이 함께 플레이", Style.ACCENT);
-        JButton aiButton = createModeButton("AI 대전", "5단계 난이도 · 같은 블록 · 시간 제한 없음", Style.ACCENT);
-        JButton networkButton = createModeButton("네트워크 대전", "방 코드로 참가 · 같은 블록 · 1:1 점수 대결", Style.ACCENT);
+        JPanel content = transparent(new BorderLayout(0, 14));
+        JPanel modeSection = transparent(new BorderLayout(0, 10));
+        modeSection.add(label("대전 모드", Style.TEXT, Style.BUTTON_FONT), BorderLayout.NORTH);
+        JPanel modes = transparent(new GridLayout(1, 3, 14, 0));
+        ModeCard twoPlayerButton = new ModeCard("1PC 2인 게임",
+                new String[] { "한 컴퓨터에서 나란히 플레이", "두 사람이 함께하는 로컬 대전" },
+                "2인 게임 시작", "준비 중", Style.PANEL, Style.TEXT, Style.ACCENT, 0);
+        ModeCard aiButton = new ModeCard("AI 대전",
+                new String[] { "나에게 맞는 상대와 실력 겨루기", "5단계 난이도 · 같은 블록 순서" },
+                "난이도 선택", "준비 중", Style.PANEL, Style.TEXT, Style.GREEN, 1);
+        ModeCard networkButton = new ModeCard("네트워크 대전",
+                new String[] { "방 코드를 공유하고 친구 초대", "같은 블록 순서 · 1:1 점수 대결" },
+                "대기방 열기", "준비 중", Style.PANEL, Style.TEXT, Style.PINK, 2);
         // 구현된 대전 모드는 각각의 게임 화면으로 연결
         twoPlayerButton.addActionListener(e -> {
             TwoPlayerTetris game = new TwoPlayerTetris();
@@ -201,37 +245,43 @@ public class Main extends JFrame {
             game.setVisible(true);
             dispose();
         });
-        GridBagConstraints row = new GridBagConstraints();
-        row.gridx = 0;
-        row.weightx = 1;
-        row.fill = GridBagConstraints.HORIZONTAL;
-        row.insets = new java.awt.Insets(0, 0, 10, 0);
-        JButton[] buttons = { twoPlayerButton, aiButton, networkButton };
-        for (int i = 0; i < buttons.length; i++) {
-            row.gridy = i;
-            content.add(buttons[i], row);
-        }
-        row.gridy = 3;
-        row.insets = new java.awt.Insets(10, 0, 0, 0);
-        content.add(label("2인 게임을 시작하거나 AI 대전의 난이도를 선택하세요.", Style.MUTED_TEXT, Style.BODY_FONT), row);
-        row.gridy = 4;
-        row.weighty = 1;
-        row.fill = GridBagConstraints.BOTH;
-        content.add(transparent(new BorderLayout()), row);
+        modes.add(twoPlayerButton);
+        modes.add(aiButton);
+        modes.add(networkButton);
+        modeSection.add(modes, BorderLayout.CENTER);
+        content.add(modeSection, BorderLayout.CENTER);
+        content.add(label("함께할 상대와 플레이 방식을 선택하세요.", Style.MUTED_TEXT, Style.SMALL_FONT), BorderLayout.SOUTH);
         container.add(content, BorderLayout.CENTER);
         showSubmenu(container);
     }
 
     // 서버의 전체 랭킹을 한 페이지에 5명씩 표시
     private void showRankingMenu() {
-        showRankingMenu(0);
+        showRankingMenu(ScoreMode.CLASSIC, 0);
     }
 
     // 나중에 랭킹 검색이나 정렬 조건이 늘어나면 별도 화면 클래스로 나눠도 괜찮을 것 같음
-    private void showRankingMenu(int pageIndex) {
-        JPanel container = createPage("전체 랭킹", "닉네임별 클래식 최고 점수");
+    private void showRankingMenu(ScoreMode mode, int pageIndex) {
+        JPanel container = createPage("전체 랭킹", "닉네임별 " + mode.getDisplayName() + " 최고 점수");
         JPanel content = transparent(new BorderLayout(0, 12));
         JLabel status = label("서버 랭킹을 불러오는 중입니다.", Style.MUTED_TEXT, Style.BODY_FONT);
+        JPanel rankingHeader = transparent(new BorderLayout(0, 10));
+        JPanel modeTabs = transparent(new GridLayout(1, 2, 10, 0));
+        ButtonGroup modeGroup = new ButtonGroup();
+        for (ScoreMode tabMode : ScoreMode.values()) {
+            JToggleButton tab = new JToggleButton(tabMode.getDisplayName());
+            Style.applyButtonStyle(tab, Style.ACCENT, Style.PANEL);
+            tab.setSelected(tabMode == mode);
+            tab.getAccessibleContext().setAccessibleName(tabMode.getDisplayName() + " 랭킹");
+            tab.addActionListener(e -> {
+                if (tabMode != mode)
+                    showRankingMenu(tabMode, 0);
+            });
+            modeGroup.add(tab);
+            modeTabs.add(tab);
+        }
+        rankingHeader.add(modeTabs, BorderLayout.NORTH);
+        rankingHeader.add(status, BorderLayout.SOUTH);
         JPanel table = Style.framedPanel(new BorderLayout(0, 0), Style.PANEL);
         table.setBorder(BorderFactory.createEmptyBorder(16, 18, 12, 18));
         JPanel headings = rankingColumns("순위", "닉네임", "최고 점수");
@@ -267,21 +317,21 @@ public class Main extends JFrame {
         previous.setEnabled(pageIndex > 0);
         next.setEnabled(false);
         refresh.setEnabled(false);
-        previous.addActionListener(e -> showRankingMenu(pageIndex - 1));
-        next.addActionListener(e -> showRankingMenu(pageIndex + 1));
-        refresh.addActionListener(e -> showRankingMenu(pageIndex));
+        previous.addActionListener(e -> showRankingMenu(mode, pageIndex - 1));
+        next.addActionListener(e -> showRankingMenu(mode, pageIndex + 1));
+        refresh.addActionListener(e -> showRankingMenu(mode, pageIndex));
         paging.add(previous);
         paging.add(pageLabel);
         paging.add(next);
         navigation.add(paging, BorderLayout.CENTER);
         navigation.add(refresh, BorderLayout.EAST);
-        content.add(status, BorderLayout.NORTH);
+        content.add(rankingHeader, BorderLayout.NORTH);
         content.add(table, BorderLayout.CENTER);
         content.add(navigation, BorderLayout.SOUTH);
         container.add(content, BorderLayout.CENTER);
         showSubmenu(container);
 
-        ScoreManager.loadRanking(pageIndex * RANKING_PAGE_SIZE, RANKING_PAGE_SIZE, result -> {
+        ScoreManager.loadRanking(mode, pageIndex * RANKING_PAGE_SIZE, RANKING_PAGE_SIZE, result -> {
             // 다른 메뉴로 이동한 뒤 받은 응답은 이전 화면에만 해당하므로 무시
             if (!isDisplayable() || getContentPane() != container)
                 return;
@@ -298,10 +348,10 @@ public class Main extends JFrame {
             RankingPage page = result.getValue();
             // 조회 사이에 인원이 줄어 현재 페이지가 비면 마지막 유효 페이지로 이동
             if (pageIndex > 0 && page.getEntries().isEmpty()) {
-                showRankingMenu(Math.max(0, (page.getTotalPlayers() - 1) / RANKING_PAGE_SIZE));
+                showRankingMenu(mode, Math.max(0, (page.getTotalPlayers() - 1) / RANKING_PAGE_SIZE));
                 return;
             }
-            status.setText("전체 " + page.getTotalPlayers() + "명 · 클래식 모드 최고 점수");
+            status.setText("전체 " + page.getTotalPlayers() + "명 · " + mode.getDisplayName() + " 모드 최고 점수");
             pageLabel.setText((pageIndex + 1) + " / " + Math.max(1,
                     (page.getTotalPlayers() + RANKING_PAGE_SIZE - 1) / RANKING_PAGE_SIZE));
             next.setEnabled((pageIndex + 1) * RANKING_PAGE_SIZE < page.getTotalPlayers());
@@ -335,222 +385,44 @@ public class Main extends JFrame {
     }
 
     private void showSettingsMenu() {
-        JPanel container = createPage("게임 설정", "게임 화면 크기를 선택하세요");
-        JPanel content = transparent(new GridBagLayout());
-        JPanel resolutionPanel = transparent(new GridLayout(1, 3, 10, 0));
-        resolutionPanel.setPreferredSize(new Dimension(0, 64));
-        // 한 번에 한 크기만 선택하고 선택 문구를 함께 표시
-        ButtonGroup resolutionGroup = new ButtonGroup();
-        Resolution[] order = { Resolution.SMALL, Resolution.MEDIUM, Resolution.LARGE };
-        JToggleButton[] buttons = new JToggleButton[order.length];
-        JLabel selectedDescription = label("", Style.ACCENT, Style.BODY_FONT);
-        Runnable updateSelection = () -> {
-            Resolution current = GameSettings.getResolution();
-            for (int i = 0; i < buttons.length; i++) {
-                if (buttons[i] != null) {
-                    boolean selected = order[i] == current;
-                    buttons[i].setText(resolutionText(order[i], selected));
-                    buttons[i].getAccessibleContext().setAccessibleDescription(
-                            "블록 " + order[i].getCellSize() + "픽셀. " + (selected ? "현재 선택됨" : "선택하려면 누르세요"));
-                }
-            }
-            selectedDescription.setText("현재 선택: " + current + " · 다음 게임부터 적용됩니다.");
-        };
-        for (int i = 0; i < order.length; i++) {
-            Resolution resolution = order[i];
-            JToggleButton button = new JToggleButton();
-            Style.applyButtonStyle(button, Style.ACCENT, Style.PANEL);
-            button.setHorizontalAlignment(SwingConstants.CENTER);
-            button.getAccessibleContext().setAccessibleName(resolution.toString());
-            resolutionGroup.add(button);
-            button.setSelected(resolution == GameSettings.getResolution());
-            button.addActionListener(e -> {
-                // 선택값만 보관하며 이미 실행 중인 게임의 크기는 변경하지 않음
-                // 다음 클래식 시작 시 GameSettings의 선택값을 사용
-                GameSettings.setResolution(resolution);
-                updateSelection.run();
-            });
-            buttons[i] = button;
-            resolutionPanel.add(button);
-        }
-        updateSelection.run();
-        JPanel resolutionSection = transparent(new BorderLayout(0, 12));
-        resolutionSection.add(label("화면 크기", Style.TEXT, Style.BUTTON_FONT), BorderLayout.NORTH);
-        resolutionSection.add(resolutionPanel, BorderLayout.CENTER);
-        resolutionSection.add(selectedDescription, BorderLayout.SOUTH);
-
-        // 음소거 설정 버튼
-        JToggleButton muteButton = new JToggleButton();
-        Style.applyButtonStyle(muteButton, Style.ACCENT, Style.PANEL);
-
-        muteButton.setSelected(SoundManager.isMuted());
-        muteButton.setText(SoundManager.isMuted() ? "음소거 ON" : "음소거 OFF");
-
-        muteButton.addActionListener(e -> {
-            SoundManager.setMuted(muteButton.isSelected());
-            muteButton.setText(muteButton.isSelected() ? "음소거 ON" : "음소거 OFF");
-        });
-        // 소리 설정 영역 생성
-        JPanel soundSection = transparent(new BorderLayout(0, 12));
-        soundSection.add(label("소리", Style.TEXT, Style.BUTTON_FONT), BorderLayout.NORTH);
-        soundSection.add(muteButton, BorderLayout.CENTER);
-
-        // 키 설정 영역 생성
-        JPanel keyPanel = transparent(new GridLayout(4, 4, 10, 6));
-
-        keyPanel.add(label("왼쪽 이동", Style.TEXT, Style.BODY_FONT));
-        keyPanel.add(createKeySettingButton("LEFT", GameSettings.getLeftKey()));
-
-        keyPanel.add(label("오른쪽 이동", Style.TEXT, Style.BODY_FONT));
-        keyPanel.add(createKeySettingButton("RIGHT", GameSettings.getRightKey()));
-
-        keyPanel.add(label("왼쪽 회전", Style.TEXT, Style.BODY_FONT));
-        keyPanel.add(createKeySettingButton("ROTATE_LEFT", GameSettings.getRotateLeftKey()));
-
-        keyPanel.add(label("오른쪽 회전", Style.TEXT, Style.BODY_FONT));
-        keyPanel.add(createKeySettingButton("ROTATE_RIGHT", GameSettings.getRotateRightKey()));
-
-        keyPanel.add(label("한 칸 하강", Style.TEXT, Style.BODY_FONT));
-        keyPanel.add(createKeySettingButton("SOFT_DROP", GameSettings.getSoftDropKey()));
-
-        keyPanel.add(label("즉시 낙하", Style.TEXT, Style.BODY_FONT));
-        keyPanel.add(createKeySettingButton("HARD_DROP", GameSettings.getHardDropKey()));
-
-        keyPanel.add(label("일시정지", Style.TEXT, Style.BODY_FONT));
-        keyPanel.add(createKeySettingButton("PAUSE", GameSettings.getPauseKey()));
-
-        // 마지막 한 칸 비우기
-        keyPanel.add(new JLabel());
-        keyPanel.add(new JLabel());
-
-        JPanel keySection = transparent(new BorderLayout(0, 12));
-        keySection.add(label("키 설정", Style.TEXT, Style.BUTTON_FONT), BorderLayout.NORTH);
-        keySection.add(keyPanel, BorderLayout.CENTER);
-
-        // 설정과 조작 안내는 필요한 높이만 사용하고 남은 공간은 아래 여백으로 유지
-        GridBagConstraints section = new GridBagConstraints();
-        section.gridx = 0;
-        section.gridy = 0;
-        section.weightx = 1;
-        section.fill = GridBagConstraints.HORIZONTAL;
-        content.add(resolutionSection, section);
-        section.gridy = 1;
-        section.insets = new java.awt.Insets(20, 0, 0, 0);
-        content.add(soundSection, section);
-        section.gridy = 2;
-        content.add(keySection, section);
-        section.gridy = 3;
-        section.insets = new java.awt.Insets(20, 0, 0, 0);
-        content.add(infoPanel("조작 방법", "<html>← → 이동　　↑ ↓ 회전<br><br>D 한 칸 하강　　SPACE 즉시 낙하<br><br>P 일시정지 / 재개</html>"), section);
-        section.gridy = 4;
-        section.weighty = 1;
-        section.fill = GridBagConstraints.BOTH;
-        content.add(transparent(new BorderLayout()), section);
-        // 설정 항목이 화면보다 길면 휠로 스크롤
-        JScrollPane scrollPane = new JScrollPane(content);
-        scrollPane.setBorder(null);
-        scrollPane.setOpaque(false);
-        scrollPane.getViewport().setOpaque(false);
-        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
-
-        // 설정 화면 스크롤바를 얇고 단순하게 표시
-        scrollPane.getVerticalScrollBar().setPreferredSize(new Dimension(8, 0));
-        scrollPane.getVerticalScrollBar().setUI(new BasicScrollBarUI() {
-            @Override
-            protected void configureScrollBarColors() {
-                thumbColor = Style.BORDER;
-                trackColor = Style.BACKGROUND;
-            }
-
-            @Override
-            protected JButton createDecreaseButton(int orientation) {
-                return zeroButton();
-            }
-
-            @Override
-            protected JButton createIncreaseButton(int orientation) {
-                return zeroButton();
-            }
-
-            private JButton zeroButton() {
-                JButton button = new JButton();
-                button.setPreferredSize(new Dimension(0, 0));
-                return button;
-            }
-        });
-
-        container.add(scrollPane, BorderLayout.CENTER);
-        showSubmenu(container);
+        JPanel container = createPage("게임 설정", "나에게 맞는 화면, 사운드, 조작키");
+        ((BorderLayout) container.getLayout()).setVgap(16);
+        container.add(new frontend.ui.SettingsPanel(), BorderLayout.CENTER);
         showSubmenu(container);
     }
 
-    // 키 설정 버튼 생성
-    private JButton createKeySettingButton(String action, int currentKey) {
-        JButton button = createButton(KeyEvent.getKeyText(currentKey));
-        button.setPreferredSize(new Dimension(180, 32));
-
-        button.addActionListener(e -> {
-            button.setText("키를 누르세요...");
-            button.requestFocusInWindow();
-        });
-
-        button.addKeyListener(new KeyAdapter() {
-            @Override
-            public void keyPressed(KeyEvent e) {
-                applyKeySetting(action, e.getKeyCode());
-                button.setText(KeyEvent.getKeyText(e.getKeyCode()));
-            }
-        });
-
-        return button;
-    }
-
-    // 선택한 동작의 키 변경
-    private void applyKeySetting(String action, int keyCode) {
-        switch (action) {
-            case "LEFT":
-                GameSettings.setLeftKey(keyCode);
-                break;
-            case "RIGHT":
-                GameSettings.setRightKey(keyCode);
-                break;
-            case "ROTATE_LEFT":
-                GameSettings.setRotateLeftKey(keyCode);
-                break;
-            case "ROTATE_RIGHT":
-                GameSettings.setRotateRightKey(keyCode);
-                break;
-            case "SOFT_DROP":
-                GameSettings.setSoftDropKey(keyCode);
-                break;
-            case "HARD_DROP":
-                GameSettings.setHardDropKey(keyCode);
-                break;
-            case "PAUSE":
-                GameSettings.setPauseKey(keyCode);
-                break;
-        }
-    }
-
-    private String resolutionText(Resolution resolution, boolean selected) {
-        return "<html><div style='text-align:center'><b>" + resolution + "</b>"
-                + "<br><span style='font-size:10pt;font-weight:normal'>" + resolution.getCellSize() + " px"
-                + (selected ? " · 선택됨" : "") + "</span></div></html>";
+    private void showGuide() {
+        JPanel container = createPage("플레이 가이드", "쌓고, 채우고, 지우세요. 다음 블록을 보면 한 수 앞설 수 있습니다.");
+        JPanel content = transparent(new GridLayout(0, 1, 0, 12));
+        content.add(infoPanel("01  기본 플레이", "<html>가로 한 줄을 빈틈없이 채우면 줄이 사라집니다. 블록이 꼭대기까지 쌓이면 게임이 끝납니다.<br>착지 위치를 보여 주는 고스트와 다음 블록을 활용해 보세요.</html>"));
+        content.add(infoPanel("02  점수와 콤보", "<html>한 번에 1 / 2 / 3 / 4줄을 지우면 10 / 25 / 40 / 60점입니다.<br>연속해서 줄을 지우면 콤보 보너스를 얻습니다. 점수가 오르면 블록이 더 빨리 내려옵니다.</html>"));
+        content.add(infoPanel("03  아이템과 대전", "<html>아이템 칸을 지우면 줄·열 제거, 폭탄, 점수 업 등 다양한 효과가 발동합니다.<br>멀티플레이에서 한 컴퓨터의 2인 플레이, 5단계 AI, 방 코드로 만나는 온라인 대전을 선택하세요.</html>"));
+        content.add(infoPanel("현재 조작키", "<html>" + GameSettings.controlsSummary() + "<br><br>싱글플레이는 창을 벗어나면 일시정지됩니다. 온라인 대전은 계속 진행됩니다.<br>조작키는 게임 설정에서 바꿀 수 있습니다.</html>"));
+        JScrollPane scroll = new JScrollPane(content);
+        Style.applyScrollStyle(scroll);
+        container.add(scroll, BorderLayout.CENTER);
+        showSubmenu(container);
     }
 
     // 메인은 큰 제목과 전체 폭 프로필을 사용하고 하위 화면의 이동 메뉴와 구분
     private JPanel createHomePage() {
         JPanel container = Style.createBackground(new BorderLayout(0, 18));
         container.setBorder(BorderFactory.createEmptyBorder(28, 34, 22, 34));
-        JPanel header = transparent(new BorderLayout(0, 14));
-        JLabel logo = new JLabel(new PixelLogo(8));
-        logo.setHorizontalAlignment(SwingConstants.CENTER);
+        JPanel header = transparent(new BorderLayout(24, 10));
+        JLabel logo = new JLabel(new PixelLogo(7));
+        logo.setHorizontalAlignment(SwingConstants.LEFT);
         logo.getAccessibleContext().setAccessibleName("TETRIS");
         logo.getAccessibleContext().setAccessibleDescription("테트리스 메인 메뉴");
-        header.add(logo, BorderLayout.CENTER);
-        JLabel description = label("클래식 게임 · 최고 점수 기록", Style.MUTED_TEXT, Style.BODY_FONT);
-        description.setHorizontalAlignment(SwingConstants.CENTER);
-        header.add(description, BorderLayout.SOUTH);
+        header.add(logo, BorderLayout.WEST);
+        JPanel headline = transparent(new BorderLayout(0, 5));
+        JLabel tagline = label("한 줄 더, 한 판 더.", Style.TEXT, Style.TITLE_FONT.deriveFont(28f));
+        tagline.setHorizontalAlignment(SwingConstants.RIGHT);
+        JLabel description = label("오늘의 플레이가 새로운 최고 기록으로", Style.MUTED_TEXT, Style.BODY_FONT);
+        description.setHorizontalAlignment(SwingConstants.RIGHT);
+        headline.add(tagline, BorderLayout.NORTH);
+        headline.add(description, BorderLayout.SOUTH);
+        header.add(headline, BorderLayout.CENTER);
+        header.setBorder(BorderFactory.createEmptyBorder(8, 0, 12, 0));
         container.add(header, BorderLayout.NORTH);
         return container;
     }
@@ -674,23 +546,6 @@ public class Main extends JFrame {
         return NumberFormat.getIntegerInstance().format(value);
     }
 
-    // 모드 이름과 상태 한 줄만 표시하고 키보드·마우스 처리는 공통 버튼 스타일 사용
-    private JButton createModeButton(String title, String description, Color accent) {
-        JButton button = new JButton(modeButtonText(title, description, Style.TEXT));
-        Style.applyButtonStyle(button, accent, Style.PANEL);
-        button.setHorizontalAlignment(SwingConstants.LEFT);
-        button.setPreferredSize(new Dimension(0, 74));
-        button.getAccessibleContext().setAccessibleName(title);
-        button.getAccessibleContext().setAccessibleDescription(description);
-        return button;
-    }
-
-    private String modeButtonText(String title, String description, Color color) {
-        String hex = String.format("#%02x%02x%02x", color.getRed(), color.getGreen(), color.getBlue());
-        return "<html><font color='" + hex + "'><b style='font-size:14pt'>" + title + "</b>"
-                + "<br><span style='font-size:10pt;font-weight:normal'>" + description + "</span></font></html>";
-    }
-
     // 보조 이동은 배경 없는 텍스트 버튼으로 표시하고 동작 이름은 접근성 정보에 별도 보관
     private JButton createTextButton(String text, String accessibleName) {
         JButton button = createButton(text);
@@ -715,7 +570,14 @@ public class Main extends JFrame {
         backButton.setPreferredSize(new Dimension(146, 44));
         backButton.addActionListener(e -> showMainMenu());
         footer.add(backButton, BorderLayout.WEST);
+        JLabel hint = label("ESC  메인 메뉴", Style.MUTED_TEXT, Style.SMALL_FONT);
+        footer.add(hint, BorderLayout.EAST);
         container.add(footer, BorderLayout.SOUTH);
+        container.getInputMap(javax.swing.JComponent.WHEN_IN_FOCUSED_WINDOW)
+                .put(javax.swing.KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "menu-back");
+        container.getActionMap().put("menu-back", new javax.swing.AbstractAction() {
+            @Override public void actionPerformed(java.awt.event.ActionEvent event) { showMainMenu(); }
+        });
         showPage(container, backButton);
     }
 

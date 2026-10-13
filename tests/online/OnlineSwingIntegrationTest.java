@@ -24,6 +24,9 @@ import javax.imageio.ImageIO;
 import javax.swing.AbstractButton;
 import javax.swing.Action;
 import javax.swing.JButton;
+import javax.swing.JOptionPane;
+import javax.swing.Timer;
+import javax.swing.JDialog;
 import javax.swing.JComponent;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
@@ -60,7 +63,7 @@ public final class OnlineSwingIntegrationTest {
             edt(() -> {
                 first.setLocation(25, 40);
                 text(first, "nicknameField").setText("첫번째");
-                ((JButton) field(first, "createButton")).doClick();
+                text(first, "nicknameField").postActionEvent();
                 return null;
             });
             await(() -> edt(() -> latest(first) != null), 4000);
@@ -71,7 +74,7 @@ public final class OnlineSwingIntegrationTest {
                 window.setVisible(true);
                 text(window, "nicknameField").setText("두번째");
                 text(window, "codeField").setText(code);
-                ((JButton) field(window, "joinButton")).doClick();
+                text(window, "codeField").postActionEvent();
                 return window;
             });
             await(() -> edt(() -> latest(second) != null && !latest(first).getPlayer(1).getNickname().isEmpty()), 4000);
@@ -101,7 +104,11 @@ public final class OnlineSwingIntegrationTest {
             Thread.sleep(100); // 운영체제 크기 변경 이벤트가 새 레이아웃에 반영된 뒤 캡처
             save(first, temporary.resolve("04-small-window.png"));
             require(edt(() -> button(first, "방 나가기").isShowing()), "작은 창에서도 방 나가기 표시");
-            edt(() -> { button(first, "방 나가기").doClick(); return null; });
+            // 먼저 이탈을 취소하면 연결과 진행 중 경기를 유지해야 합니다.
+            edt(() -> { answerLeaveDialog(JOptionPane.NO_OPTION); button(first, "방 나가기").doClick(); return null; });
+            require(edt(() -> field(first, "session") != null && "PLAYING".equals(latest(first).getPhase())),
+                    "경기 이탈 취소 후 연결 유지");
+            edt(() -> { answerLeaveDialog(JOptionPane.YES_OPTION); button(first, "방 나가기").doClick(); return null; });
             await(() -> edt(() -> latest(second).isFinished()), 3000);
             require(edt(() -> latest(second).getWinner() == 1), "실제 방 나가기 후 상대 승리");
             require(edt(() -> field(first, "session") == null && field(first, "latest") == null), "이탈 후 폼과 세션 정리");
@@ -121,6 +128,32 @@ public final class OnlineSwingIntegrationTest {
             server.destroy();
             if (!server.waitFor(3, TimeUnit.SECONDS)) server.destroyForcibly();
         }
+    }
+
+    private static void answerLeaveDialog(int answer) {
+        Timer timer = new Timer(60, null);
+        timer.addActionListener(event -> {
+            for (Window window : Window.getWindows()) {
+                if (!(window instanceof JDialog) || !window.isShowing()) continue;
+                JOptionPane pane = findOptionPane((Container) window);
+                if (pane == null) continue;
+                pane.setValue(answer);
+                timer.stop();
+                return;
+            }
+        });
+        timer.start();
+    }
+
+    private static JOptionPane findOptionPane(Container parent) {
+        for (Component child : parent.getComponents()) {
+            if (child instanceof JOptionPane) return (JOptionPane) child;
+            if (child instanceof Container) {
+                JOptionPane found = findOptionPane((Container) child);
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
 
     private static void key(OnlineMatchWindow window, int keyCode) throws Exception {

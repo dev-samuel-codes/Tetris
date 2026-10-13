@@ -26,6 +26,7 @@ import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
@@ -71,6 +72,7 @@ public final class AiMatchWindow extends JFrame {
     private JLabel detailLabel;
     private JButton pauseButton;
     private JButton errorButton;
+    private JButton retryButton;
     private Throwable lastFailure;
     private BoardView humanView;
     private BoardView aiView;
@@ -78,7 +80,12 @@ public final class AiMatchWindow extends JFrame {
     public AiMatchWindow(Resolution resolution) {
         this.resolution = resolution == null ? Resolution.MEDIUM : resolution;
         setTitle("Tetris · AI 대전");
-        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+        setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
+        addWindowListener(new WindowAdapter() {
+            @Override public void windowClosing(WindowEvent event) {
+                if (confirmLeaving()) dispose();
+            }
+        });
         setResizable(true);
         addWindowFocusListener(new WindowAdapter() {
             @Override
@@ -92,7 +99,7 @@ public final class AiMatchWindow extends JFrame {
         showDifficultySelection();
         pack();
         fitOnScreen();
-        setMinimumSize(new Dimension(Math.min(620, getWidth()), Math.min(520, getHeight())));
+        setMinimumSize(new Dimension(Math.min(620, getWidth()), Math.min(560, getHeight())));
         setLocationRelativeTo(null);
     }
 
@@ -105,39 +112,51 @@ public final class AiMatchWindow extends JFrame {
         JPanel root = page();
         root.add(header("AI 대전"), BorderLayout.NORTH);
         JPanel content = transparent(new GridBagLayout());
+        JPanel card = Style.framedPanel(new GridBagLayout(), Style.PANEL);
+        card.setBorder(BorderFactory.createEmptyBorder(18, 22, 18, 22));
         GridBagConstraints row = new GridBagConstraints();
         row.gridx = 0;
         row.weightx = 1;
         row.fill = GridBagConstraints.HORIZONTAL;
-        row.insets = new Insets(0, 0, 4, 0);
+        row.insets = new Insets(0, 0, 6, 0);
         JPanel introduction = transparent(new BorderLayout(0, 6));
-        introduction.add(label("상대의 난이도를 선택하세요", Style.TEXT, Style.TITLE_FONT), BorderLayout.NORTH);
-        introduction.add(label("같은 블록 순서 · 사용자 맞춤 속도 · 시간 제한 없음", Style.MUTED_TEXT, Style.BODY_FONT), BorderLayout.CENTER);
-        // 최소 창에서도 다섯 난이도 버튼이 모두 보이도록 소개 영역 여백 조절
-        introduction.setBorder(BorderFactory.createEmptyBorder(4, 0, 8, 0));
+        introduction.add(label("상대의 난이도를 선택하세요", Style.TEXT, Style.ROOM_TITLE_FONT), BorderLayout.NORTH);
+        introduction.add(label("같은 블록 순서 · 시간 제한 없이 점수 대결", Style.MUTED_TEXT, Style.BODY_FONT), BorderLayout.CENTER);
+        introduction.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
         row.gridy = 0;
-        content.add(introduction, row);
+        card.add(introduction, row);
         int index = 1;
+        JButton defaultChoice = null;
         for (final AiDifficulty option : AiDifficulty.values()) {
             JButton choose = button(option.getLabel());
             choose.setFocusable(true);
-            choose.setPreferredSize(new Dimension(480, 48));
+            choose.setPreferredSize(new Dimension(430, 42));
             choose.addActionListener(event -> startMatch(option));
+            if (option == AiDifficulty.NORMAL) {
+                choose.putClientProperty("primary", true);
+                defaultChoice = choose;
+            }
             row.gridy = index++;
-            content.add(choose, row);
+            card.add(choose, row);
         }
-        row.gridy = index;
-        row.weighty = 1;
-        row.fill = GridBagConstraints.BOTH;
-        content.add(transparent(new BorderLayout()), row);
+        GridBagConstraints placement = new GridBagConstraints();
+        content.add(card, placement);
         root.add(content, BorderLayout.CENTER);
         JButton menu = button("← 메뉴로 돌아가기");
+        menu.setFocusable(true);
+        menu.putClientProperty("textButton", true);
         menu.addActionListener(event -> returnToMenu());
         JPanel footer = transparent(new BorderLayout());
-        footer.add(menu, BorderLayout.WEST);
+        footer.add(menu, BorderLayout.EAST);
+        footer.add(label("Enter 선택 · Tab 이동 · Esc 메뉴", Style.MUTED_TEXT, Style.SMALL_FONT), BorderLayout.WEST);
         root.add(footer, BorderLayout.SOUTH);
-        root.setPreferredSize(new Dimension(760, 690));
+        root.setPreferredSize(new Dimension(760, 650));
+        setMinimumSize(new Dimension(620, 560));
+        bindEscape(root, this::returnToMenu, pressedKeys);
         installContent(root);
+        getRootPane().setDefaultButton(defaultChoice);
+        final JButton focusChoice = defaultChoice;
+        SwingUtilities.invokeLater(() -> focusChoice.requestFocusInWindow());
     }
 
     private void startMatch(AiDifficulty selected) {
@@ -226,26 +245,28 @@ public final class AiMatchWindow extends JFrame {
         detailLabel.setHorizontalAlignment(SwingConstants.CENTER);
         JPanel instructions = transparent(new BorderLayout(0, 5));
         instructions.add(detailLabel, BorderLayout.NORTH);
-        JLabel keys = label("← → 이동　 ↑ ↓ 회전　 SPACE 즉시 낙하　 D 하강　 P 일시정지", Style.MUTED_TEXT, Style.SMALL_FONT);
+        JLabel keys = label(controlsText(), Style.MUTED_TEXT, Style.SMALL_FONT);
         keys.setHorizontalAlignment(SwingConstants.CENTER);
         instructions.add(keys, BorderLayout.CENTER);
-        errorButton = button("오류 안내");
+        errorButton = button("설치 및 오류 안내");
+        errorButton.setFocusable(true);
         errorButton.setVisible(false);
         errorButton.addActionListener(event -> showFailureDetails());
         instructions.add(errorButton, BorderLayout.SOUTH);
         footer.add(instructions, BorderLayout.NORTH);
         JPanel actions = transparent(new GridLayout(1, 4, 10, 0));
         pauseButton = button("일시정지");
+        pauseButton.putClientProperty("primary", true);
         pauseButton.setEnabled(false);
         pauseButton.addActionListener(event -> togglePause());
-        JButton retry = button("다시 시작");
-        retry.addActionListener(event -> startMatch(matchDifficulty));
+        retryButton = button("다시 시작");
+        retryButton.addActionListener(event -> { if (confirmLeaving()) startMatch(matchDifficulty); });
         JButton choose = button("난이도 변경");
-        choose.addActionListener(event -> showDifficultySelection());
+        choose.addActionListener(event -> { if (confirmLeaving()) showDifficultySelection(); });
         JButton menu = button("메뉴");
         menu.addActionListener(event -> returnToMenu());
         actions.add(pauseButton);
-        actions.add(retry);
+        actions.add(retryButton);
         actions.add(choose);
         actions.add(menu);
         footer.add(actions, BorderLayout.CENTER);
@@ -254,8 +275,14 @@ public final class AiMatchWindow extends JFrame {
                 BOARD_HEIGHT * resolution.getCellSize() + 240));
         installContent(root);
         // 경기 화면은 선택 화면보다 높이를 확보해 보드가 지나치게 작아지지 않도록 제한
-        setMinimumSize(new Dimension(620, Math.min(720, Toolkit.getDefaultToolkit().getScreenSize().height - 96)));
+        setMinimumSize(new Dimension(620, Math.min(600, Toolkit.getDefaultToolkit().getScreenSize().height - 96)));
+        getRootPane().setDefaultButton(null);
         bindKeys(root);
+        bindEscape(root, () -> {
+            Session current = session;
+            if (current != null && current.playing) togglePause();
+            else if (confirmLeaving()) showDifficultySelection();
+        }, pressedKeys);
     }
 
     private Runnable requestFrame(Session current) throws IOException {
@@ -328,7 +355,11 @@ public final class AiMatchWindow extends JFrame {
             statusLabel.setText(latestFrame == null ? "준비 실패" : "경기 중단");
             resultLabel.setText(latestFrame == null ? "AI 대전을 시작하지 못했습니다" : "경기를 계속 진행할 수 없습니다");
             resultLabel.setForeground(Style.PINK);
-            detailLabel.setText("오류 안내를 확인한 뒤 다시 시작해 주세요.");
+            detailLabel.setText("다시 시도하거나 설치 및 오류 안내를 확인해 주세요.");
+            retryButton.setText("다시 시도");
+            retryButton.putClientProperty("primary", true);
+            retryButton.setFocusable(true);
+            getRootPane().setDefaultButton(retryButton);
             pauseButton.setEnabled(false);
             errorButton.setVisible(true);
             getContentPane().revalidate();
@@ -344,6 +375,9 @@ public final class AiMatchWindow extends JFrame {
         JTextArea details = new JTextArea(instructions, 11, 48);
         details.setFont(Style.BODY_FONT);
         details.setEditable(false);
+        details.setBackground(Style.PANEL);
+        details.setForeground(Style.TEXT);
+        details.setBorder(BorderFactory.createEmptyBorder(14, 14, 14, 14));
         details.setLineWrap(true);
         details.setWrapStyleWord(true);
         details.setCaretPosition(0);
@@ -462,6 +496,7 @@ public final class AiMatchWindow extends JFrame {
     private void returnToMenu() {
         if (disposed)
             return;
+        if (!confirmLeaving()) return;
         Main menu = new Main();
         menu.setLocationRelativeTo(this);
         dispose();
@@ -522,8 +557,56 @@ public final class AiMatchWindow extends JFrame {
     private static JButton button(String text) {
         JButton button = new JButton(text);
         Style.applyButtonStyle(button, Style.ACCENT, Style.PANEL);
+        button.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "activate");
+        button.getActionMap().put("activate", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent event) { button.doClick(); }
+        });
         button.setFocusable(false);
         return button;
+    }
+
+    private boolean confirmLeaving() {
+        Session current = session;
+        if (current == null || !current.playing || latestFrame == null || latestFrame.isEnded())
+            return true;
+        boolean previouslyPaused = current.paused;
+        setPaused(true);
+        int answer = JOptionPane.showConfirmDialog(this, "진행 중인 경기를 끝내시겠습니까?",
+                "진행 중인 경기", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (answer != JOptionPane.YES_OPTION && !previouslyPaused)
+            setPaused(false);
+        return answer == JOptionPane.YES_OPTION;
+    }
+
+    private static void bindEscape(JComponent root, Runnable action, Set<String> pressedKeys) {
+        root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "escape");
+        root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true), "release-escape");
+        root.getActionMap().put("escape", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent event) {
+                if (!pressedKeys.add("ESCAPE"))
+                    return;
+                action.run();
+                // 일시정지에서 clearInput()을 호출해도 키를 놓기 전에는 반복 입력을 막음
+                pressedKeys.add("ESCAPE");
+            }
+        });
+        root.getActionMap().put("release-escape", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent event) { pressedKeys.remove("ESCAPE"); }
+        });
+    }
+
+    static String controlsText() {
+        return "<html><center>" + escapeHtml(GameSettings.keyName(GameSettings.getLeftKey())) + " / "
+                + escapeHtml(GameSettings.keyName(GameSettings.getRightKey())) + " 이동　"
+                + escapeHtml(GameSettings.keyName(GameSettings.getRotateLeftKey())) + " / "
+                + escapeHtml(GameSettings.keyName(GameSettings.getRotateRightKey())) + " 회전<br>"
+                + escapeHtml(GameSettings.keyName(GameSettings.getSoftDropKey())) + " 하강　"
+                + escapeHtml(GameSettings.keyName(GameSettings.getHardDropKey())) + " 즉시 낙하　"
+                + escapeHtml(GameSettings.keyName(GameSettings.getPauseKey())) + " 일시정지</center></html>";
+    }
+
+    private static String escapeHtml(String text) {
+        return text == null ? "" : text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
     static String formatElapsedTime(long elapsedTicks) {
