@@ -28,15 +28,15 @@ import javax.swing.plaf.basic.BasicGraphicsUtils;
 // 나중에 테마가 더 늘어나면 색상과 컴포넌트 그리기를 각각 나눠도 괜찮을 것 같음
 public final class Style {
     // 고전 게임 화면처럼 어두운 바탕과 따뜻한 글자색, 구분되는 블록 색상 사용
-    public static final Color BACKGROUND = new Color(0x14131C);
-    public static final Color PANEL = new Color(0x201F29);
-    public static final Color TEXT = new Color(0xE9E2C7);
-    public static final Color MUTED_TEXT = new Color(0xA09CA6);
-    public static final Color ACCENT = new Color(0xD6A65D);
-    public static final Color PINK = new Color(0xB97F91);
-    public static final Color GREEN = new Color(0x93AC7C);
+    public static final Color BACKGROUND = new Color(0x11141D);
+    public static final Color PANEL = new Color(0x1B202D);
+    public static final Color TEXT = new Color(0xF0EBD8);
+    public static final Color MUTED_TEXT = new Color(0xADB3C2);
+    public static final Color ACCENT = new Color(0xE7B765);
+    public static final Color PINK = new Color(0xE29AAE);
+    public static final Color GREEN = new Color(0x8ECBB1);
     public static final Color GOLD = new Color(0xC9B365);
-    public static final Color BORDER = new Color(0x45424F);
+    public static final Color BORDER = new Color(0x394253);
     public static final Color CLASSIC_BUTTON = PANEL;
     public static final Color ITEM_BUTTON = PANEL;
     public static final Color MULTIPLAYER_BUTTON = PANEL;
@@ -75,9 +75,21 @@ public final class Style {
         return Font.DIALOG; // 후보 글꼴이 없는 컴퓨터에서는 Java 기본 글꼴 사용
     }
 
-    // 메뉴와 게임 창에서 같이 쓰는 배경. 장식을 넣지 않고 게임과 메뉴에 집중
+    // 정적인 어두운 배경과 상단 강조선으로 화면 간 동일한 아케이드 표면 유지
     public static JPanel createBackground(LayoutManager layout) {
-        JPanel panel = new JPanel(layout);
+        JPanel panel = new JPanel(layout) {
+            @Override protected void paintComponent(Graphics graphics) {
+                super.paintComponent(graphics);
+                Graphics2D g = (Graphics2D) graphics.create();
+                try {
+                    g.setPaint(new java.awt.GradientPaint(0, 0, new Color(0x1A2030),
+                            getWidth(), getHeight(), BACKGROUND));
+                    g.fillRect(0, 0, getWidth(), getHeight());
+                    g.setColor(new Color(231, 183, 101, 100));
+                    g.fillRect(0, 0, getWidth(), 2);
+                } finally { g.dispose(); }
+            }
+        };
         panel.setBackground(BACKGROUND);
         return panel;
     }
@@ -167,6 +179,8 @@ public final class Style {
         button.setContentAreaFilled(false); // 기본 버튼 배경이 위에서 그린 테두리를 덮지 않도록 함
         button.setFocusPainted(false);
         button.setRolloverEnabled(true);
+        button.getInputMap(JComponent.WHEN_FOCUSED).put(javax.swing.KeyStroke.getKeyStroke("pressed ENTER"), "pressed");
+        button.getInputMap(JComponent.WHEN_FOCUSED).put(javax.swing.KeyStroke.getKeyStroke("released ENTER"), "released");
         button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         button.setBorder(BorderFactory.createEmptyBorder(12, 18, 12, 18));
         button.addFocusListener(new FocusAdapter() {
@@ -205,5 +219,29 @@ public final class Style {
         return new Color((int) (first.getRed() * (1 - amount) + second.getRed() * amount),
                 (int) (first.getGreen() * (1 - amount) + second.getGreen() * amount),
                 (int) (first.getBlue() * (1 - amount) + second.getBlue() * amount));
+    }
+
+    public static void applyScrollStyle(javax.swing.JScrollPane scroll) {
+        scroll.setBorder(null);
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
+        scroll.getVerticalScrollBar().setUnitIncrement(20);
+        for (javax.swing.JScrollBar bar : new javax.swing.JScrollBar[] {
+                scroll.getVerticalScrollBar(), scroll.getHorizontalScrollBar() }) {
+            bar.setPreferredSize(new java.awt.Dimension(10, 10));
+            bar.setUI(new javax.swing.plaf.basic.BasicScrollBarUI() {
+                @Override protected void configureScrollBarColors() {
+                    thumbColor = BORDER;
+                    trackColor = BACKGROUND;
+                }
+                @Override protected javax.swing.JButton createDecreaseButton(int direction) { return empty(); }
+                @Override protected javax.swing.JButton createIncreaseButton(int direction) { return empty(); }
+                private javax.swing.JButton empty() {
+                    javax.swing.JButton button = new javax.swing.JButton();
+                    button.setPreferredSize(new java.awt.Dimension(0, 0));
+                    return button;
+                }
+            });
+        }
     }
 }
