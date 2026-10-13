@@ -14,6 +14,8 @@ import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JComponent;
+import javax.swing.KeyStroke;
 import javax.swing.plaf.basic.BasicButtonUI;
 
 // 아이콘·제목·설명·행동을 같은 위치에 표시하는 실제 메뉴 버튼
@@ -51,7 +53,9 @@ public final class ModeCard extends JButton {
         setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         setPreferredSize(new Dimension(260, 260));
         setMinimumSize(new Dimension(200, 210));
-        // 버튼 모델과 기본 Enter 동작은 그대로 사용하고 그림만 카드 형태로 표시
+        // 포커스된 카드는 Enter로 실행하며, 하위 화면의 기본 뒤로가기 버튼보다 우선합니다.
+        getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke("pressed ENTER"), "pressed");
+        getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke("released ENTER"), "released");
         getModel().addChangeListener(e -> repaint());
         addFocusListener(new FocusAdapter() {
             @Override public void focusGained(FocusEvent e) { repaint(); }
@@ -89,6 +93,8 @@ public final class ModeCard extends JButton {
             Color text = active ? ink : mix(ink, surface, .30f);
             g.setColor(fill);
             g.fillRect(1, 1, getWidth() - 2, getHeight() - 2);
+            g.setColor(active ? block : mix(block, surface, .65f));
+            g.fillRect(1, 1, getWidth() - 2, 3);
             // 마우스 위치와 키보드 포커스는 직각 테두리와 픽셀 커서로 표시하고 점멸 타이머는 사용하지 않음
             g.setColor(hasFocus() && active ? Style.ACCENT : hover ? mix(Style.BORDER, Style.ACCENT, .6f) : Style.BORDER);
             g.setStroke(new BasicStroke(hasFocus() && active ? 2f : 1f));
@@ -96,7 +102,7 @@ public final class ModeCard extends JButton {
 
             // 낮은 카드에서는 블록과 제목을 한 줄로 배치해 설명·행동 영역과 겹치지 않게 표시
             // 기본 크기에서는 기존 세로 배치와 여백을 그대로 사용
-            boolean compact = getHeight() <= 210;
+            boolean compact = getHeight() <= 250;
             int inset = compact ? 18 : 24;
             int unit = compact ? (getHeight() <= 145 ? 14 : 18) : getHeight() < 235 ? 23 : 28;
             int blockY = (compact ? 14 : 26) + (pressed ? 1 : 0);
@@ -136,8 +142,11 @@ public final class ModeCard extends JButton {
                 lineY += compact ? 18 : 20;
             }
 
-            int actionY = getHeight() - (compact ? 16 : 25);
-            g.setColor(text);
+            int actionY = getHeight() - (compact ? 18 : 28);
+            int actionHeight = compact ? 32 : 40;
+            g.setColor(active ? mix(surface, block, hover || hasFocus() ? .26f : .13f) : surface);
+            g.fillRect(inset - 8, actionY - actionHeight + 15, getWidth() - 2 * inset + 16, actionHeight);
+            g.setColor(active ? block : text);
             g.setFont(Style.BUTTON_FONT.deriveFont(compact ? 13f : 14f));
             String caption = active ? action : disabledAction;
             drawFitted(g, caption, inset, actionY, getWidth() - inset * 2 - 30);

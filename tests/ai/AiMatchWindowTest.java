@@ -1,11 +1,18 @@
 package frontend.ai;
 
 import frontend.style.Style;
+import frontend.GameSettings;
+import java.awt.event.KeyEvent;
+import java.awt.event.ActionEvent;
+import java.nio.file.Files;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -14,6 +21,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.JPanel;
+import javax.swing.JComponent;
+import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 
 // 화면을 열지 않고 보드와 경기 진행을 확인하는 테스트
@@ -21,9 +30,12 @@ public final class AiMatchWindowTest {
     private AiMatchWindowTest() { }
 
     public static void main(String[] args) throws Exception {
+        System.setProperty("tetris.data.dir", Files.createTempDirectory("tetris-ai-ui-settings-").toString());
+        verifyCustomControls();
         SwingUtilities.invokeAndWait(() -> {
             try {
                 verifyBoard();
+                verifyEscapeBinding();
             } catch (Exception error) {
                 throw new RuntimeException(error);
             }
@@ -31,7 +43,63 @@ public final class AiMatchWindowTest {
         verifyElapsedTime();
         verifyPacingDelays();
         verifyPauseResume();
-        System.out.println("AiMatchWindowTest: 보드 방향·크기 변경·상태 표시·경과 시간·지연 후 틱 간격·일시정지 통과");
+        System.out.println("AiMatchWindowTest: 보드 방향·크기 변경·상태 표시·경과 시간·지연 후 틱 간격·일시정지·ESC 반복 입력 통과");
+    }
+
+    private static void verifyEscapeBinding() throws Exception {
+        JPanel root = new JPanel();
+        Set<String> pressedKeys = new HashSet<String>();
+        boolean[] playing = { true };
+        boolean[] paused = { false };
+        AtomicInteger navigation = new AtomicInteger();
+        Method bindEscape = AiMatchWindow.class.getDeclaredMethod("bindEscape",
+                JComponent.class, Runnable.class, Set.class);
+        bindEscape.setAccessible(true);
+        bindEscape.invoke(null, root, (Runnable) () -> {
+            if (playing[0]) {
+                paused[0] = !paused[0];
+                pressedKeys.clear(); // setPaused()의 clearInput() 동작
+            } else {
+                navigation.incrementAndGet();
+                pressedKeys.clear(); // 화면 전환의 stopSession() 동작
+            }
+        }, pressedKeys);
+
+        for (int i = 0; i < 20; i++) fireEscape(root, false);
+        require(paused[0], "ESC를 누르고 있는 동안 일시정지가 반복 해제됨");
+        fireEscape(root, true);
+        for (int i = 0; i < 20; i++) fireEscape(root, false);
+        require(!paused[0], "ESC를 놓고 다시 누르면 경기 재개가 한 번만 실행되어야 함");
+        fireEscape(root, true);
+        playing[0] = false;
+        for (int i = 0; i < 20; i++) fireEscape(root, false);
+        require(navigation.get() == 1, "경기 종료/선택 화면의 ESC 이동이 반복 실행됨");
+        fireEscape(root, true);
+        fireEscape(root, false);
+        require(navigation.get() == 2, "ESC를 놓은 뒤 화면 이동이 다시 실행되지 않음");
+        pressedKeys.clear(); // 창 포커스를 잃은 경우 입력 상태 초기화
+        fireEscape(root, false);
+        require(navigation.get() == 3, "포커스 복귀 후 ESC 입력이 막힘");
+    }
+
+    private static void fireEscape(JPanel root, boolean released) {
+        Object name = root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+                .get(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, released));
+        require(name != null && root.getActionMap().get(name) != null,
+                "ESC press/release 바인딩 누락");
+        root.getActionMap().get(name).actionPerformed(new ActionEvent(root,
+                ActionEvent.ACTION_PERFORMED, name.toString()));
+    }
+
+    private static void verifyCustomControls() {
+        int previous = GameSettings.getPauseKey();
+        try {
+            GameSettings.setPauseKey(KeyEvent.VK_C);
+            require(AiMatchWindow.controlsText().contains("C 일시정지"),
+                    "AI 조작 안내의 일시정지 키가 실제 설정과 다릅니다");
+        } finally {
+            GameSettings.setPauseKey(previous);
+        }
     }
 
     private static void verifyElapsedTime() {

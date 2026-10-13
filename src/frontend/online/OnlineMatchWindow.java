@@ -19,6 +19,10 @@ import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
+import java.awt.GridBagLayout;
+import java.awt.GridBagConstraints;
+import java.awt.datatransfer.StringSelection;
+import java.awt.event.KeyEvent;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.WindowAdapter;
@@ -33,6 +37,8 @@ import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
@@ -50,8 +56,6 @@ public final class OnlineMatchWindow extends JFrame {
     private long generation;
     private boolean disposed;
     private OnlineFrame latest;
-    private JTextField hostField;
-    private JTextField portField;
     private JTextField nicknameField;
     private JTextField codeField;
     private JLabel formStatus;
@@ -61,23 +65,35 @@ public final class OnlineMatchWindow extends JFrame {
     private JLabel clock;
     private JLabel room;
     private JButton ready;
+    private JButton reconnect;
+    private JButton copyCode;
+    private JButton leaveButton;
+    private JButton menuButton;
+    private JLabel roomHint;
+    private boolean connectionActive;
     private BoardView own;
     private BoardView other;
-    private String savedHost = System.getProperty("tetris.server.host", "131.186.39.107");
-    private String savedPort = System.getProperty("tetris.server.port", "5000");
+    private final String serverHost = System.getProperty("tetris.server.host", "131.186.39.107");
+    private final String serverPort = System.getProperty("tetris.server.port", "5000");
     private String savedNickname = ScoreManager.getNickname();
     private String savedCode = "";
 
     public OnlineMatchWindow(Resolution resolution) {
         this.resolution = resolution;
         setTitle("Tetris · 온라인 점수 대전");
-        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+        setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
         setSize(Math.min(2 * 10 * resolution.getCellSize() + 220, screen.width - 48),
                 Math.min(22 * resolution.getCellSize() + 275, screen.height - 64));
         setMinimumSize(new Dimension(660, 600));
         setLocationRelativeTo(null);
         addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent event) {
+                if (confirmLeaving())
+                    dispose();
+            }
+
             @Override
             public void windowDeactivated(WindowEvent event) {
                 clearInput();
@@ -88,79 +104,119 @@ public final class OnlineMatchWindow extends JFrame {
 
     private void showForm() {
         stopSession();
+        setMinimumSize(new Dimension(660, 600));
+        Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
+        setSize(Math.min(700, screen.width - 48), Math.min(640, screen.height - 64));
         JPanel root = page();
         root.add(header("온라인 1:1 · 같은 블록 순서 · 점수 대결"), BorderLayout.NORTH);
-        JPanel fields = Style.framedPanel(new GridLayout(0, 1, 0, 8), Style.PANEL);
-        fields.setBorder(BorderFactory.createEmptyBorder(22, 26, 22, 26));
-        hostField = field(savedHost, "서버 주소");
-        portField = field(savedPort, "포트");
+        JPanel card = Style.framedPanel(new BorderLayout(0, 18), Style.PANEL);
+        card.setBorder(BorderFactory.createEmptyBorder(24, 24, 24, 24));
+        JPanel introduction = transparent(new BorderLayout(0, 6));
+        introduction.add(label("친구와 점수 대결", Style.TEXT, Style.ROOM_TITLE_FONT), BorderLayout.NORTH);
+        introduction.add(label("방을 만든 뒤 코드를 공유하거나, 받은 코드로 참가하세요.",
+                Style.MUTED_TEXT, Style.SMALL_FONT), BorderLayout.CENTER);
+        card.add(introduction, BorderLayout.NORTH);
+        JPanel fields = transparent(new GridLayout(0, 1, 0, 14));
         nicknameField = field(savedNickname, "닉네임");
         codeField = field(savedCode, "방 코드 (영문 대문자·숫자 6자리)");
-        addField(fields, "서버 주소", hostField);
-        addField(fields, "포트", portField);
-        addField(fields, "닉네임 (문자·숫자·_·-, 1~16자)", nicknameField);
-        addField(fields, "방 코드 (참가할 때 영문 대문자·숫자 6자리 입력)", codeField);
-        JPanel center = transparent(new BorderLayout(0, 16));
-        center.add(fields, BorderLayout.NORTH);
-        formStatus = label("방을 만들고 코드를 상대에게 알려 주세요. 두 명이 준비하면 시작합니다.", Style.MUTED_TEXT, Style.BODY_FONT);
-        center.add(formStatus, BorderLayout.CENTER);
-        root.add(center, BorderLayout.CENTER);
-        JPanel actions = transparent(new GridLayout(1, 3, 12, 0));
+        nicknameField.setColumns(18);
+        codeField.setColumns(18);
+        addField(fields, "닉네임 · 문자·숫자·_·-, 1~16자", nicknameField);
+        addField(fields, "방 코드 · 참가할 때만 6자리 입력", codeField);
+        card.add(fields, BorderLayout.CENTER);
+        JPanel bottom = transparent(new BorderLayout(0, 10));
+        formStatus = label("", Style.MUTED_TEXT, Style.BODY_FONT);
+        formStatus.setPreferredSize(new Dimension(440, 44));
+        setFormStatus("두 명 모두 준비하면 경기가 시작됩니다.", false);
+        bottom.add(formStatus, BorderLayout.NORTH);
+        JPanel actions = transparent(new GridLayout(1, 2, 12, 0));
         createButton = button("방 만들기");
+        createButton.putClientProperty("primary", true);
         joinButton = button("방 참가");
         createButton.addActionListener(event -> connect(false));
         joinButton.addActionListener(event -> connect(true));
-        JButton menu = button("메뉴 복귀");
-        menu.addActionListener(event -> returnToMenu());
+        nicknameField.addActionListener(event -> {
+            if (codeField.getText().trim().isEmpty()) createButton.doClick();
+            else joinButton.doClick();
+        });
+        codeField.addActionListener(event -> joinButton.doClick());
         actions.add(createButton);
         actions.add(joinButton);
-        actions.add(menu);
-        root.add(actions, BorderLayout.SOUTH);
+        bottom.add(actions, BorderLayout.CENTER);
+        card.add(bottom, BorderLayout.SOUTH);
+        JPanel center = transparent(new GridBagLayout());
+        GridBagConstraints placement = new GridBagConstraints();
+        placement.weightx = 1;
+        placement.fill = GridBagConstraints.NONE;
+        card.setPreferredSize(new Dimension(520, 380));
+        center.add(card, placement);
+        root.add(center, BorderLayout.CENTER);
+        JPanel footer = transparent(new BorderLayout());
+        JLabel shortcut = label("Enter 선택 · Tab 이동 · Esc 메뉴", Style.MUTED_TEXT, Style.SMALL_FONT);
+        footer.add(shortcut, BorderLayout.WEST);
+        JButton menu = button("메뉴 복귀");
+        menu.putClientProperty("textButton", true);
+        menu.addActionListener(event -> returnToMenu());
+        footer.add(menu, BorderLayout.EAST);
+        root.add(footer, BorderLayout.SOUTH);
+        bindEscape(root, this::returnToMenu);
         install(root);
+        getRootPane().setDefaultButton(createButton);
+        SwingUtilities.invokeLater(() -> nicknameField.requestFocusInWindow());
+    }
+
+    private void setFormStatus(String message, boolean error) {
+        formStatus.setText("<html><body style='width:330px'>" + escapeHtml(message) + "</body></html>");
+        formStatus.setToolTipText(message);
+        formStatus.setForeground(error ? Style.PINK : Style.MUTED_TEXT);
     }
 
     private void connect(boolean joining) {
         final OnlineClient client;
         try {
-            savedHost = hostField.getText().trim();
-            savedPort = portField.getText().trim();
             savedNickname = ScoreClient.normalizeNickname(nicknameField.getText());
             savedCode = codeField.getText().trim().toUpperCase(Locale.ROOT);
             if (joining && !savedCode.matches("[A-Z0-9]{6}"))
                 throw new IllegalArgumentException("방 코드는 영문 대문자·숫자 6자리로 입력해 주세요.");
-            client = new OnlineClient(savedHost, Integer.parseInt(savedPort));
+            client = new OnlineClient(serverHost, Integer.parseInt(serverPort.trim()));
         } catch (IllegalArgumentException error) {
-            formStatus.setText(error instanceof NumberFormatException ? "포트는 1~65535의 숫자로 입력해 주세요." : error.getMessage());
-            formStatus.setForeground(Style.PINK);
+            setFormStatus(error instanceof NumberFormatException ? "연결 설정을 확인할 수 없습니다." : error.getMessage(), true);
             return;
         }
         stopSession();
         createButton.setEnabled(false);
         joinButton.setEnabled(false);
-        formStatus.setText("서버에 연결하는 중입니다. 메뉴 복귀로 취소할 수 있습니다.");
-        formStatus.setForeground(Style.MUTED_TEXT);
+        nicknameField.setEnabled(false);
+        codeField.setEnabled(false);
+        setFormStatus("연결 중… 메뉴 복귀로 취소할 수 있습니다.", false);
         final long currentGeneration = generation;
         session = new OnlineSession(client, frame -> {
             if (disposed || currentGeneration != generation)
                 return;
+            connectionActive = true;
             if (own == null)
                 showMatch();
             applyFrame(frame);
         }, error -> {
             if (disposed || currentGeneration != generation)
                 return;
+            connectionActive = false;
             String message = error.getMessage() == null ? "연결을 계속할 수 없습니다." : error.getMessage();
             if (own == null) {
                 showForm();
-                formStatus.setText(message);
-                formStatus.setToolTipText(message);
-                formStatus.setForeground(Style.PINK);
+                setFormStatus(message + " 다시 방을 만들거나 참가해 주세요.", true);
             } else {
                 clearInput();
                 ready.setEnabled(false);
-                status.setText("연결 해제 · " + message);
-                status.setToolTipText(message);
+                ready.setText("연결 해제");
+                copyCode.setFocusable(true);
+                leaveButton.setFocusable(true);
+                menuButton.setFocusable(true);
+                status.setPreferredSize(new Dimension(0, 44));
+                setMatchStatus("연결 해제 · " + message + " 아래의 다시 연결을 눌러 주세요.");
                 status.setForeground(Style.PINK);
+                reconnect.setVisible(true);
+                rootRevalidate();
             }
         });
         session.start(savedNickname, joining ? savedCode : null);
@@ -168,17 +224,36 @@ public final class OnlineMatchWindow extends JFrame {
 
     private void showMatch() {
         JPanel root = page();
-        JPanel heading = header("온라인 1:1 점수 대전");
-        JPanel info = transparent(new BorderLayout(16, 0));
+        root.setLayout(new BorderLayout(0, 8));
+        root.setBorder(BorderFactory.createEmptyBorder(12, 24, 12, 24));
+        JPanel heading = transparent(new BorderLayout(0, 8));
+        JPanel titleRow = transparent(new BorderLayout(16, 0));
+        JLabel logo = new JLabel(new PixelLogo(3));
+        logo.getAccessibleContext().setAccessibleName("Tetris");
+        titleRow.add(logo, BorderLayout.WEST);
+        titleRow.add(label("온라인 1:1 점수 대전", Style.TEXT, Style.BODY_FONT), BorderLayout.CENTER);
+        JPanel info = transparent(new BorderLayout(12, 0));
         room = label("방 코드", Style.ACCENT, Style.MONO_FONT);
         clock = label("00:00", Style.TEXT, Style.MONO_FONT);
-        info.add(room, BorderLayout.WEST);
-        info.add(clock, BorderLayout.EAST);
+        JPanel roomActions = transparent(new BorderLayout(10, 0));
+        roomActions.add(room, BorderLayout.WEST);
+        copyCode = button("코드 복사");
+        copyCode.setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
+        copyCode.setEnabled(false);
+        copyCode.setFocusable(true);
+        copyCode.addActionListener(event -> copyRoomCode());
+        roomActions.add(copyCode, BorderLayout.EAST);
+        roomHint = label("상대에게 코드를 알려 주세요", Style.MUTED_TEXT, Style.SMALL_FONT);
+        roomActions.add(roomHint, BorderLayout.CENTER);
+        info.add(roomActions, BorderLayout.CENTER);
+        titleRow.add(clock, BorderLayout.EAST);
+        heading.add(titleRow, BorderLayout.NORTH);
         heading.add(info, BorderLayout.SOUTH);
         root.add(heading, BorderLayout.NORTH);
-        JPanel center = transparent(new BorderLayout(0, 12));
+        JPanel center = transparent(new BorderLayout(0, 8));
         status = label("상대 참가를 기다리고 있습니다", Style.TEXT, Style.BUTTON_FONT);
         status.setHorizontalAlignment(SwingConstants.CENTER);
+        status.setPreferredSize(new Dimension(0, 24));
         center.add(status, BorderLayout.NORTH);
         JPanel boards = transparent(new GridLayout(1, 2, 24, 0));
         own = new BoardView("나", resolution);
@@ -187,36 +262,65 @@ public final class OnlineMatchWindow extends JFrame {
         boards.add(other);
         center.add(boards, BorderLayout.CENTER);
         root.add(center, BorderLayout.CENTER);
-        JPanel footer = transparent(new BorderLayout(0, 10));
-        JLabel keys = label("← → 이동　 ↑ ↓ 회전　 D 하강　 SPACE 즉시 낙하", Style.MUTED_TEXT, Style.SMALL_FONT);
+        JPanel footer = transparent(new BorderLayout(0, 8));
+        JLabel keys = label(controlsText(), Style.MUTED_TEXT, Style.SMALL_FONT);
         keys.setHorizontalAlignment(SwingConstants.CENTER);
         footer.add(keys, BorderLayout.NORTH);
         JPanel actions = transparent(new GridLayout(1, 3, 12, 0));
         ready = button("준비하기");
+        ready.putClientProperty("primary", true);
+        ready.setFocusable(true);
         ready.addActionListener(event -> {
             if (session != null) {
                 ready.setEnabled(false);
+                ready.setText("준비 요청 중…");
                 session.ready();
             }
         });
         JButton leave = button("방 나가기");
-        leave.addActionListener(event -> showForm());
+        leaveButton = leave;
+        leave.addActionListener(event -> {
+            if (confirmLeaving()) showForm();
+        });
         JButton menu = button("메뉴 복귀");
+        menuButton = menu;
         menu.addActionListener(event -> returnToMenu());
+        reconnect = button("다시 연결");
+        reconnect.putClientProperty("primary", true);
+        reconnect.setVisible(false);
+        reconnect.addActionListener(event -> showForm());
         actions.add(ready);
         actions.add(leave);
         actions.add(menu);
-        footer.add(actions, BorderLayout.SOUTH);
+        JPanel actionArea = transparent(new BorderLayout(0, 8));
+        actionArea.add(reconnect, BorderLayout.NORTH);
+        actionArea.add(actions, BorderLayout.SOUTH);
+        footer.add(actionArea, BorderLayout.SOUTH);
         root.add(footer, BorderLayout.SOUTH);
         bindKeys(root);
+        bindEscape(root, () -> { if (confirmLeaving()) showForm(); });
         install(root);
+        getRootPane().setDefaultButton(ready);
+        root.setFocusable(true);
         // 연결 폼보다 경기 화면에 높이를 더 배정해 두 보드의 칸을 읽을 수 있게 표시
-        setMinimumSize(new Dimension(660, Math.min(720, Toolkit.getDefaultToolkit().getScreenSize().height - 96)));
+        setMinimumSize(new Dimension(660, Math.min(640, Toolkit.getDefaultToolkit().getScreenSize().height - 96)));
+        Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
+        setSize(Math.min(2 * 10 * resolution.getCellSize() + 220, screen.width - 48),
+                Math.min(22 * resolution.getCellSize() + 275, screen.height - 64));
     }
 
     private void applyFrame(OnlineFrame frame) {
+        boolean enteringPlay = "PLAYING".equals(frame.getPhase()) && (latest == null || !"PLAYING".equals(latest.getPhase()));
         latest = frame;
+        boolean playing = "PLAYING".equals(frame.getPhase());
+        copyCode.setFocusable(!playing);
+        ready.setFocusable(!playing);
+        leaveButton.setFocusable(!playing);
+        menuButton.setFocusable(!playing);
+        getRootPane().setDefaultButton("WAITING".equals(frame.getPhase()) ? ready : null);
+        if (enteringPlay) getContentPane().requestFocusInWindow();
         room.setText("방 " + frame.getRoomCode());
+        copyCode.setEnabled(true);
         clock.setText(formatElapsedTime(frame.getElapsedMillis()));
         OnlineFrame.Player player = frame.getPlayer(frame.getSeat());
         OnlineFrame.Player opponent = frame.getPlayer(1 - frame.getSeat());
@@ -224,8 +328,10 @@ public final class OnlineMatchWindow extends JFrame {
         own.update(player, started);
         other.update(opponent, started);
         ready.setEnabled("WAITING".equals(frame.getPhase()) && !player.isReady());
-        ready.setText(player.isReady() ? "준비 완료" : "준비하기");
-        status.setText(statusText(frame));
+        ready.setText(frame.isFinished() ? "경기 종료" : "PLAYING".equals(frame.getPhase())
+                ? "경기 중" : "COUNTDOWN".equals(frame.getPhase()) ? "곧 시작" : player.isReady() ? "준비 완료" : "준비하기");
+        if (frame.isFinished()) connectionActive = false;
+        setMatchStatus(statusText(frame));
         status.setForeground(frame.isFinished() ? frame.getWinner() == frame.getSeat() ? Style.GREEN : Style.ACCENT : Style.TEXT);
         if (!"PLAYING".equals(frame.getPhase()) || !player.isAlive())
             clearInput();
@@ -245,6 +351,10 @@ public final class OnlineMatchWindow extends JFrame {
         if ("WAITING".equals(frame.getPhase()))
             return frame.getPlayer(1 - frame.getSeat()).getNickname().isEmpty()
                     ? "상대 참가를 기다리고 있습니다 · 방 코드를 알려 주세요"
+                    : frame.getPlayer(frame.getSeat()).isReady()
+                    ? "준비 완료 · 상대의 준비를 기다립니다"
+                    : frame.getPlayer(1 - frame.getSeat()).isReady()
+                    ? "상대 준비 완료 · 준비하기를 누르면 시작합니다"
                     : "두 명 모두 준비하면 3초 뒤 시작합니다";
         return !frame.getPlayer(frame.getSeat()).isAlive() ? "게임오버 · 상대의 최종 점수를 기다립니다"
                 : !frame.getPlayer(1 - frame.getSeat()).isAlive() ? "상대 게임오버 · 상대 점수를 넘으면 승리합니다"
@@ -306,13 +416,14 @@ public final class OnlineMatchWindow extends JFrame {
         if (session != null)
             session.close();
         session = null;
+        connectionActive = false;
         latest = null;
         own = null;
         other = null;
     }
 
     private void returnToMenu() {
-        if (disposed)
+        if (disposed || !confirmLeaving())
             return;
         Main menu = new Main();
         menu.setLocationRelativeTo(this);
@@ -327,6 +438,60 @@ public final class OnlineMatchWindow extends JFrame {
             stopSession();
         }
         super.dispose();
+    }
+
+    private void setMatchStatus(String message) {
+        status.setText("<html><body style='width:390px;text-align:center'>" + escapeHtml(message) + "</body></html>");
+        status.setToolTipText(message);
+    }
+
+    private boolean confirmLeaving() {
+        if (!connectionActive || latest == null || !"PLAYING".equals(latest.getPhase()))
+            return true;
+        clearInput();
+        return JOptionPane.showConfirmDialog(this, "지금 나가면 경기에서 패배합니다. 방을 나가시겠습니까?",
+                "진행 중인 경기", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE) == JOptionPane.YES_OPTION;
+    }
+
+    private void copyRoomCode() {
+        if (latest == null) return;
+        String code = latest.getRoomCode();
+        try {
+            Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(code), null);
+            roomHint.setText("코드 복사 완료");
+            roomHint.setForeground(Style.GREEN);
+        } catch (RuntimeException error) {
+            JTextField manual = field(code, "복사할 방 코드");
+            manual.setEditable(false);
+            manual.selectAll();
+            JOptionPane.showMessageDialog(this, manual, "방 코드를 선택해 복사해 주세요", JOptionPane.INFORMATION_MESSAGE);
+            roomHint.setText("방 코드: " + code);
+        }
+    }
+
+    private void rootRevalidate() {
+        getContentPane().revalidate();
+        getContentPane().repaint();
+    }
+
+    private static void bindEscape(JComponent root, Runnable action) {
+        root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "leave");
+        root.getActionMap().put("leave", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent event) { action.run(); }
+        });
+    }
+
+    static String controlsText() {
+        return "<html><center>" + escapeHtml(GameSettings.keyName(GameSettings.getLeftKey())) + " / "
+                + escapeHtml(GameSettings.keyName(GameSettings.getRightKey())) + " 이동　"
+                + escapeHtml(GameSettings.keyName(GameSettings.getRotateLeftKey())) + " / "
+                + escapeHtml(GameSettings.keyName(GameSettings.getRotateRightKey())) + " 회전<br>"
+                + escapeHtml(GameSettings.keyName(GameSettings.getSoftDropKey())) + " 하강　"
+                + escapeHtml(GameSettings.keyName(GameSettings.getHardDropKey())) + " 즉시 낙하</center></html>";
+    }
+
+    private static String escapeHtml(String text) {
+        return text == null ? "" : text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
     static String formatElapsedTime(long elapsedMillis) {
@@ -388,7 +553,11 @@ public final class OnlineMatchWindow extends JFrame {
     private static JButton button(String text) {
         JButton button = new JButton(text);
         Style.applyButtonStyle(button, Style.ACCENT, Style.PANEL);
-        button.setFocusable(false);
+        button.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "activate");
+        button.getActionMap().put("activate", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent event) { button.doClick(); }
+        });
+        button.setFocusable(true);
         return button;
     }
 
@@ -400,18 +569,21 @@ public final class OnlineMatchWindow extends JFrame {
         private final String title;
 
         BoardView(String title, Resolution resolution) {
-            super(new BorderLayout(0, 8));
+            super(new BorderLayout(0, 6));
             this.title = title;
             setOpaque(false);
-            JPanel heading = transparent(new BorderLayout(0, 6));
+            JPanel heading = transparent(new BorderLayout(0, 4));
             name = label(title, Style.TEXT, Style.BUTTON_FONT);
             metrics = label("0점 · 0줄", Style.ACCENT, Style.MONO_FONT.deriveFont(16f));
             heading.add(name, BorderLayout.NORTH);
-            heading.add(metrics, BorderLayout.CENTER);
-            JPanel nextRow = transparent(new BorderLayout(10, 0));
-            nextRow.add(label("다음 블록", Style.MUTED_TEXT, Style.SMALL_FONT), BorderLayout.WEST);
+            JPanel metricsRow = transparent(new BorderLayout(8, 0));
+            metricsRow.add(metrics, BorderLayout.CENTER);
+            JPanel nextRow = transparent(new BorderLayout(6, 0));
+            nextRow.setPreferredSize(new Dimension(110, 36));
+            nextRow.add(label("다음", Style.MUTED_TEXT, Style.SMALL_FONT), BorderLayout.WEST);
             nextRow.add(next, BorderLayout.CENTER);
-            heading.add(nextRow, BorderLayout.SOUTH);
+            metricsRow.add(nextRow, BorderLayout.EAST);
+            heading.add(metricsRow, BorderLayout.SOUTH);
             add(heading, BorderLayout.NORTH);
             canvas = new BoardCanvas();
             canvas.setPreferredSize(new Dimension(10 * resolution.getCellSize(), 22 * resolution.getCellSize()));
@@ -424,7 +596,7 @@ public final class OnlineMatchWindow extends JFrame {
 
         void update(OnlineFrame.Player player, boolean started) {
             boolean empty = player.getNickname().isEmpty();
-            name.setText(title + " · " + (empty ? "참가 대기" : player.getNickname()) + (player.isReady() ? " · 준비" : ""));
+            name.setText(title + " · " + (empty ? "참가 대기" : player.getNickname()) + (!started && player.isReady() ? " · 준비" : ""));
             name.setToolTipText(name.getText());
             // 긴 닉네임도 최소 창의 게임판 폭 안에 들어가도록 필요한 만큼만 줄임
             Font nameFont = Style.BUTTON_FONT;
@@ -586,7 +758,7 @@ public final class OnlineMatchWindow extends JFrame {
 
         NextCanvas() {
             setOpaque(false);
-            setPreferredSize(new Dimension(90, 44));
+            setPreferredSize(new Dimension(90, 36));
         }
 
         @Override
@@ -597,9 +769,10 @@ public final class OnlineMatchWindow extends JFrame {
             Shape piece = new Shape();
             piece.setShape(Tetrominoes.values()[shape]);
             int minX = piece.minX(), minY = piece.minY();
+            int size = Math.max(1, Math.min(8, (getHeight() - 4) / 4));
             for (int i = 0; i < 4; i++)
-                BlockPainter.drawSquare(graphics, 3 + (piece.x(i) - minX) * 10,
-                        3 + (piece.y(i) - minY) * 10, 10, piece.getShape());
+                BlockPainter.drawSquare(graphics, 2 + (piece.x(i) - minX) * size,
+                        2 + (piece.y(i) - minY) * size, size, piece.getShape());
         }
     }
 }

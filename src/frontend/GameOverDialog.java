@@ -9,17 +9,26 @@ import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.AbstractAction;
+import javax.swing.JComponent;
+import javax.swing.KeyStroke;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.text.NumberFormat;
 import javax.swing.SwingConstants;
 
 import frontend.style.Style;
 
-// 게암 통계 창
+// 게임 결과와 다음 행동을 안내하는 키보드 접근 가능한 결과 창
 public class GameOverDialog extends JDialog {
+    private boolean actionTaken;
 
     // 점수,줄,콤보,시간 표시
     public GameOverDialog(JFrame owner, int score, int linesRemoved, int maxCombo, int elapsedSeconds,
                           Runnable onRestart, Runnable onMenu) {
-        super(owner, "게임 결과", false);
+        super(owner, "게임 결과", true);
 
         JPanel root = new JPanel(new BorderLayout(0, 18));
         root.setBackground(Style.BACKGROUND);
@@ -37,26 +46,28 @@ public class GameOverDialog extends JDialog {
 
         JPanel stats = new JPanel(new GridLayout(2, 2, 10, 10));
         stats.setOpaque(false);
-        stats.add(statTile("점수", String.valueOf(score)));
+        stats.add(statTile("점수", NumberFormat.getIntegerInstance().format(score)));
         stats.add(statTile("게임 시간", formatTime(elapsedSeconds)));
         stats.add(statTile("제거한 줄", linesRemoved + "줄"));
         stats.add(statTile("최대 콤보", maxCombo >= 2 ? "x" + maxCombo : "없음"));
         center.add(stats, BorderLayout.NORTH);
+        JLabel hint = label("한 번 더 도전해 보세요 · Enter 다시 하기 / ESC 메뉴", Style.MUTED_TEXT, Style.SMALL_FONT);
+        hint.setHorizontalAlignment(SwingConstants.CENTER);
+        center.add(hint, BorderLayout.SOUTH);
 
         root.add(center, BorderLayout.CENTER);
 
         // 창 하단
         JButton restartButton = new JButton("다시 하기");
         JButton menuButton = new JButton("메뉴로");
+        restartButton.putClientProperty("primary", true);
         Style.applyButtonStyle(restartButton, Style.ACCENT, Style.PANEL);
         Style.applyButtonStyle(menuButton, Style.ACCENT, Style.PANEL);
         restartButton.addActionListener(e -> {
-            dispose();
-            onRestart.run();
+            takeAction(onRestart);
         });
         menuButton.addActionListener(e -> {
-            dispose();
-            onMenu.run();
+            takeAction(onMenu);
         });
         JPanel buttons = new JPanel(new GridLayout(1, 2, 10, 0));
         buttons.setOpaque(false);
@@ -64,11 +75,28 @@ public class GameOverDialog extends JDialog {
         buttons.add(menuButton);
         root.add(buttons, BorderLayout.SOUTH);
 
-        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+        getRootPane().setDefaultButton(restartButton);
+        getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+                .put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "result.menu");
+        getRootPane().getActionMap().put("result.menu", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent event) { takeAction(onMenu); }
+        });
+        setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
+        addWindowListener(new WindowAdapter() {
+            @Override public void windowClosing(WindowEvent event) { takeAction(onMenu); }
+            @Override public void windowOpened(WindowEvent event) { restartButton.requestFocusInWindow(); }
+        });
         setResizable(false);
         pack();
         setSize(Math.max(getWidth(), 360), getHeight());
         setLocationRelativeTo(owner);
+    }
+
+    private void takeAction(Runnable action) {
+        if (actionTaken) return;
+        actionTaken = true;
+        dispose();
+        action.run();
     }
 
     // 기록 : 위-제목 , 중간-기록값
