@@ -19,6 +19,7 @@ public class Tetris extends JFrame {
 	private final Board board; // 메뉴로 돌아갈 때 게임 정지에 사용
 	private final String modeName;
 	private JButton pauseButton;
+    private JButton aiHelpButton;
 	private GameOverDialog gameOverDialog; // 게임 종료 창
 
 	public Tetris(Resolution resolution) {
@@ -82,6 +83,23 @@ public class Tetris extends JFrame {
 
 		// 게임판
 		board = new Board(statusbar, sidePanel, "아이템".equals(modeName));
+        if ("클래식".equals(modeName)) {
+            aiHelpButton = new JButton("AI 도움 · 1회");
+            Style.applyButtonStyle(aiHelpButton, Style.ACCENT, Style.PANEL);
+            aiHelpButton.setFont(Style.BODY_FONT);
+            aiHelpButton.setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
+            aiHelpButton.setFocusable(false);
+            aiHelpButton.getAccessibleContext().setAccessibleName("AI 도움");
+            aiHelpButton.addActionListener(e -> board.startAiAssist());
+            actions.add(aiHelpButton, 0);
+            board.addPropertyChangeListener("aiAssist", event -> {
+                aiHelpButton.setText(board.getAiAssistButtonText());
+                aiHelpButton.setEnabled(board.canUseAiAssist());
+                String message = board.getAiAssistMessage();
+                aiHelpButton.setToolTipText(message == null || message.isEmpty()
+                        ? "한 판에 한 번, AI가 5초 동안 빠르게 블록을 배치합니다." : message);
+            });
+        }
 		// 종료
 		board.setGameOverListener(this::showGameOver);
         board.addPropertyChangeListener("paused", event -> {

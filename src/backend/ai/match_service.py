@@ -14,12 +14,14 @@ from typing import TextIO
 MODEL_ROOT = Path(__file__).resolve().parents[1] / "models" / "tetris_afterstate"
 RUNTIME_ROOT = MODEL_ROOT / "runtime" / "src"
 sys.path.insert(0, str(RUNTIME_ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import numpy as np
 from tetris_sca.config import validate_config
 from tetris_sca.engine import TetrisEngine
 from tetris_sca.env import TetrisEnv
 from tetris_sca.untimed import UntimedTetrisEngine
+from assist_policy import parse_snapshot, select_placement
 
 PROTOCOL_VERSION = 2
 RULES_VERSION = "java-iid-placement40-timed-v1"
@@ -299,6 +301,15 @@ class MatchService:
         fields = line.rstrip("\r\n").split("\t")
         if fields == ["QUIT"]:
             return None
+        if len(fields) == 6 and fields[0] == "ASSIST":
+            # 도움 요청은 현재 대전 상태와 별개이며 다음 블록을 생성하지 않습니다.
+            snapshot = parse_snapshot(*fields[1:])
+            if "hell" not in self.loaded:
+                self.loaded["hell"] = self.policy_loader("hell")
+            policy, _ = self.loaded["hell"]
+            placement = select_placement(policy, snapshot)
+            return "\t".join(("ASSIST", "100000", str(placement.rotation),
+                              str(placement.x), str(placement.y), placement.path))
         if len(fields) == 3 and fields[0] == "START":
             difficulty_id = fields[1]
             if difficulty_id not in DIFFICULTIES:
@@ -317,7 +328,7 @@ class MatchService:
             if self.match is None:
                 raise ValueError("START is required before STEP")
             return self.match.step(fields[1])
-        raise ValueError("Expected START with difficulty and seed, STEP with command, or QUIT")
+        raise ValueError("Expected START with difficulty and seed, STEP with command, ASSIST with snapshot, or QUIT")
 
 
 def serve(input_stream: TextIO, output_stream: TextIO, service: MatchService | None = None) -> None:
