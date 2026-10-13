@@ -22,11 +22,12 @@ public final class BoardControlsTest {
             try {
                 verifyClassic();
                 verifyTwoPlayer();
+                verifyPauseAndDropEdges();
             } catch (Exception error) {
                 throw new RuntimeException(error);
             }
         });
-        System.out.println("BoardControlsTest: 클래식·2인 좌우 이동, 레벨별 방향 유지, 입력 차단, 화면 갱신 통과");
+        System.out.println("BoardControlsTest: 클래식·2인 좌우 이동, 입력 차단, 일시정지·하드드롭 반복 방지 통과");
     }
 
     private static void verifyClassic() throws Exception {
@@ -65,6 +66,54 @@ public final class BoardControlsTest {
             first.stop();
             second.stop();
         }
+    }
+
+    private static void verifyPauseAndDropEdges() throws Exception {
+        Board board = createBoard();
+        try {
+            prepare(board, 0);
+            classicKey(board, GameSettings.getPauseKey());
+            classicKey(board, GameSettings.getPauseKey());
+            require(board.getEngine().isPaused(), "일시정지 키 반복으로 의도치 않게 재개");
+            release(board, GameSettings.getPauseKey());
+            classicKey(board, GameSettings.getPauseKey());
+            require(!board.getEngine().isPaused(), "키를 놓은 뒤 명시적인 일시정지 재개 실패");
+            release(board, GameSettings.getPauseKey());
+
+            ((Shape) get(GameEngine.class, board.getEngine(), "curPiece")).setShape(Tetrominoes.NoShape);
+            classicKey(board, GameSettings.getPauseKey());
+            require(board.getEngine().isPaused(), "줄 제거 대기 중 일시정지 실패");
+            require(!((Timer) get(Board.class, board, "timer")).isRunning(), "일시정지 중 중력 타이머 실행");
+            require(!((Timer) get(Board.class, board, "clockTimer")).isRunning(), "일시정지 중 게임 시간 증가");
+            release(board, GameSettings.getPauseKey());
+            classicKey(board, GameSettings.getPauseKey());
+            release(board, GameSettings.getPauseKey());
+            prepare(board, 0);
+
+            classicKey(board, GameSettings.getHardDropKey());
+            int occupied = occupiedCells(board.getEngine());
+            classicKey(board, GameSettings.getHardDropKey());
+            require(occupiedCells(board.getEngine()) == occupied, "하드드롭 키 반복으로 다음 블록까지 착지");
+            release(board, GameSettings.getHardDropKey());
+            classicKey(board, GameSettings.getHardDropKey());
+            require(occupiedCells(board.getEngine()) > occupied, "키를 놓은 뒤 새 하드드롭 실패");
+            release(board, GameSettings.getHardDropKey());
+        } finally {
+            board.stop();
+        }
+    }
+
+    private static int occupiedCells(GameEngine engine) {
+        int count = 0;
+        for (int y = 0; y < GameEngine.BOARD_HEIGHT; y++)
+            for (int x = 0; x < GameEngine.BOARD_WIDTH; x++)
+                if (engine.shapeAt(x, y) != Tetrominoes.NoShape) count++;
+        return count;
+    }
+
+    private static void release(Board board, int key) {
+        board.getKeyListeners()[0].keyReleased(new KeyEvent(board, KeyEvent.KEY_RELEASED,
+                0, 0, key, KeyEvent.CHAR_UNDEFINED));
     }
 
     private static Board createBoard() {

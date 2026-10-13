@@ -35,18 +35,14 @@ public class SidePanel extends JPanel {
     private boolean itemMode = false;
 
     public SidePanel() {
-        this(new String[][] {
-                { "← →", "이동" },
-                { "↑ ↓", "회전" },
-                { "D", "한 칸 하강" },
-                { "SPACE", "즉시 낙하" },
-                { "P", "일시정지" }
-        });
+        this(null);
     }
 
     public SidePanel(String[][] controls) {
         this.controls = controls;
         setBackground(Style.BACKGROUND);
+        getAccessibleContext().setAccessibleName("게임 정보와 조작 안내");
+        getAccessibleContext().setAccessibleDescription(controlDescription());
     }
 
     public void setScore(int score) {
@@ -99,6 +95,7 @@ public class SidePanel extends JPanel {
             drawStats(graphics, size);
             drawNextShape(graphics, size);
             drawItemStatus(graphics, size);
+            drawControls(graphics, size);
         } finally {
             graphics.dispose();
         }
@@ -198,7 +195,7 @@ public class SidePanel extends JPanel {
         int boxX = inset;
         int boxY = (int) (size * 14.0);
         int boxWidth = getWidth() - inset * 2;
-        int boxHeight = (int) (size * 7.4);
+        int boxHeight = (int) (size * 3.65);
         g.setColor(new Color(Style.ACCENT.getRed(), Style.ACCENT.getGreen(), Style.ACCENT.getBlue(), 22));
         g.fillRect(boxX, boxY, boxWidth, boxHeight);
         g.setColor(Style.BORDER);
@@ -208,10 +205,8 @@ public class SidePanel extends JPanel {
         int contentX = boxX + padding;
         int contentWidth = Math.max(1, boxWidth - padding * 2);
         if (lastItemType == null) {
-            drawCenteredText(g, "아이템 준비", Style.BUTTON_FONT, size * .65,
-                    contentX, contentWidth, boxY + (int) (size * .95), Style.TEXT);
-            drawCenteredText(g, "블록/줄 제거 시 발동", Style.BODY_FONT, size * .46,
-                    contentX, contentWidth, boxY + (int) (size * 1.7), Style.MUTED_TEXT);
+            drawCenteredText(g, "블록/줄 제거 시 발동", Style.BODY_FONT, size * .4,
+                    contentX, contentWidth, boxY + (int) (size * .55), Style.MUTED_TEXT);
             // 두 줄로 나눠 작은 창에서도 다섯 아이템을 구분
 
             for (int i = 0; i < ITEM_GUIDE.length; i++) {
@@ -220,24 +215,69 @@ public class SidePanel extends JPanel {
                 int column = firstRow ? i : i - ITEM_GUIDE_FIRST_ROW;
                 int slotWidth = contentWidth / columns;
                 int slotX = contentX + column * slotWidth;
-                int iconSize = Math.max(1, Math.min(slotWidth - 2, (int) (size * 1.3)));
-                int iconY = boxY + (int) (size * (firstRow ? 2.15 : 4.65));
+                int iconSize = Math.max(1, Math.min(slotWidth - 2, (int) (size * .72)));
+                int iconY = boxY + (int) (size * (firstRow ? .8 : 2.1));
                 drawItemIcon(g, ITEM_GUIDE[i], slotX + (slotWidth - iconSize) / 2,
                         iconY, iconSize);
-                drawCenteredText(g, ITEM_GUIDE_LABELS[i], Style.BODY_FONT, size * .46,
-                        slotX, slotWidth - 1, iconY + iconSize + (int) (size * .6), Style.MUTED_TEXT);
+                drawCenteredText(g, ITEM_GUIDE_LABELS[i], Style.BODY_FONT, size * .32,
+                        slotX, slotWidth - 1, iconY + iconSize + (int) (size * .4), Style.MUTED_TEXT);
             }
             return;
         }
 
-        int iconSize = Math.max(1, Math.min(contentWidth, (int) (size * 3.35)));
-        drawItemIcon(g, lastItemType, contentX + (contentWidth - iconSize) / 2,
-                boxY + (int) (size * .45), iconSize);
-        drawCenteredText(g, lastItemType.getLabel(), Style.BUTTON_FONT, size * .68,
-                contentX, contentWidth, boxY + (int) (size * 4.55), Style.TEXT);
+        int iconSize = Math.max(1, Math.min(contentWidth, (int) (size * 1.35)));
+        drawItemIcon(g, lastItemType, contentX,
+                boxY + (int) (size * .4), iconSize);
+        drawCenteredText(g, lastItemType.getLabel(), Style.BUTTON_FONT, size * .52,
+                contentX + iconSize + padding, contentWidth - iconSize - padding,
+                boxY + (int) (size * 1.15), Style.TEXT);
         g.setColor(Style.MUTED_TEXT);
         drawWrappedText(g, lastItemType.getDescription(), contentX,
-                boxY + (int) (size * 5.05), contentWidth, (int) (size * 1.95), size * .5);
+                boxY + (int) (size * 2.0), contentWidth, (int) (size * 1.35), size * .4);
+    }
+
+    private String[][] currentControls() {
+        if (controls != null) return controls;
+        return new String[][] {
+                { GameSettings.keyName(GameSettings.getLeftKey()) + " " + GameSettings.keyName(GameSettings.getRightKey()), "이동" },
+                { GameSettings.keyName(GameSettings.getRotateLeftKey()) + " " + GameSettings.keyName(GameSettings.getRotateRightKey()), "좌 / 우 회전" },
+                { GameSettings.keyName(GameSettings.getSoftDropKey()), "한 칸 하강" },
+                { GameSettings.keyName(GameSettings.getHardDropKey()), "즉시 낙하" },
+                { GameSettings.keyName(GameSettings.getPauseKey()) + " / ESC", "일시정지" }
+        };
+    }
+
+    private String controlDescription() {
+        StringBuilder text = new StringBuilder();
+        for (String[] row : currentControls()) {
+            if (text.length() > 0) text.append(". ");
+            text.append(row[0]).append(": ").append(row[1]);
+        }
+        return text.toString();
+    }
+
+    private void drawControls(Graphics2D g, double size) {
+        int inset = (int) (size * .6);
+        double top = itemMode ? 18.35 : 14.0;
+        g.setFont(Style.MONO_FONT.deriveFont((float) (size * .38)));
+        g.setColor(Style.MUTED_TEXT);
+        g.drawString("CONTROLS", inset, (int) (size * top));
+        String[][] rows = currentControls();
+        double spacing = itemMode ? .55 : 1.12;
+        double fontSize = .44;
+        for (int i = 0; i < rows.length; i++) {
+            int baseline = (int) (size * (top + .8 + i * spacing));
+            String key = rows[i][0];
+            String action = rows[i][1];
+            int contentWidth = getWidth() - inset * 2;
+            int keyWidth = (int) (contentWidth * .47);
+            fitFont(g, Style.MONO_FONT, key, size * fontSize, keyWidth);
+            g.setColor(Style.ACCENT);
+            g.drawString(key, inset, baseline);
+            fitFont(g, Style.BODY_FONT, action, size * fontSize, contentWidth - keyWidth - (int) (size * .15));
+            g.setColor(Style.TEXT);
+            g.drawString(action, getWidth() - inset - g.getFontMetrics().stringWidth(action), baseline);
+        }
     }
 
     private void drawItemIcon(Graphics2D g, ItemType type, int x, int y, int size) {

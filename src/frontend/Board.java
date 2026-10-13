@@ -14,6 +14,11 @@ import java.awt.event.KeyEvent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.Timer;
+import javax.swing.AbstractAction;
+import javax.swing.JComponent;
+import javax.swing.KeyStroke;
+import java.util.HashSet;
+import java.util.Set;
 
 import frontend.engine.GameEngine;
 import frontend.style.Style;
@@ -49,6 +54,8 @@ public class Board extends JPanel implements ActionListener {
     private int comboShown = 0;
     private long comboStartTime = 0;
     private boolean battleMode = false;
+    private String pauseReason = "잠시 쉬어 가세요";
+    private final Set<Integer> pressedKeys = new HashSet<>();
 
     private GameOverListener gameOverListener;
 
@@ -76,7 +83,7 @@ public class Board extends JPanel implements ActionListener {
 
         timer = new Timer(400, this);
         clockTimer = new Timer(1000, e -> {
-            if (isStopped)
+            if (isStopped || !engine.isStarted() || engine.isPaused())
                 return;
             elapsedSeconds++;
             sidePanel.setElapsedSeconds(elapsedSeconds);
@@ -106,6 +113,9 @@ public class Board extends JPanel implements ActionListener {
             repaint();
         });
         addKeyListener(new TAdapter());
+        installKeyBindings();
+        getAccessibleContext().setAccessibleName("테트리스 게임판");
+        getAccessibleContext().setAccessibleDescription("이동과 회전 키로 블록을 배치하세요. ESC 키는 일시정지와 재개입니다.");
     }
 
     public void actionPerformed(ActionEvent e) {
@@ -131,6 +141,8 @@ public class Board extends JPanel implements ActionListener {
 
     public void disableDefaultKeys() {
         defaultKeysEnabled = false;
+        getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).clear();
+        clearPressedKeys();
     }
 
     public GameEngine getEngine() {
@@ -156,7 +168,92 @@ public class Board extends JPanel implements ActionListener {
         updateView();
     }
 
+    private boolean canPlay() {
+        return !isStopped && engine.isStarted() && !engine.isPaused()
+                && engine.getCurrentShape() != Tetrominoes.NoShape;
+    }
+
+    public boolean isRunning() {
+        return !isStopped && engine.isStarted();
+    }
+
+    public void rotateLeft() { controlPiece(engine::rotateLeft); }
+    public void rotateRight() { controlPiece(engine::rotateRight); }
+    public void hardDrop() { controlPiece(engine::dropDown); }
+    public void softDrop() { controlPiece(engine::oneLineDown); }
+
+    private void controlPiece(Runnable action) {
+        if (!canPlay()) return;
+        action.run();
+        updateView();
+    }
+
+    public void togglePause() {
+        setPaused(!engine.isPaused(), "잠시 쉬어 가세요");
+    }
+
+    public void setPaused(boolean paused, String reason) {
+        if (!isRunning()) return;
+        boolean previous = engine.isPaused();
+        if (paused) pauseReason = reason;
+        if (previous != paused) engine.pause();
+        updateView();
+        firePropertyChange("paused", previous, engine.isPaused());
+    }
+
+    public void clearPressedKeys() {
+        pressedKeys.clear();
+    }
+
+    private void installKeyBindings() {
+        int[] keys = { GameSettings.getLeftKey(), GameSettings.getRightKey(),
+                GameSettings.getRotateLeftKey(), GameSettings.getRotateRightKey(),
+                GameSettings.getSoftDropKey(), GameSettings.getHardDropKey(),
+                GameSettings.getPauseKey(), KeyEvent.VK_ESCAPE };
+        for (int key : keys) {
+            String press = "game.press." + key;
+            String release = "game.release." + key;
+            getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(key, 0, false), press);
+            getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(key, 0, true), release);
+            getActionMap().put(press, new AbstractAction() {
+                @Override public void actionPerformed(ActionEvent event) { handleDefaultKey(key); }
+            });
+            getActionMap().put(release, new AbstractAction() {
+                @Override public void actionPerformed(ActionEvent event) { pressedKeys.remove(key); }
+            });
+        }
+    }
+
+    private boolean handleDefaultKey(int key) {
+        if (!defaultKeysEnabled || !isRunning()) return false;
+        boolean pause = key == GameSettings.getPauseKey() || key == KeyEvent.VK_ESCAPE;
+        boolean once = pause || key == GameSettings.getHardDropKey()
+                || key == GameSettings.getRotateLeftKey() || key == GameSettings.getRotateRightKey();
+        if (once && !pressedKeys.add(key)) return true;
+        // 줄 삭제 대기 중에도 일시정지할 수 있습니다.
+        if (pause) {
+            togglePause();
+            return true;
+        }
+        if (engine.isPaused()) return true;
+        if (key == GameSettings.getLeftKey()) moveLeft();
+        else if (key == GameSettings.getRightKey()) moveRight();
+        else if (key == GameSettings.getRotateLeftKey()) rotateLeft();
+        else if (key == GameSettings.getRotateRightKey()) rotateRight();
+        else if (key == GameSettings.getHardDropKey()) hardDrop();
+        else if (key == GameSettings.getSoftDropKey()) softDrop();
+        else return false;
+        return true;
+    }
+
     public void start() {
+        stop();
+        clearPressedKeys();
+        previousLinesRemoved = 0;
+        wasStarted = false;
+        currentLevel = 1;
+        battleMessage = "";
+        if (engine.isPaused()) engine.pause();
         elapsedSeconds = 0;
         previousCombo = 0;
         comboShown = 0;
@@ -170,9 +267,9 @@ public class Board extends JPanel implements ActionListener {
     }
 
     public void stop() {
-        battleMessageTimer.stop();
         comboTimer.stop();
         isStopped = true;
+        clearPressedKeys();
         timer.stop();
         clockTimer.stop();
         levelTimer.stop();
@@ -224,7 +321,7 @@ public class Board extends JPanel implements ActionListener {
     }
 
     private void updateView() {
-        if (engine.isStarted() && !engine.isPaused()) {
+        if (!isStopped && engine.isStarted() && !engine.isPaused()) {
             timer.start();
             clockTimer.start();
         } else {
@@ -276,12 +373,12 @@ public class Board extends JPanel implements ActionListener {
         }
         wasStarted = engine.isStarted();
 
-        if (engine.isItemMode() && !engine.getLastItemName().isEmpty()) {
-            statusbar.setText("아이템 발동: " + engine.getLastItemName());
-        } else if (engine.isPaused()) {
-            statusbar.setText("일시정지");
-        } else if (!engine.isStarted()) {
+        if (!engine.isStarted()) {
             statusbar.setText(scoreSaveStatus.isEmpty() ? "게임 종료" : scoreSaveStatus);
+        } else if (engine.isPaused()) {
+            statusbar.setText("일시정지 · " + pauseReason);
+        } else if (engine.isItemMode() && !engine.getLastItemName().isEmpty()) {
+            statusbar.setText("최근 아이템: " + engine.getLastItemName());
         } else {
             statusbar.setText("제거한 줄: " + currentLinesRemoved);
         }
@@ -313,10 +410,6 @@ public class Board extends JPanel implements ActionListener {
             drawGrid(graphics, left, top, size);
             drawPieces(graphics, left, top, size);
 
-            if (engine.isFogActive()) {
-                drawFog(graphics, left, top, size);
-            }
-
             // 줄 삭제 순간 흰색 플래시 표시
             if (flashRow >= 0) {
                 graphics.setColor(new java.awt.Color(255, 255, 255, 180));
@@ -334,9 +427,9 @@ public class Board extends JPanel implements ActionListener {
                 drawComboEffect(graphics, left, top, size);
             }
             if (engine.isPaused()) {
-                drawOverlay(graphics, left, top, size, "PAUSED", "P 키를 눌러 계속하기");
+                drawOverlay(graphics, left, top, size, "PAUSED", GameSettings.keyName(GameSettings.getPauseKey()) + " / ESC · 계속하기");
             } else if (!engine.isStarted()) {
-                drawOverlay(graphics, left, top, size, "GAME OVER", "메뉴로 돌아가서 다시 시작하세요");
+                drawOverlay(graphics, left, top, size, "GAME OVER", "결과 창에서 다시 도전하세요");
             } else if (!levelMessage.isEmpty()) {
                 drawLevelNotice(graphics, left, top, size);
             }
@@ -415,7 +508,7 @@ public class Board extends JPanel implements ActionListener {
 
     private void drawPieces(Graphics2D g, int left, int top, int size) {
         // 현재 블록이 착지할 위치를 반투명하게 표시 (안개아이템 시 제외)
-        if (!engine.isFogActive()) {
+        if (!engine.isFogActive() && engine.getCurrentShape() != Tetrominoes.NoShape) {
             drawGhostPiece(g, left, top, size);
         }
 
@@ -537,41 +630,12 @@ public class Board extends JPanel implements ActionListener {
     }
 
     class TAdapter extends KeyAdapter {
-        public void keyPressed(KeyEvent e) {
-            if (!defaultKeysEnabled)
-                return;
-
-            if (isStopped || !engine.isStarted() || engine.getCurrentShape() == Tetrominoes.NoShape)
-                return;
-
-            int keycode = e.getKeyCode();
-            if (keycode == GameSettings.getPauseKey()) {
-                engine.pause();
-                updateView();
-                return;
-            }
-            // 게임 세팅에서 설정한 값으로 입력 받음.
-            if (engine.isPaused())
-                return;
-            if (keycode == GameSettings.getLeftKey()) {
-                moveLeft();
-                return;
-            } else if (keycode == GameSettings.getRightKey()) {
-                moveRight();
-                return;
-            } else if (keycode == GameSettings.getRotateRightKey()) {
-                engine.rotateRight();
-            } else if (keycode == GameSettings.getRotateLeftKey()) {
-                engine.rotateLeft();
-            } else if (keycode == GameSettings.getHardDropKey()) {
-                engine.dropDown();
-            } else if (keycode == GameSettings.getSoftDropKey()) {
-                engine.oneLineDown();
-            } else {
-                return;
-            }
-
-            updateView();
+        @Override public void keyPressed(KeyEvent event) {
+            // 포커스된 Board의 이벤트는 여기서 소비해 키 바인딩과 중복 실행하지 않습니다.
+            if (handleDefaultKey(event.getKeyCode())) event.consume();
+        }
+        @Override public void keyReleased(KeyEvent event) {
+            pressedKeys.remove(event.getKeyCode());
         }
     }
 }
