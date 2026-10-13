@@ -1,5 +1,8 @@
 package backend.ai;
 
+import shared.ai.AiAssistPlan;
+import shared.ai.AiAssistState;
+
 import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
@@ -38,6 +41,7 @@ public final class AiMatchClient implements Closeable {
     private final long startupTimeoutMillis;
     private final long stepTimeoutMillis;
     private boolean started;
+    private boolean hellModelLoaded;
 
     public AiMatchClient() throws IOException {
         this(launchService(), timeoutProperty("tetris.ai.startupTimeoutMillis", 30000),
@@ -66,9 +70,10 @@ public final class AiMatchClient implements Closeable {
     public MatchFrame start(AiDifficulty difficulty, long seed) throws IOException {
         if (difficulty == null) throw new IllegalArgumentException("AI 난이도가 필요합니다.");
         synchronized (requestLock) {
-            MatchFrame frame = exchange("START\t" + difficulty.getId() + "\t" + seed,
+            MatchFrame frame = exchangeFrame("START\t" + difficulty.getId() + "\t" + seed,
                     startupTimeoutMillis, "AI 모델 불러오기");
             started = true;
+            if (difficulty == AiDifficulty.HELL) hellModelLoaded = true;
             return frame;
         }
     }
@@ -77,24 +82,56 @@ public final class AiMatchClient implements Closeable {
         if (!COMMANDS.contains(command)) throw new IllegalArgumentException("지원하지 않는 AI 대전 입력입니다: " + command);
         synchronized (requestLock) {
             if (!started) throw new IOException("AI 대전을 먼저 시작해 주세요.");
-            return exchange("STEP\t" + command, stepTimeoutMillis, "AI 대전 진행");
+            return exchangeFrame("STEP\t" + command, stepTimeoutMillis, "AI 대전 진행");
         }
     }
 
-    private MatchFrame exchange(String request, long timeoutMillis, String operation) throws IOException {
+    public AiAssistPlan assist(AiAssistState state) throws IOException {
+        if (state == null) throw new IllegalArgumentException("AI 도움에 사용할 상태가 필요합니다.");
+        synchronized (requestLock) {
+            String operation = "AI 도움 계산";
+            String request = "ASSIST\t" + state.getBoard() + "\t" + state.getPiece()
+                    + "\t" + state.getRotation() + "\t" + state.getX() + "\t" + state.getY();
+            String response = exchangeRaw(request,
+                    hellModelLoaded ? stepTimeoutMillis : startupTimeoutMillis, operation);
+            try {
+                AiAssistPlan plan = parseAssist(response);
+                if (state.getPiece() == 5 && plan.getRotation() != 0) throw invalid("사각 블록 회전");
+                hellModelLoaded = true;
+                return plan;
+            } catch (IOException failure) {
+                throw requestFailure(operation, failure);
+            }
+        }
+    }
+
+    private MatchFrame exchangeFrame(String request, long timeoutMillis, String operation) throws IOException {
+        String response = exchangeRaw(request, timeoutMillis, operation);
+        try {
+            return parseFrame(response);
+        } catch (IOException failure) {
+            throw requestFailure(operation, failure);
+        }
+    }
+
+    private String exchangeRaw(String request, long timeoutMillis, String operation) throws IOException {
         if (closed.get()) throw new IOException("AI 대전 연결이 종료되었습니다.");
         try {
             writer.write(request);
             writer.newLine();
             writer.flush();
-            return parseFrame(readReply(timeoutMillis, operation));
+            return readReply(timeoutMillis, operation);
         } catch (IOException failure) {
-            String message = operation + "에 실패했습니다. " + failure.getMessage();
-            IOException detailed = failure.getMessage().endsWith(SETUP_HELP)
-                    ? new IOException(message, failure) : failure(message, failure);
-            close();
-            throw detailed;
+            throw requestFailure(operation, failure);
         }
+    }
+
+    private IOException requestFailure(String operation, IOException error) {
+        String message = operation + "에 실패했습니다. " + error.getMessage();
+        IOException detailed = error.getMessage() != null && error.getMessage().endsWith(SETUP_HELP)
+                ? new IOException(message, error) : failure(message, error);
+        close();
+        return detailed;
     }
 
     private String readReply(long timeoutMillis, String operation) throws IOException {
@@ -246,6 +283,21 @@ public final class AiMatchClient implements Closeable {
             if (!expectedWinner.equals(winner)) throw invalid("점수 및 승자 상태");
         }
         return new MatchFrame(elapsed, ended, winner, human, ai);
+    }
+
+    static AiAssistPlan parseAssist(String line) throws IOException {
+        if (line == null || line.length() > MAX_LINE) throw invalid("도움 응답 길이");
+        String[] fields = line.split("\t", -1);
+        if (fields.length != 6 || !"ASSIST".equals(fields[0])) throw invalid("도움 필드 수 또는 ASSIST 표식");
+        if (!"100000".equals(fields[1])) throw invalid("도움 모델 체크포인트");
+        int rotation = number(fields[2], 3, "도움 회전");
+        int x = number(fields[3], 9, "도움 가로 위치");
+        int y = number(fields[4], 21, "도움 세로 위치");
+        try {
+            return new AiAssistPlan(rotation, x, y, fields[5]);
+        } catch (IllegalArgumentException failure) {
+            throw invalid("도움 이동 경로");
+        }
     }
 
     private static MatchFrame.BoardState board(
