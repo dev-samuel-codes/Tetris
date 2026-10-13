@@ -1,6 +1,9 @@
 package frontend.online;
 
 import frontend.Resolution;
+import frontend.GameSettings;
+import java.awt.event.KeyEvent;
+import java.nio.file.Files;
 import frontend.network.OnlineClient;
 import frontend.style.Style;
 import shared.network.OnlineFrame;
@@ -26,6 +29,8 @@ import javax.swing.SwingUtilities;
 // 실제 TCP와 EDT를 사용하지만 창을 열지 않아 CI에서도 수명·입력·표시를 검증합니다.
 public final class OnlineUiTest {
     public static void main(String[] args) throws Exception {
+        System.setProperty("tetris.data.dir", Files.createTempDirectory("tetris-online-ui-settings-").toString());
+        verifyCustomControls();
         verifyMailbox();
         SwingUtilities.invokeAndWait(OnlineUiTest::verifyRendering);
         verifyItemStateRoundTrip();
@@ -36,6 +41,18 @@ public final class OnlineUiTest {
         verifyRotationDropSequence();
         verifySlowResponseDeadline();
         System.out.println("OnlineUiTest: 1초 입력 만료·원격 지연 후 회전/낙하 보존·보드 방향·아이템/안개/회전 금지·다음 블록·좌석·상태·구서버·취소·늦은 EDT 응답·50ms 간격·8초 제한 통과");
+    }
+
+    private static void verifyCustomControls() {
+        int previous = GameSettings.getHardDropKey();
+        try {
+            GameSettings.setHardDropKey(KeyEvent.VK_Z);
+            String controls = OnlineMatchWindow.controlsText();
+            require(controls.contains("Z 즉시 낙하"), "온라인 조작 안내에 사용자 지정 즉시 낙하 키가 없습니다");
+            require(!controls.contains("일시정지"), "온라인 대전에 지원하지 않는 일시정지가 안내됩니다");
+        } finally {
+            GameSettings.setHardDropKey(previous);
+        }
     }
 
     private static void verifyMailbox() throws Exception {
