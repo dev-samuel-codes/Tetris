@@ -48,6 +48,7 @@ public final class GameplayWindowTest {
         SwingUtilities.invokeAndWait(() -> {
             try {
                 verifySingleWindow();
+                verifyClassicHelpButton();
                 verifyResultDialog();
                 verifyLocalMatch();
             } catch (Exception error) { throw new RuntimeException(error); }
@@ -60,6 +61,7 @@ public final class GameplayWindowTest {
         Tetris game = new Tetris(Resolution.MEDIUM, "아이템");
         game.setVisible(true);
         Board board = (Board) field(Tetris.class, game, "board");
+        require(field(Tetris.class, game, "aiHelpButton") == null, "아이템 화면에는 AI 도움 미표시");
         JButton pause = (JButton) field(Tetris.class, game, "pauseButton");
         JButton menu = findButton(game.getContentPane(), "← 메뉴로 돌아가기");
         require(!pause.isFocusable() && !menu.isFocusable(), "싱글 진행 중 버튼의 게임 키 가로채기 방지");
@@ -103,6 +105,25 @@ public final class GameplayWindowTest {
         menuResult.getRootPane().getActionMap().get(action).actionPerformed(new ActionEvent(menuResult, 0, "Escape"));
         require(actions[1] == 1, "결과 Escape 메뉴 복귀");
         result.dispose(); menuResult.dispose();
+    }
+
+    private static void verifyClassicHelpButton() throws Exception {
+        Tetris game = new Tetris(Resolution.SMALL, "클래식");
+        try {
+            game.setVisible(true);
+            Board board = (Board) field(Tetris.class, game, "board");
+            JButton help = (JButton) field(Tetris.class, game, "aiHelpButton");
+            require(help != null && help.isEnabled(), "클래식 도움 버튼 표시 및 활성화");
+            require(!help.isFocusable(), "도움 버튼이 게임 조작키를 가로채지 않음");
+            game.validate();
+            require(help.getVisibleRect().contains(new java.awt.Rectangle(0, 0,
+                    help.getWidth(), help.getHeight())), "작은 게임 창에서 도움 버튼 전체 표시");
+            capture(game.getContentPane(), images.resolve("12-classic-ai-help.png"));
+            board.setPaused(true, "버튼 상태 확인");
+            require(!help.isEnabled(), "정지 중 도움 시작 차단");
+            board.setPaused(false, "계속하기");
+            require(help.isEnabled(), "재개 후 미사용 도움 활성화");
+        } finally { game.dispose(); }
     }
 
     private static void verifyLocalMatch() throws Exception {
