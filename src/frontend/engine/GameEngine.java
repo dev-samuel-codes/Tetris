@@ -4,6 +4,8 @@ import java.util.Random;
 
 import frontend.Shape;
 import frontend.Tetrominoes;
+import shared.ai.AiAssistPlan;
+import shared.ai.AiAssistState;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.List;
@@ -237,6 +239,103 @@ public class GameEngine {
 
     private boolean canControlPiece() {
         return isStarted && !isPaused && curPiece.getShape() != Tetrominoes.NoShape;
+    }
+
+    // 고정된 칸과 현재 블록을 분리하여 현재 위치에서 AI 경로를 요청합니다.
+    public AiAssistState getAiAssistState() {
+        if (!canControlPiece() || isFallingFinished || isItemMode() || battleItemMode
+                || curPiece.getShape().ordinal() > 7)
+            return null;
+        int rotation = aiAssistRotation(curPiece);
+        if (rotation < 0 || !canPlace(curPiece, curX, curY))
+            return null;
+        StringBuilder cells = new StringBuilder(board.length);
+        for (Tetrominoes cell : board) {
+            if (cell.ordinal() > 7)
+                return null;
+            cells.append((char) ('0' + cell.ordinal()));
+        }
+        return new AiAssistState(cells.toString(), curPiece.getShape().ordinal(),
+                rotation, curX, curY);
+    }
+
+    // 모든 입력을 복사본에서 확인한 뒤 한 블록만 기존 착지 규칙으로 고정합니다.
+    public boolean applyAiAssistPlan(AiAssistState expected, AiAssistPlan plan) {
+        AiAssistState current = getAiAssistState();
+        if (expected == null || plan == null || current == null || !expected.equals(current))
+            return false;
+        String path = plan.getPath();
+        if (path == null || path.length() == 0 || path.length() > 256
+                || path.charAt(path.length() - 1) != 'H')
+            return false;
+
+        Shape candidate = new Shape();
+        candidate.setShape(curPiece.getShape());
+        for (int i = 0; i < current.getRotation(); i++)
+            candidate = candidate.rotateRight();
+        int x = curX;
+        int y = curY;
+        for (int i = 0; i < path.length(); i++) {
+            char action = path.charAt(i);
+            if (action == 'L' || action == 'R' || action == 'D') {
+                int nextX = x + (action == 'L' ? -1 : action == 'R' ? 1 : 0);
+                int nextY = y - (action == 'D' ? 1 : 0);
+                if (!canPlace(candidate, nextX, nextY))
+                    return false;
+                x = nextX;
+                y = nextY;
+            } else if (action == 'A' || action == 'C') {
+                if (rotationLocked)
+                    return false;
+                Shape rotated = action == 'A' ? candidate.rotateLeft() : candidate.rotateRight();
+                boolean fits = false;
+                for (int[] offset : WALL_KICK_OFFSETS) {
+                    if (canPlace(rotated, x + offset[0], y + offset[1])) {
+                        x += offset[0];
+                        y += offset[1];
+                        candidate = rotated;
+                        fits = true;
+                        break;
+                    }
+                }
+                if (!fits)
+                    return false;
+            } else if (action == 'H') {
+                if (i != path.length() - 1)
+                    return false;
+                while (canPlace(candidate, x, y - 1))
+                    y--;
+            } else {
+                return false;
+            }
+        }
+        if (plan.getX() != x || plan.getY() != y
+                || plan.getRotation() != aiAssistRotation(candidate))
+            return false;
+
+        curPiece = candidate;
+        curX = x;
+        curY = y;
+        pieceDropped();
+        return true;
+    }
+
+    private int aiAssistRotation(Shape piece) {
+        Shape reference = new Shape();
+        reference.setShape(piece.getShape());
+        for (int rotation = 0; rotation < 4; rotation++) {
+            boolean matches = true;
+            for (int i = 0; i < 4; i++) {
+                if (piece.x(i) != reference.x(i) || piece.y(i) != reference.y(i)) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches)
+                return rotation;
+            reference = reference.rotateRight();
+        }
+        return -1;
     }
 
     private void clearBoard() {

@@ -21,6 +21,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import frontend.engine.GameEngine;
+import frontend.ai.ClassicAiAssist;
 import frontend.style.Style;
 import shared.score.ScoreMode;
 import java.awt.AlphaComposite;
@@ -56,6 +57,8 @@ public class Board extends JPanel implements ActionListener {
     private boolean battleMode = false;
     private String pauseReason = "잠시 쉬어 가세요";
     private final Set<Integer> pressedKeys = new HashSet<>();
+    private final ClassicAiAssist aiAssist;
+    private boolean wasAiAssistBusy;
 
     private GameOverListener gameOverListener;
 
@@ -80,10 +83,12 @@ public class Board extends JPanel implements ActionListener {
         this.statusbar = statusbar;
         this.engine.setItemMode(itemMode);
         this.playerNickname = ScoreManager.getNickname();
+        aiAssist = new ClassicAiAssist(engine, this::updateView);
 
         timer = new Timer(400, this);
         clockTimer = new Timer(1000, e -> {
-            if (isStopped || !engine.isStarted() || engine.isPaused())
+            if (isStopped || !engine.isStarted() || engine.isPaused()
+                    || (aiAssist.isBusy() && !aiAssist.isUsed()))
                 return;
             elapsedSeconds++;
             sidePanel.setElapsedSeconds(elapsedSeconds);
@@ -119,7 +124,7 @@ public class Board extends JPanel implements ActionListener {
     }
 
     public void actionPerformed(ActionEvent e) {
-        if (isStopped)
+        if (isStopped || aiAssist.isBusy())
             return;
         engine.tick();
         updateView();
@@ -158,7 +163,7 @@ public class Board extends JPanel implements ActionListener {
     }
 
     private void moveHorizontally(boolean left) {
-        if (isStopped || !engine.isStarted() || engine.isPaused() || engine.getCurrentShape() == Tetrominoes.NoShape)
+        if (!canPlay())
             return;
 
         if (left)
@@ -169,12 +174,35 @@ public class Board extends JPanel implements ActionListener {
     }
 
     private boolean canPlay() {
-        return !isStopped && engine.isStarted() && !engine.isPaused()
+        return !isStopped && !aiAssist.isBusy() && engine.isStarted() && !engine.isPaused()
                 && engine.getCurrentShape() != Tetrominoes.NoShape;
     }
 
     public boolean isRunning() {
         return !isStopped && engine.isStarted();
+    }
+
+    // 클래식에서만 한 판에 한 번 사용. AI가 배치하는 동안 직접 조작과 중력을 잠깐 멈춥니다.
+    public boolean canUseAiAssist() {
+        return !battleMode && !engine.isItemMode() && canPlay() && !aiAssist.isUsed();
+    }
+
+    public void startAiAssist() {
+        if (!canUseAiAssist()) return;
+        clearPressedKeys();
+        aiAssist.start();
+        updateView();
+    }
+
+    public boolean isAiAssistBusy() { return aiAssist.isBusy(); }
+    public boolean isAiAssistUsed() { return aiAssist.isUsed(); }
+    public String getAiAssistMessage() { return aiAssist.getMessage(); }
+    public String getAiAssistButtonText() {
+        if (aiAssist.isBusy()) {
+            if (!aiAssist.isUsed()) return "AI 준비 중…";
+            return String.format(java.util.Locale.ROOT, "AI 도움 · %.1f초", aiAssist.getRemainingMillis() / 1000.0);
+        }
+        return aiAssist.isUsed() ? "AI 사용 완료" : "AI 도움 · 1회";
     }
 
     public void rotateLeft() { controlPiece(engine::rotateLeft); }
@@ -197,6 +225,8 @@ public class Board extends JPanel implements ActionListener {
         boolean previous = engine.isPaused();
         if (paused) pauseReason = reason;
         if (previous != paused) engine.pause();
+        // 포커스 이탈이나 P/ESC로 쉬는 시간은 AI의 5초에 포함하지 않음
+        aiAssist.pauseChanged();
         updateView();
         firePropertyChange("paused", previous, engine.isPaused());
     }
@@ -258,6 +288,7 @@ public class Board extends JPanel implements ActionListener {
         previousCombo = 0;
         comboShown = 0;
         isStopped = false;
+        aiAssist.reset();
         engine.start();
         elapsedSeconds = 0;
         scoreSaveStatus = "";
@@ -267,6 +298,7 @@ public class Board extends JPanel implements ActionListener {
     }
 
     public void stop() {
+        aiAssist.stop();
         comboTimer.stop();
         isStopped = true;
         clearPressedKeys();
@@ -322,8 +354,10 @@ public class Board extends JPanel implements ActionListener {
 
     private void updateView() {
         if (!isStopped && engine.isStarted() && !engine.isPaused()) {
-            timer.start();
-            clockTimer.start();
+            if (aiAssist.isBusy()) timer.stop();
+            else timer.start();
+            if (aiAssist.isBusy() && !aiAssist.isUsed()) clockTimer.stop();
+            else clockTimer.start();
         } else {
             timer.stop();
             clockTimer.stop();
@@ -349,6 +383,7 @@ public class Board extends JPanel implements ActionListener {
         previousCombo = combo;
 
         if (wasStarted && !engine.isStarted()) {
+            aiAssist.stop();
             SoundManager.stopBgm();
             SoundManager.playGameOver();
             // 1PC 대전의 두 보드는 같은 닉네임을 사용하므로 싱글 랭킹에 저장하지 않음
@@ -377,6 +412,10 @@ public class Board extends JPanel implements ActionListener {
             statusbar.setText(scoreSaveStatus.isEmpty() ? "게임 종료" : scoreSaveStatus);
         } else if (engine.isPaused()) {
             statusbar.setText("일시정지 · " + pauseReason);
+        } else if (aiAssist.isBusy()) {
+            statusbar.setText(aiAssist.getMessage());
+        } else if (!aiAssist.isUsed() && !aiAssist.getMessage().isEmpty()) {
+            statusbar.setText("AI 도움 실패 · 버튼에 마우스를 올려 확인해 주세요");
         } else if (engine.isItemMode() && !engine.getLastItemName().isEmpty()) {
             statusbar.setText("최근 아이템: " + engine.getLastItemName());
         } else {
@@ -390,6 +429,9 @@ public class Board extends JPanel implements ActionListener {
         sidePanel.setItemStatus(engine.getLastItemType());
         sidePanel.setItemMode(engine.isItemMode());
         sidePanel.setNextShape(engine.getNextShape());
+        if (wasAiAssistBusy && !aiAssist.isBusy()) clearPressedKeys();
+        wasAiAssistBusy = aiAssist.isBusy();
+        firePropertyChange("aiAssist", null, getAiAssistButtonText());
         repaint();
     }
 
