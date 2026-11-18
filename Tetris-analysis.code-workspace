@@ -1,0 +1,27 @@
+{
+  "folders": [{ "path": "." }],
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "Analysis: install tools",
+        "type": "process",
+        "command": "powershell",
+        "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/scripts/setup-analysis.ps1"],
+        "options": { "cwd": "${workspaceFolder}" },
+        "problemMatcher": []
+      },
+      {
+        "label": "Analysis: measure and inspect",
+        "type": "process",
+        "command": "powershell",
+        "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/scripts/analyze.ps1", "-Label", "${input:reportLabel}"],
+        "options": { "cwd": "${workspaceFolder}" },
+        "problemMatcher": []
+      }
+    ],
+    "inputs": [
+      { "id": "reportLabel", "type": "promptString", "description": "New report name (existing reports are preserved)", "default": "after" }
+    ]
+  }
+}

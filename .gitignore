@@ -49,3 +49,6 @@ src/backend/models/tetris_afterstate/runtime/build/
 src/backend/models/tetris_afterstate/runtime/src/*.egg-info/
 
 .python-version
+
+# Downloaded analysis tools (reports and scripts remain versioned)
+.analysis-tools/

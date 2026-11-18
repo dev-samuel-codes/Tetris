@@ -1,0 +1,191 @@
+﻿{
+    "commit":  "55d4893d3cc318c8ebe5369a1ceb210d064afcd7",
+    "workingTree":  [
+                        " M .gitignore",
+                        "?? analysis/",
+                        "?? scripts/analyze.ps1",
+                        "?? scripts/setup-analysis.ps1"
+                    ],
+    "measuredAt":  "2026-11-17T15:27:00.1355918+09:00",
+    "sourceScope":  "src/**/*.java only; tests excluded",
+    "sourceFiles":  40,
+    "classRows":  121,
+    "java":  [
+                 "java.exe : java version \"26.0.1\" 2026-04-21",
+                 "At C:\\se\\coding\\Tetris\\Tetris\\scripts\\analyze.ps1:9 char:5",
+                 "+     \u0026 java @JavaArgs \u003e $LogPath 2\u003e\u00261",
+                 "+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+                 "    + CategoryInfo          : NotSpecified: (java version \"26.0.1\" 2026-04-21:String) [], RemoteException",
+                 "    + FullyQualifiedErrorId : NativeCommandError",
+                 " ",
+                 "Java(TM) SE Runtime Environment (build 26.0.1+8-34)",
+                 "Java HotSpot(TM) 64-Bit Server VM (build 26.0.1+8-34, mixed mode, sharing)"
+             ],
+    "compileRelease":  17,
+    "spotbugs":  "4.10.5; effort=max; threshold=low (all priorities)",
+    "ck":  "0.7.0; useJars=false; partition=0; variablesAndFields=false",
+    "highPriorityFindings":  3,
+    "totalFindings":  129,
+    "sourceHashes":  [
+                         {
+                             "path":  "src\\backend\\ai\\AiDifficulty.java",
+                             "sha256":  "A7D429EC2C7DABD844B5F3D04D976AB0309B22DF4EBB8F0736C5C7D68742C7F0"
+                         },
+                         {
+                             "path":  "src\\backend\\ai\\AiMatchClient.java",
+                             "sha256":  "FDDDB1F5A7867C07307AE5F966D1621CC14C90ED97023B4F17718B2E4140A037"
+                         },
+                         {
+                             "path":  "src\\backend\\ai\\MatchFrame.java",
+                             "sha256":  "81C3AE096252BD4095F2040E8E203FDB8FC7A22B696A394F663205B478DCC562"
+                         },
+                         {
+                             "path":  "src\\backend\\network\\ConnectionTestServer.java",
+                             "sha256":  "269DCF58DAF8DBE56819E41EB11E44C6602BA8504C4E838027B42A0FE92099CE"
+                         },
+                         {
+                             "path":  "src\\backend\\network\\OnlineMatchService.java",
+                             "sha256":  "B73A09450A6FF8956D13C5BA171E3B30922DA0B11F3477C9C1FC9CBDCF419269"
+                         },
+                         {
+                             "path":  "src\\backend\\network\\ScoreServer.java",
+                             "sha256":  "7D016CB9A1C20F61FE47A19F2A2E7EFCE111F87018C43FDE4ED1C20532C3F4DD"
+                         },
+                         {
+                             "path":  "src\\backend\\score\\ScoreRepository.java",
+                             "sha256":  "512DE093E03B0C9115006BFDBD3E0B09DAB054728DDD3D71799A280EBF7B1619"
+                         },
+                         {
+                             "path":  "src\\frontend\\BlockPainter.java",
+                             "sha256":  "4801DEF194ED7EFCF8D71CCC5EB8492A095EC7DCA23787A7A194A882848A86DE"
+                         },
+                         {
+                             "path":  "src\\frontend\\Board.java",
+                             "sha256":  "86E8EAE548C5B1EB2C5236BFEF4734FF8B11E3E6881541FDD0813D5BF401CD78"
+                         },
+                         {
+                             "path":  "src\\frontend\\GameOverDialog.java",
+                             "sha256":  "8C8B01BBCCB234B7A6CEF8AA0F423B0487984DC75E26B6EBF58B37A72B56E230"
+                         },
+                         {
+                             "path":  "src\\frontend\\GameSettings.java",
+                             "sha256":  "834961B5ED2CAD2EB6FF41584FB86656CDDDDBE680121666626AB94DCAECF9F3"
+                         },
+                         {
+                             "path":  "src\\frontend\\ItemSprites.java",
+                             "sha256":  "20B51E8960E815EE4F2CFD832C670D627BC06F44177BACCBC3EC007BDE8340D7"
+                         },
+                         {
+                             "path":  "src\\frontend\\LineClearFlash.java",
+                             "sha256":  "E62ABB9124054D803DCD313898B92F936AC6C856AF35AB8C8EDCFFECB04A6A4E"
+                         },
+                         {
+                             "path":  "src\\frontend\\Main.java",
+                             "sha256":  "325F481285B13B1E5BE5D9B18F0BADFBDC9C6147BB4D2F09A4F511015A1DF5E3"
+                         },
+                         {
+                             "path":  "src\\frontend\\Resolution.java",
+                             "sha256":  "FC93885C9F377F8A6B62B06270B2C4B004E2C3AAF09746876FCCEDB36E3DA581"
+                         },
+                         {
+                             "path":  "src\\frontend\\ScoreManager.java",
+                             "sha256":  "7E2BFF6BBDE65076BEA511572327BC816BC4AC08BACE497E50476A664D7DD067"
+                         },
+                         {
+                             "path":  "src\\frontend\\Shape.java",
+                             "sha256":  "C3886150112EFFCE057190C98069C197DCD67DA935AAD19C0FF5CE0D9A936AAB"
+                         },
+                         {
+                             "path":  "src\\frontend\\SidePanel.java",
+                             "sha256":  "1CD9B665C40B67DF765B8E25FBEFBA620C29EFCDFE2CF09B05AF3D0415E13263"
+                         },
+                         {
+                             "path":  "src\\frontend\\SoundManager.java",
+                             "sha256":  "E39CF1B3196A32383365A4D67963D4DEB41A8ED9B3087613A925417486BD5565"
+                         },
+                         {
+                             "path":  "src\\frontend\\Tetris.java",
+                             "sha256":  "804A4ED5D565A90B40ADA77FB7012A26BC287EE8F86F245F3C5E6692E6F3970A"
+                         },
+                         {
+                             "path":  "src\\frontend\\Tetrominoes.java",
+                             "sha256":  "1E0AABF8B18007AFF4745F31B4365FDCCB60F90FBE897901E0D5C95611D72CC3"
+                         },
+                         {
+                             "path":  "src\\frontend\\TwoPlayerTetris.java",
+                             "sha256":  "90C45C326AD08A611C90AF7403D581BF5470F826EFFAED7C46A7CDDE4F65B5FE"
+                         },
+                         {
+                             "path":  "src\\frontend\\ai\\AiMatchWindow.java",
+                             "sha256":  "E4B67AD64F375E076896EEEAEDB9AD51DB22A6E5090B03A922CFC5CADD973495"
+                         },
+                         {
+                             "path":  "src\\frontend\\ai\\ClassicAiAssist.java",
+                             "sha256":  "05DFA872E76D84A77874E480E7504DE15C03C57B98E0BC9D6FECF598E7CA3A18"
+                         },
+                         {
+                             "path":  "src\\frontend\\ai\\FramePacer.java",
+                             "sha256":  "1C7EBB1D038C3672FC5F210CBEFE6C8ADFC5505D9190F09B51EA946B660FCD3A"
+                         },
+                         {
+                             "path":  "src\\frontend\\engine\\GameEngine.java",
+                             "sha256":  "CF6C9D31DE0302DA629077345B3ABA7ECCABA1582C9CD65743EC44258F808571"
+                         },
+                         {
+                             "path":  "src\\frontend\\network\\ConnectionTestClient.java",
+                             "sha256":  "493D2BA958978F18DB1D9699C2D912BE426E2D72E5D58CFA2CE6CE0132922E05"
+                         },
+                         {
+                             "path":  "src\\frontend\\network\\OnlineClient.java",
+                             "sha256":  "7A59F27EF24674564FA3F6F7237A6A4C0059B8EA067032E83D6F140E54E29B47"
+                         },
+                         {
+                             "path":  "src\\frontend\\network\\ScoreClient.java",
+                             "sha256":  "B168DC994EB2C3463B9E42ADF3E273171ACAD172ACCFD6261FCA059F4CD409A1"
+                         },
+                         {
+                             "path":  "src\\frontend\\online\\OnlineMatchWindow.java",
+                             "sha256":  "D0F0EB393510F8345D027904A98DD63955B8E38476077C6837402350D765897C"
+                         },
+                         {
+                             "path":  "src\\frontend\\online\\OnlineSession.java",
+                             "sha256":  "F965EE407246C66380E2FC86C10C49DD15BC4C00127A39D8E9F6CC4A0B4B9246"
+                         },
+                         {
+                             "path":  "src\\frontend\\score\\LocalScoreStore.java",
+                             "sha256":  "9855237AD03D6379757448E092892F47480D48C6A29349EF26F03D91FB5C0407"
+                         },
+                         {
+                             "path":  "src\\frontend\\style\\Style.java",
+                             "sha256":  "1D75AB135D886C199A53D2D9AED2FC3D76A0EEABB24C91F3AFE9A50158AFBFC7"
+                         },
+                         {
+                             "path":  "src\\frontend\\ui\\ModeCard.java",
+                             "sha256":  "E072D174EFC4994B67C646DBCA09ACC2438B43597EE24A1941CC0106ED64F3F0"
+                         },
+                         {
+                             "path":  "src\\frontend\\ui\\PixelLogo.java",
+                             "sha256":  "A0230528424234F45F72296419260BB5F7A16208E11DBC4A0D25579CAC81BDB8"
+                         },
+                         {
+                             "path":  "src\\frontend\\ui\\SettingsPanel.java",
+                             "sha256":  "F0CC530C990CD0465CB6B8D18768501400ED975A5ED2B10D0177D1FF3B694C1E"
+                         },
+                         {
+                             "path":  "src\\shared\\ai\\AiAssistPlan.java",
+                             "sha256":  "9E8F0B089C133898B1CD6C2F4720FB30FD82EE4189043667CA7A1BEA25F5596D"
+                         },
+                         {
+                             "path":  "src\\shared\\ai\\AiAssistState.java",
+                             "sha256":  "738C2B2BD897F6033DD3921D830E148CDD081C2E0BDB1C975B1C73E067996B5F"
+                         },
+                         {
+                             "path":  "src\\shared\\network\\OnlineFrame.java",
+                             "sha256":  "DC8892F9BCF9C1D4D07D8B81C497A5DC1F9EAA68D44AD054F6E69383741B6ECB"
+                         },
+                         {
+                             "path":  "src\\shared\\score\\ScoreMode.java",
+                             "sha256":  "112AD56AE1C03EED70A381CB29C8384828E3DE3268E3EED0508B1B27FAAB2242"
+                         }
+                     ]
+}
