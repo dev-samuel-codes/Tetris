@@ -32,7 +32,7 @@ public final class BlockPainter {
 
     private static void drawSquare(Graphics g, int x, int y, int size, Tetrominoes shape,
             boolean itemCell, ItemType itemType) {
-        if (size <= 0 || shape == Tetrominoes.NoShape)
+        if (size <= 0 || shape == Tetrominoes.NO_SHAPE)
             return;
 
         int index = shape.ordinal();

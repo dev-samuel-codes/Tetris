@@ -43,20 +43,26 @@ public final class AiMatchClient implements Closeable {
     private boolean started;
     private boolean hellModelLoaded;
 
+    //객체를 생성하면 파이썬을 실행시키고 통신준비까지 마치게됨.
     public AiMatchClient() throws IOException {
-        this(launchService(), timeoutProperty("tetris.ai.startupTimeoutMillis", 30000),
+        this(launchService(),  //match_service.py를 실행시키고 파이썬과 소통할수 있는 process 객체를 반환
+                timeoutProperty("tetris.ai.startupTimeoutMillis", 30000),
                 timeoutProperty("tetris.ai.stepTimeoutMillis", 5000));
     }
 
+    // 위에 this를 타고 아래 또다른 생성자를 호출함.
     // 테스트에서는 실제 Python 대신 응답을 흉내 내는 프로세스를 전달
     AiMatchClient(Process process, long startupTimeoutMillis, long stepTimeoutMillis) throws IOException {
         this.process = process;
         this.startupTimeoutMillis = startupTimeoutMillis;
         this.stepTimeoutMillis = stepTimeoutMillis;
+        //파이썬에 글을 보낼 도구 writer을 만든다.
         this.writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8));
-        stderrThread = startStderrReader();
-        startStdoutReader();
+        stderrThread = startStderrReader();  //오류응답
+        startStdoutReader(); // 파이썬이 보낸 글을 한 글자씩 읽다가, 한 줄이 완성되면 replies 큐에 넣는 함수
+        // 정상적인 입력이 들어오면 READY\t2라는 입력이왔는지 확인하는코드
         try {
+            // replies를 꺼내서 정상적인 입력이 왔는지 확인한다.
             String ready = readReply(startupTimeoutMillis, "AI 서비스 시작");
             if (!"READY\t2".equals(ready)) {
                 throw failure("AI 서비스의 시작 응답이 올바르지 않습니다: " + brief(ready), null);
@@ -67,9 +73,11 @@ public final class AiMatchClient implements Closeable {
         }
     }
 
+    //파이썬의 준비 완료를 확인했으니까, 난이도와 시드를 보내서 실제 경기를 시작하는 단계
     public MatchFrame start(AiDifficulty difficulty, long seed) throws IOException {
         if (difficulty == null) throw new IllegalArgumentException("AI 난이도가 필요합니다.");
         synchronized (requestLock) {
+            // 난이도와 시드를 보내고 그 결과를 받아옴
             MatchFrame frame = exchangeFrame("START\t" + difficulty.getId() + "\t" + seed,
                     startupTimeoutMillis, "AI 모델 불러오기");
             started = true;
@@ -78,6 +86,7 @@ public final class AiMatchClient implements Closeable {
         }
     }
 
+    //step()은 사람의 입력을 보내고 한 틱 진행된 결과를 받는 메서드
     public MatchFrame step(String command) throws IOException {
         if (!COMMANDS.contains(command)) throw new IllegalArgumentException("지원하지 않는 AI 대전 입력입니다: " + command);
         synchronized (requestLock) {
@@ -86,6 +95,7 @@ public final class AiMatchClient implements Closeable {
         }
     }
 
+    //현재 자바 보드 상태를 보내고 “이 블록을 어떻게 놓으면 되는지” 계획을 받는다.
     public AiAssistPlan assist(AiAssistState state) throws IOException {
         if (state == null) throw new IllegalArgumentException("AI 도움에 사용할 상태가 필요합니다.");
         synchronized (requestLock) {
@@ -114,6 +124,7 @@ public final class AiMatchClient implements Closeable {
         }
     }
 
+    //파이썬에게 데이터를 전달하는 함수
     private String exchangeRaw(String request, long timeoutMillis, String operation) throws IOException {
         if (closed.get()) throw new IOException("AI 대전 연결이 종료되었습니다.");
         try {
@@ -134,9 +145,11 @@ public final class AiMatchClient implements Closeable {
         return detailed;
     }
 
+    //응답 큐에서 하나를 꺼내고, 문제가 없으면 그 안의 문자열을 반환하는 것
     private String readReply(long timeoutMillis, String operation) throws IOException {
         Reply reply;
         try {
+            //replies 큐에서 하나 꺼내줘
             reply = replies.poll(timeoutMillis, TimeUnit.MILLISECONDS);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
@@ -151,15 +164,18 @@ public final class AiMatchClient implements Closeable {
         return reply.line;
     }
 
+    //파이썬이 보낸 글을 한 글자씩 읽다가, 한 줄이 완성되면 replies 큐에 넣는 것
     private void startStdoutReader() {
         Thread thread = new Thread(new Runnable() {
             @Override public void run() {
+                // 파이썬의 출력을 받아들이는 통로 개방
                 try (Reader reader = new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8)) {
                     StringBuilder line = new StringBuilder();
                     int next;
                     while (!closed.get() && (next = reader.read()) != -1) {
                         if (next == '\n') {
                             if (line.length() > 0 && line.charAt(line.length() - 1) == '\r') line.setLength(line.length() - 1);
+                            //파이썬에서 읽어들인 코드를 하나씩 replies 코드에 집어넣는다.
                             if (!replies.offer(new Reply(line.toString(), null))) {
                                 terminal(new IOException("AI 서비스가 요청 없이 너무 많은 응답을 보냈습니다."));
                                 process.destroy();
@@ -208,7 +224,7 @@ public final class AiMatchClient implements Closeable {
             }
         }, "tetris-ai-stderr");
         thread.setDaemon(true);
-        thread.start();
+        thread.start(); //run()안에 읽기작업을 시작함.
         return thread;
     }
 
@@ -263,11 +279,12 @@ public final class AiMatchClient implements Closeable {
             throw invalid("승자");
         }
         if (ended == "NONE".equals(winner)) throw invalid("종료 및 승자 상태");
+        //사람 정보를 객체로
         MatchFrame.BoardState human = board(
                 fields, 4,
                 fields.length == 16 ? clearedRow(fields[14]) : -1
         );
-
+        //ai 정보를 객체로
         MatchFrame.BoardState ai = board(
                 fields, 9,
                 fields.length == 16 ? clearedRow(fields[15]) : -1

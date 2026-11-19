@@ -30,7 +30,7 @@ public class ItemModeEngineTest {
 
         engine.triggerBombItem();
         engine.start();
-        if (engine.getCurrentShape() == Tetrominoes.BombShape) {
+        if (engine.getCurrentShape() == Tetrominoes.BOMB_SHAPE) {
             throw new AssertionError("폭탄 아이템은 1x1 폭탄 미노로 등장하면 안 됩니다.");
         }
 
@@ -72,7 +72,7 @@ public class ItemModeEngineTest {
         GameEngine.ItemType[] itemTypes = (GameEngine.ItemType[]) itemField.get(engine);
 
         for (int x = 0; x < GameEngine.BOARD_WIDTH; x++) {
-            board[(GameEngine.BOARD_HEIGHT - 1) * GameEngine.BOARD_WIDTH + x] = Tetrominoes.LineShape;
+            board[(GameEngine.BOARD_HEIGHT - 1) * GameEngine.BOARD_WIDTH + x] = Tetrominoes.LINE_SHAPE;
         }
 
         int itemCell = (GameEngine.BOARD_HEIGHT - 1) * GameEngine.BOARD_WIDTH + 3;
@@ -108,7 +108,7 @@ public class ItemModeEngineTest {
         Shape nextPiece = (Shape) nextPieceField.get(engine);
 
         for (int pieceNumber = 1; pieceNumber <= 3; pieceNumber++) {
-            nextPiece.setShape(Tetrominoes.TShape);
+            nextPiece.setShape(Tetrominoes.T_SHAPE);
             newPiece.invoke(engine);
             engine.oneLineDown();
             boolean expectedLocked = pieceNumber <= 2;
@@ -153,7 +153,7 @@ public class ItemModeEngineTest {
         Tetrominoes[] board = (Tetrominoes[]) boardField.get(engine);
 
         for (int x = 0; x < GameEngine.BOARD_WIDTH; x++) {
-            board[(GameEngine.BOARD_HEIGHT - 1) * GameEngine.BOARD_WIDTH + x] = Tetrominoes.LineShape;
+            board[(GameEngine.BOARD_HEIGHT - 1) * GameEngine.BOARD_WIDTH + x] = Tetrominoes.LINE_SHAPE;
         }
 
         Method removeFullLines = GameEngine.class.getDeclaredMethod("removeFullLines");
@@ -161,7 +161,7 @@ public class ItemModeEngineTest {
         removeFullLines.invoke(engine);
 
         for (int x = 0; x < GameEngine.BOARD_WIDTH; x++) {
-            if (engine.shapeAt(x, GameEngine.BOARD_HEIGHT - 1) != Tetrominoes.NoShape) {
+            if (engine.shapeAt(x, GameEngine.BOARD_HEIGHT - 1) != Tetrominoes.NO_SHAPE) {
                 throw new AssertionError("줄 삭제 후 마지막 행은 비워야 합니다.");
             }
         }

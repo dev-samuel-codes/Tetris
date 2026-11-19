@@ -51,7 +51,7 @@ public final class ClassicAssistIntegrationTest {
                 int cells = 0;
                 for (int y = 0; y < 22; y++)
                     for (int x = 0; x < 10; x++)
-                        if (board.getEngine().shapeAt(x, y) != Tetrominoes.NoShape) cells++;
+                        if (board.getEngine().shapeAt(x, y) != Tetrominoes.NO_SHAPE) cells++;
                 require(board.isAiAssistUsed() && !board.canUseAiAssist(), "한 판 두 번째 사용 차단");
                 int total = (cells + board.getEngine().getNumLinesRemoved() * 10) / 4;
                 require(total > 1, "5초 동안 여러 블록 배치");

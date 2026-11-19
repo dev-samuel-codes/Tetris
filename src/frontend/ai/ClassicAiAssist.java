@@ -159,7 +159,7 @@ public final class ClassicAiAssist {
 
     private void requestNext() {
         if (engine.isPaused()) return;
-        if (engine.isStarted() && engine.getCurrentShape() == Tetrominoes.NoShape) {
+        if (engine.isStarted() && engine.getCurrentShape() == Tetrominoes.NO_SHAPE) {
             engine.tick(); // 줄 삭제 뒤 대기 중인 다음 블록만 생성합니다.
             int token = generation;
             onChange.run();

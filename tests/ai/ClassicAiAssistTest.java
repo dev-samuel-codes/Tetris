@@ -182,19 +182,19 @@ public final class ClassicAiAssistTest {
         edt(() -> {
             try {
                 Field current = GameEngine.class.getDeclaredField("curPiece"); current.setAccessible(true);
-                ((Shape) current.get(f.engine)).setShape(Tetrominoes.SquareShape);
+                ((Shape) current.get(f.engine)).setShape(Tetrominoes.SQUARE_SHAPE);
                 Field x = GameEngine.class.getDeclaredField("curX"); x.setAccessible(true); x.setInt(f.engine, 4);
                 Field y = GameEngine.class.getDeclaredField("curY"); y.setAccessible(true); y.setInt(f.engine, 12);
                 Field board = GameEngine.class.getDeclaredField("board"); board.setAccessible(true);
                 Tetrominoes[] cells = (Tetrominoes[]) board.get(f.engine);
-                for (int i = 0; i < 10; i++) if (i != 4 && i != 5) cells[i] = Tetrominoes.LineShape;
+                for (int i = 0; i < 10; i++) if (i != 4 && i != 5) cells[i] = Tetrominoes.LINE_SHAPE;
             } catch (Exception error) { throw new RuntimeException(error); }
             f.assist.start();
         });
         check(f.advisor.entered.await(2, TimeUnit.SECONDS), "줄 삭제 후 다음 추론 요청");
         edt(() -> {
             check(f.engine.getNumLinesRemoved() == 1 && f.engine.getScore() == 10, "기존 줄 점수 유지");
-            check(f.engine.getCurrentShape() != Tetrominoes.NoShape, "줄 삭제 대기 상태에서 다음 블록 생성");
+            check(f.engine.getCurrentShape() != Tetrominoes.NO_SHAPE, "줄 삭제 대기 상태에서 다음 블록 생성");
             f.assist.stop();
         });
         f.advisor.release.countDown();
@@ -294,7 +294,7 @@ public final class ClassicAiAssistTest {
     private static int occupied(GameEngine engine) {
         int count = 0;
         for (int y = 0; y < 22; y++) for (int x = 0; x < 10; x++)
-            if (engine.shapeAt(x, y) != Tetrominoes.NoShape) count++;
+            if (engine.shapeAt(x, y) != Tetrominoes.NO_SHAPE) count++;
         return count;
     }
     private static void await(BooleanSupplier condition) throws Exception {

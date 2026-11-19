@@ -248,7 +248,7 @@ public final class GameplayWindowTest {
         int occupied = 0;
         for (int y = 0; y < Board.BOARD_HEIGHT; y++)
             for (int x = 0; x < Board.BOARD_WIDTH; x++)
-                if (board.getEngine().shapeAt(x, y) != Tetrominoes.NoShape) occupied++;
+                if (board.getEngine().shapeAt(x, y) != Tetrominoes.NO_SHAPE) occupied++;
         return occupied;
     }
 
