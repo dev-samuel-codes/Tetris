@@ -32,7 +32,7 @@ public class Board extends JPanel implements ActionListener {
     final static int BOARD_WIDTH = GameEngine.BOARD_WIDTH;
     final static int BOARD_HEIGHT = GameEngine.BOARD_HEIGHT;
 
-    private final GameEngine engine = new GameEngine();
+    private final transient GameEngine engine = new GameEngine();
     private final Timer timer;
     private final Timer clockTimer;
     private final Timer levelTimer;
@@ -57,10 +57,9 @@ public class Board extends JPanel implements ActionListener {
     private boolean battleMode = false;
     private String pauseReason = "잠시 쉬어 가세요";
     private final Set<Integer> pressedKeys = new HashSet<>();
-    private final ClassicAiAssist aiAssist;
+    private final transient ClassicAiAssist aiAssist;
     private boolean wasAiAssistBusy;
-
-    private GameOverListener gameOverListener;
+    private transient GameOverListener gameOverListener;
 
     // 게임 종료 인터페이스
     public interface GameOverListener {
