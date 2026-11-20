@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class AiMatchClient implements Closeable {
     private static final int MAX_LINE = 4096;
     private static final int STDERR_LIMIT = 4096;
+    private static final String ELAPSED_TIME_FIELD = "경과 시간";
     private static final Set<String> COMMANDS = new HashSet<String>(Arrays.asList(
             "WAIT", "LEFT", "RIGHT", "ROTATE_LEFT", "ROTATE_RIGHT", "SOFT_DROP", "HARD_DROP"));
     private static final String SETUP_HELP =
@@ -166,44 +167,49 @@ public final class AiMatchClient implements Closeable {
 
     //파이썬이 보낸 글을 한 글자씩 읽다가, 한 줄이 완성되면 replies 큐에 넣는 것
     private void startStdoutReader() {
-        Thread thread = new Thread(new Runnable() {
-            @Override public void run() {
-                // 파이썬의 출력을 받아들이는 통로 개방
-                try (Reader reader = new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8)) {
-                    StringBuilder line = new StringBuilder();
-                    int next;
-                    while (!closed.get() && (next = reader.read()) != -1) {
-                        if (next == '\n') {
-                            if (line.length() > 0 && line.charAt(line.length() - 1) == '\r') line.setLength(line.length() - 1);
-                            //파이썬에서 읽어들인 코드를 하나씩 replies 코드에 집어넣는다.
-                            if (!replies.offer(new Reply(line.toString(), null))) {
-                                terminal(new IOException("AI 서비스가 요청 없이 너무 많은 응답을 보냈습니다."));
-                                process.destroy();
-                                return;
-                            }
-                            line.setLength(0);
-                        } else {
-                            if (line.length() >= MAX_LINE) {
-                                terminal(new IOException("AI 서비스 응답이 허용된 길이를 초과했습니다."));
-                                process.destroy();
-                                return;
-                            }
-                            line.append((char) next);
-                        }
-                    }
-                    if (!closed.get()) {
-                        // 필요한 패키지가 없어 종료된 경우 오류 내용도 함께 확인
-                        try { stderrThread.join(100); }
-                        catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); }
-                    }
-                    terminal(new IOException("AI 서비스 프로세스가 응답을 보내기 전에 종료되었습니다."));
-                } catch (IOException failure) {
-                    terminal(new IOException("AI 서비스 출력 연결이 끊어졌습니다.", failure));
-                }
-            }
-        }, "tetris-ai-stdout");
+        Thread thread = new Thread(this::readStdout, "tetris-ai-stdout");
         thread.setDaemon(true);
         thread.start();
+    }
+
+    private void readStdout() {
+        try (Reader reader = new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8)) {
+            if (!readReplyLines(reader))
+                return;
+            if (!closed.get()) {
+                // 필요한 패키지가 없어 종료된 경우 오류 내용도 함께 확인
+                try { stderrThread.join(100); }
+                catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); }
+            }
+            terminal(new IOException("AI 서비스 프로세스가 응답을 보내기 전에 종료되었습니다."));
+        } catch (IOException failure) {
+            terminal(new IOException("AI 서비스 출력 연결이 끊어졌습니다.", failure));
+        }
+    }
+
+    private boolean readReplyLines(Reader reader) throws IOException {
+        StringBuilder line = new StringBuilder();
+        int next;
+        while (!closed.get() && (next = reader.read()) != -1) {
+            if (next == '\n') {
+                if (line.length() > 0 && line.charAt(line.length() - 1) == '\r')
+                    line.setLength(line.length() - 1);
+                if (!replies.offer(new Reply(line.toString(), null))) {
+                    terminal(new IOException("AI 서비스가 요청 없이 너무 많은 응답을 보냈습니다."));
+                    process.destroy();
+                    return false;
+                }
+                line.setLength(0);
+                continue;
+            }
+            if (line.length() >= MAX_LINE) {
+                terminal(new IOException("AI 서비스 응답이 허용된 길이를 초과했습니다."));
+                process.destroy();
+                return false;
+            }
+            line.append((char) next);
+        }
+        return true;
     }
 
     private Thread startStderrReader() {
@@ -289,6 +295,12 @@ public final class AiMatchClient implements Closeable {
                 fields, 9,
                 fields.length == 16 ? clearedRow(fields[15]) : -1
         );
+        validateMatchResult(ended, winner, human, ai);
+        return new MatchFrame(elapsed, ended, winner, human, ai);
+    }
+
+    private static void validateMatchResult(boolean ended, String winner, MatchFrame.BoardState human,
+                                            MatchFrame.BoardState ai) throws IOException {
         // 한쪽이 끝나도 살아 있는 쪽이 점수를 넘기면 승패가 확정됨
         boolean settled = (human.isEnded() && ai.isEnded())
                 || (human.isEnded() && ai.getScore() > human.getScore())
@@ -299,7 +311,6 @@ public final class AiMatchClient implements Closeable {
             String expectedWinner = comparison > 0 ? "HUMAN" : comparison < 0 ? "AI" : "DRAW";
             if (!expectedWinner.equals(winner)) throw invalid("점수 및 승자 상태");
         }
-        return new MatchFrame(elapsed, ended, winner, human, ai);
     }
 
     static AiAssistPlan parseAssist(String line) throws IOException {
@@ -367,12 +378,12 @@ public final class AiMatchClient implements Closeable {
     }
 
     private static long elapsedTicks(String token) throws IOException {
-        if (token.isEmpty() || token.length() > 19) throw invalid("경과 시간");
+        if (token.isEmpty() || token.length() > 19) throw invalid(ELAPSED_TIME_FIELD);
         for (int i = 0; i < token.length(); i++)
-            if (token.charAt(i) < '0' || token.charAt(i) > '9') throw invalid("경과 시간");
+            if (token.charAt(i) < '0' || token.charAt(i) > '9') throw invalid(ELAPSED_TIME_FIELD);
         try {
             return Long.parseLong(token);
-        } catch (NumberFormatException failure) { throw invalid("경과 시간"); }
+        } catch (NumberFormatException failure) { throw invalid(ELAPSED_TIME_FIELD); }
     }
 
     private static IOException invalid(String field) {
