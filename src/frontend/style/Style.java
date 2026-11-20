@@ -131,26 +131,9 @@ public final class Style {
                     g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
                     // 보조 메뉴는 글자만 표시하고 마우스나 키보드로 가리키면 밑줄 표시
                     if (Boolean.TRUE.equals(target.getClientProperty("textButton"))) {
-                        if (active && (hover || target.hasFocus())) {
-                            g.setColor(accent);
-                            g.drawLine(12, target.getHeight() - 6, target.getWidth() - 13, target.getHeight() - 6);
-                        }
+                        paintTextButtonUnderline(g, target, accent, active, hover);
                     } else {
-                        boolean primary = Boolean.TRUE.equals(target.getClientProperty("primary"));
-                        // 선택, 누름, 마우스 올림 상태를 배경색 차이로 구분
-                        Color base = primary ? ACCENT : background;
-                        Color fill = target.isSelected() ? blend(base, accent, .14f)
-                                : pressed ? blend(base, primary ? Color.BLACK : accent, .12f)
-                                : hover ? blend(base, primary ? Color.BLACK : accent, .06f) : base;
-                        if (!active)
-                            fill = blend(background, BACKGROUND, .6f);
-                        g.setColor(fill);
-                        g.fillRect(1, 1, target.getWidth() - 2, target.getHeight() - 2);
-                        // 키보드로 이동한 버튼과 현재 선택한 설정은 테두리도 강조
-                        boolean emphasized = active && (target.hasFocus() || target.isSelected());
-                        g.setStroke(new BasicStroke(emphasized ? 2f : 1f));
-                        g.setColor(emphasized || hover || (primary && active) ? accent : BORDER);
-                        g.drawRect(1, 1, target.getWidth() - 3, target.getHeight() - 3);
+                        paintButtonFrame(g, target, accent, background, active, pressed, hover);
                     }
                 } finally {
                     g.dispose();
@@ -164,7 +147,7 @@ public final class Style {
                 try {
                     g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
                     boolean primary = Boolean.TRUE.equals(target.getClientProperty("primary"));
-                    g.setColor(!target.isEnabled() ? MUTED_TEXT : primary ? BACKGROUND : target.getForeground());
+                    g.setColor(buttonTextColor(target, primary));
                     BasicGraphicsUtils.drawStringUnderlineCharAt(g, text, target.getDisplayedMnemonicIndex(),
                             textRect.x, textRect.y + g.getFontMetrics().getAscent());
                 } finally {
@@ -189,6 +172,46 @@ public final class Style {
             @Override
             public void focusLost(FocusEvent event) { button.repaint(); }
         });
+    }
+
+    private static void paintTextButtonUnderline(Graphics2D g, AbstractButton target, Color accent,
+                                                 boolean active, boolean hover) {
+        if (active && (hover || target.hasFocus())) {
+            g.setColor(accent);
+            g.drawLine(12, target.getHeight() - 6, target.getWidth() - 13, target.getHeight() - 6);
+        }
+    }
+
+    private static void paintButtonFrame(Graphics2D g, AbstractButton target, Color accent, Color background,
+                                         boolean active, boolean pressed, boolean hover) {
+        boolean primary = Boolean.TRUE.equals(target.getClientProperty("primary"));
+        g.setColor(buttonFillColor(target, accent, background, active, pressed, hover, primary));
+        g.fillRect(1, 1, target.getWidth() - 2, target.getHeight() - 2);
+        // 키보드로 이동한 버튼과 현재 선택한 설정은 테두리도 강조
+        boolean emphasized = active && (target.hasFocus() || target.isSelected());
+        g.setStroke(new BasicStroke(emphasized ? 2f : 1f));
+        g.setColor(emphasized || hover || (primary && active) ? accent : BORDER);
+        g.drawRect(1, 1, target.getWidth() - 3, target.getHeight() - 3);
+    }
+
+    // 선택, 누름, 마우스 올림 상태를 배경색 차이로 구분
+    private static Color buttonFillColor(AbstractButton target, Color accent, Color background,
+                                         boolean active, boolean pressed, boolean hover, boolean primary) {
+        if (!active)
+            return blend(background, BACKGROUND, .6f);
+        Color base = primary ? ACCENT : background;
+        if (target.isSelected())
+            return blend(base, accent, .14f);
+        Color interactionColor = primary ? Color.BLACK : accent;
+        if (pressed)
+            return blend(base, interactionColor, .12f);
+        return hover ? blend(base, interactionColor, .06f) : base;
+    }
+
+    private static Color buttonTextColor(AbstractButton target, boolean primary) {
+        if (!target.isEnabled())
+            return MUTED_TEXT;
+        return primary ? BACKGROUND : target.getForeground();
     }
 
     // 입력 중인 칸은 테두리로 구분하고 드래그한 글자도 읽히도록 표시

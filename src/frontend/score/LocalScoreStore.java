@@ -19,6 +19,8 @@ import java.util.Properties;
 // 닉네임과 로컬 최고 기록, 아직 서버에 보내지 못한 점수를 보관
 // 예전 scores.txt는 닉네임 정보가 없으므로 그대로 두고 새 기록부터 동기화
 public final class LocalScoreStore {
+    private static final String PENDING_KEY_PREFIX = "pending";
+
     private final Path file;
     private Properties values = new Properties();
 
@@ -82,7 +84,7 @@ public final class LocalScoreStore {
             throw new IllegalArgumentException("점수는 0 이상이어야 합니다.");
         String token = ScoreClient.encodeNickname(nickname);
         String bestKey = prefix("best", mode) + token;
-        String pendingKey = prefix("pending", mode) + token;
+        String pendingKey = prefix(PENDING_KEY_PREFIX, mode) + token;
         Properties updated = copy();
         updated.setProperty(bestKey, String.valueOf(Math.max(score, number(bestKey))));
         updated.setProperty(pendingKey, String.valueOf(Math.max(score, number(pendingKey))));
@@ -94,7 +96,7 @@ public final class LocalScoreStore {
     }
 
     public synchronized Map<String, Integer> pendingScores(ScoreMode mode) throws IOException {
-        String prefix = prefix("pending", mode);
+        String prefix = prefix(PENDING_KEY_PREFIX, mode);
         Map<String, Integer> result = new LinkedHashMap<>();
         for (String key : values.stringPropertyNames()) {
             if (key.startsWith(prefix)) {
@@ -116,7 +118,7 @@ public final class LocalScoreStore {
             throw new IllegalArgumentException("점수는 0 이상이어야 합니다.");
         String token = ScoreClient.encodeNickname(nickname);
         String bestKey = prefix("best", mode) + token;
-        String pendingKey = prefix("pending", mode) + token;
+        String pendingKey = prefix(PENDING_KEY_PREFIX, mode) + token;
         Properties updated = copy();
         updated.setProperty(bestKey, String.valueOf(Math.max(serverBest, number(bestKey))));
         if (number(pendingKey) <= submittedScore)
@@ -147,7 +149,7 @@ public final class LocalScoreStore {
             if (!nickname.isEmpty())
                 ScoreClient.normalizeNickname(nickname);
             for (String key : values.stringPropertyNames()) {
-                if (key.startsWith("best.") || key.startsWith("pending.")) {
+                if (key.startsWith("best.") || key.startsWith(PENDING_KEY_PREFIX + ".")) {
                     String token = key.substring(key.indexOf('.') + 1);
                     if (token.startsWith("ITEM."))
                         token = token.substring(5);
