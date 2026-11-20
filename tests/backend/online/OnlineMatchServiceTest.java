@@ -86,7 +86,7 @@ public final class OnlineMatchServiceTest {
             set(first.engine, "currentItemType", GameEngine.ItemType.FOG);
             Tetrominoes[] board = (Tetrominoes[]) get(first.engine, "board");
             GameEngine.ItemType[] items = (GameEngine.ItemType[]) get(first.engine, "boardItemTypes");
-            board[0] = Tetrominoes.SquareShape;
+            board[0] = Tetrominoes.SQUARE_SHAPE;
             items[0] = GameEngine.ItemType.SCORE_BOOST;
             int fallingIndex = (first.engine.getCurrentY() - first.engine.getPieceY(0))
                     * GameEngine.BOARD_WIDTH + first.engine.getCurrentX() + first.engine.getPieceX(0);
@@ -96,7 +96,7 @@ public final class OnlineMatchServiceTest {
             OnlineFrame view = frame(service, first);
             check(Arrays.equals(view.getPlayer(0).getItemTypes(), expected),
                     "착지한 아이템과 낙하 중인 아이템의 위치와 종류 전송");
-            check(view.getPlayer(0).getCells()[0] == Tetrominoes.SquareShape.ordinal()
+            check(view.getPlayer(0).getCells()[0] == Tetrominoes.SQUARE_SHAPE.ordinal()
                     && view.getPlayer(0).getCells()[fallingIndex] == first.engine.getCurrentShape().ordinal(),
                     "아이템 메타데이터와 블록 위치 일치");
             check(Arrays.equals(frame(service, second).getPlayer(0).getItemTypes(), expected),
@@ -119,7 +119,7 @@ public final class OnlineMatchServiceTest {
                     "반복 조회는 방해 효과를 중복 적용하거나 감소시키지 않음");
 
             Shape piece = new Shape();
-            piece.setShape(Tetrominoes.LineShape);
+            piece.setShape(Tetrominoes.LINE_SHAPE);
             set(second.engine, "curPiece", piece);
             set(second.engine, "currentItemType", null);
             set(second.engine, "curX", 4);
@@ -185,7 +185,7 @@ public final class OnlineMatchServiceTest {
                             "같은 순번의 아이템 종류와 칸 유지: " + effectName + " " + i);
                     // 쌓인 보드 때문에 종료되지 않도록 비운 뒤 실제 입력으로 다음 블록 진행
                     for (GameEngine engine : new GameEngine[] {first.engine, second.engine}) {
-                        Arrays.fill((Tetrominoes[]) get(engine, "board"), Tetrominoes.NoShape);
+                        Arrays.fill((Tetrominoes[]) get(engine, "board"), Tetrominoes.NO_SHAPE);
                         Arrays.fill((GameEngine.ItemType[]) get(engine, "boardItemTypes"), null);
                     }
                     service.request(first, "INPUT HARD_DROP");
@@ -199,13 +199,13 @@ public final class OnlineMatchServiceTest {
             GameEngine.ItemType secondItem) throws Exception {
         Tetrominoes[] board = (Tetrominoes[]) get(engine, "board");
         GameEngine.ItemType[] items = (GameEngine.ItemType[]) get(engine, "boardItemTypes");
-        Arrays.fill(board, Tetrominoes.NoShape);
+        Arrays.fill(board, Tetrominoes.NO_SHAPE);
         Arrays.fill(items, null);
-        for (int x = 0; x < GameEngine.BOARD_WIDTH; x++) board[x] = Tetrominoes.LineShape;
+        for (int x = 0; x < GameEngine.BOARD_WIDTH; x++) board[x] = Tetrominoes.LINE_SHAPE;
         items[0] = firstItem;
         items[1] = secondItem;
         Shape piece = new Shape();
-        piece.setShape(Tetrominoes.SquareShape);
+        piece.setShape(Tetrominoes.SQUARE_SHAPE);
         set(engine, "curPiece", piece);
         set(engine, "currentItemType", null);
         set(engine, "curX", 4);

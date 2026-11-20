@@ -218,16 +218,19 @@ class Match:
             return "WAIT"
         if not self.ai_path:
             candidates = self.ai.candidates()
+            # state와 candidate정보가 담긴 observation 반환값과, 가장 높은 선택값을 고르라는 설정, T/F 후보배열을 전달하고 action으로 결과를 받는다.
             action, _ = self.policy.predict(self.ai_env._observation(), deterministic=True, action_masks=self.ai.action_masks())
             action = int(np.asarray(action).item())
             if action not in candidates:
                 raise ValueError("AI predicted a masked or invalid action")
+            #선택된 후보의 경로를 ai.path 큐에 집어넣고
             self.ai_path.extend(candidates[action].path)
             if not self.ai_path:
                 raise ValueError("AI candidate has no executable path")
         # 목표 위치까지 이동한 뒤 사람의 배치 속도에 맞춰 낙하 대기
         if self.ai_path[0] == "HARD_DROP" and age + 1 < self.ai_target_ticks:
             return "WAIT"
+        # ai_path에서 하나씩 꺼내고 다른 함수에서 그 동작을 하도록함.
         return self.ai_path.popleft()
 
     def step(self, command: str) -> str:
@@ -265,6 +268,7 @@ class Match:
         self.elapsed_ticks += 1
         return self.frame()
 
+    # 게임 정보를 문자열로 만드는 함수. 여기서 파이썬이 자바에게 어떤 게임정보를 넘겨주는지 확인가능
     def frame(self) -> str:
         fields = [
             "FRAME",
@@ -310,6 +314,7 @@ class MatchService:
             placement = select_placement(policy, snapshot)
             return "\t".join(("ASSIST", "100000", str(placement.rotation),
                               str(placement.x), str(placement.y), placement.path))
+        # 자바에서 [START, 난이도, 시드]를 보내준다면
         if len(fields) == 3 and fields[0] == "START":
             difficulty_id = fields[1]
             if difficulty_id not in DIFFICULTIES:
@@ -318,15 +323,20 @@ class MatchService:
                 seed = int(fields[2])
             except ValueError as exc:
                 raise ValueError("Seed must be an integer") from exc
+            # 해당 난이도의 AI모델을 가져온다.
             if difficulty_id not in self.loaded:
                 self.loaded[difficulty_id] = self.policy_loader(difficulty_id)
             policy, config = self.loaded[difficulty_id]
+            # AI모델, 게임설정, 공통블럭을 위한 난수 시작값, 난이도이름을 가지고 게임을 만든다.
             new_match = Match(policy, config, seed, difficulty_id)
             self.match = new_match
+            #게임 초기 상태를 반환해준다.
             return new_match.frame()
+        # 만약 [STEP, 입력키]를 보내면
         if len(fields) == 2 and fields[0] == "STEP":
             if self.match is None:
                 raise ValueError("START is required before STEP")
+                #match.step()에서 게임을 진행시키고 진행 결과를 반환시켜준다.
             return self.match.step(fields[1])
         raise ValueError("Expected START with difficulty and seed, STEP with command, ASSIST with snapshot, or QUIT")
 

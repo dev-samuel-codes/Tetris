@@ -66,7 +66,7 @@ public class GameEngine {
 	private int accumulatedItemLines = 0;
 	private int rotationLockRemaining = 0;
 	private boolean rotationLocked = false;
-    private Tetrominoes removedItemShape = Tetrominoes.NoShape;
+    private Tetrominoes removedItemShape = Tetrominoes.NO_SHAPE;
     private static final int FOG_PIECES = 3;
     private int fogRemaining = 0;
     private boolean fogActive = false;
@@ -82,7 +82,7 @@ public class GameEngine {
     private void refillBag() {
         bag = new ArrayList<>();
         for (Tetrominoes t : Tetrominoes.values()) {
-            if (t != Tetrominoes.NoShape && t != Tetrominoes.BombShape) {
+            if (t != Tetrominoes.NO_SHAPE && t != Tetrominoes.BOMB_SHAPE) {
                 bag.add(t);
             }
         }
@@ -230,7 +230,7 @@ public class GameEngine {
     }
 
     private boolean canControlPiece() {
-        return isStarted && !isPaused && curPiece.getShape() != Tetrominoes.NoShape;
+        return isStarted && !isPaused && curPiece.getShape() != Tetrominoes.NO_SHAPE;
     }
 
     // 고정된 칸과 현재 블록을 분리하여 현재 위치에서 AI 경로를 요청합니다.
@@ -261,55 +261,93 @@ public class GameEngine {
                 || path.charAt(path.length() - 1) != 'H')
             return false;
 
-        Shape candidate = new Shape();
-        candidate.setShape(curPiece.getShape());
-        for (int i = 0; i < current.getRotation(); i++)
-            candidate = candidate.rotateRight();
-        int x = curX;
-        int y = curY;
-        for (int i = 0; i < path.length(); i++) {
-            char action = path.charAt(i);
-            if (action == 'L' || action == 'R' || action == 'D') {
-                int nextX = x + (action == 'L' ? -1 : action == 'R' ? 1 : 0);
-                int nextY = y - (action == 'D' ? 1 : 0);
-                if (!canPlace(candidate, nextX, nextY))
-                    return false;
-                x = nextX;
-                y = nextY;
-            } else if (action == 'A' || action == 'C') {
-                if (rotationLocked)
-                    return false;
-                Shape rotated = action == 'A' ? candidate.rotateLeft() : candidate.rotateRight();
-                boolean fits = false;
-                for (int[] offset : WALL_KICK_OFFSETS) {
-                    if (canPlace(rotated, x + offset[0], y + offset[1])) {
-                        x += offset[0];
-                        y += offset[1];
-                        candidate = rotated;
-                        fits = true;
-                        break;
-                    }
-                }
-                if (!fits)
-                    return false;
-            } else if (action == 'H') {
-                if (i != path.length() - 1)
-                    return false;
-                while (canPlace(candidate, x, y - 1))
-                    y--;
-            } else {
-                return false;
-            }
-        }
-        if (plan.getX() != x || plan.getY() != y
-                || plan.getRotation() != aiAssistRotation(candidate))
+        AssistPosition result = simulateAssistPath(path, current.getRotation());
+        if (result == null || plan.getX() != result.x || plan.getY() != result.y
+                || plan.getRotation() != aiAssistRotation(result.piece))
             return false;
 
-        curPiece = candidate;
-        curX = x;
-        curY = y;
+        curPiece = result.piece;
+        curX = result.x;
+        curY = result.y;
         pieceDropped();
         return true;
+    }
+
+    private AssistPosition simulateAssistPath(String path, int rotation) {
+        Shape piece = new Shape();
+        piece.setShape(curPiece.getShape());
+        for (int i = 0; i < rotation; i++) {
+            piece = piece.rotateRight();
+        }
+
+        AssistPosition position = new AssistPosition(piece, curX, curY);
+        // The caller checked the final hard drop. Simulate the preceding commands first.
+        for (int i = 0; i < path.length() - 1; i++) {
+            if (!applyAssistAction(position, path.charAt(i))) {
+                return null;
+            }
+        }
+        while (canPlace(position.piece, position.x, position.y - 1)) {
+            position.y--;
+        }
+        return position;
+    }
+
+    private boolean applyAssistAction(AssistPosition position, char action) {
+        switch (action) {
+            case 'L':
+                return tryAssistMove(position, -1, 0);
+            case 'R':
+                return tryAssistMove(position, 1, 0);
+            case 'D':
+                return tryAssistMove(position, 0, -1);
+            case 'A':
+            case 'C':
+                return tryAssistRotation(position, action == 'A');
+            default:
+                return false;
+        }
+    }
+
+    private boolean tryAssistMove(AssistPosition position, int dx, int dy) {
+        int x = position.x + dx;
+        int y = position.y + dy;
+        if (!canPlace(position.piece, x, y)) {
+            return false;
+        }
+        position.x = x;
+        position.y = y;
+        return true;
+    }
+
+    private boolean tryAssistRotation(AssistPosition position, boolean left) {
+        if (rotationLocked) {
+            return false;
+        }
+        Shape rotated = left ? position.piece.rotateLeft() : position.piece.rotateRight();
+        for (int[] offset : WALL_KICK_OFFSETS) {
+            int x = position.x + offset[0];
+            int y = position.y + offset[1];
+            if (canPlace(rotated, x, y)) {
+                position.piece = rotated;
+                position.x = x;
+                position.y = y;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static final class AssistPosition {
+        private Shape piece;
+        private int x;
+        private int y;
+
+        private AssistPosition(Shape piece, int x, int y) {
+            this.piece = piece;
+            this.x = x;
+            this.y = y;
+        }
     }
 
     private int aiAssistRotation(Shape piece) {
@@ -332,7 +370,7 @@ public class GameEngine {
 
     private void clearBoard() {
         for (int i = 0; i < board.length; ++i) {
-            board[i] = Tetrominoes.NoShape;
+            board[i] = Tetrominoes.NO_SHAPE;
             boardItemTypes[i] = null;
         }
     }
@@ -395,7 +433,7 @@ public class GameEngine {
         curY = BOARD_HEIGHT - 1 + curPiece.minY();
 
         if (!tryMove(curPiece, curX, curY)) {
-            curPiece.setShape(Tetrominoes.NoShape);
+            curPiece.setShape(Tetrominoes.NO_SHAPE);
             isStarted = false;
         }
     }
@@ -407,7 +445,7 @@ public class GameEngine {
             if (x < 0 || x >= BOARD_WIDTH || y < 0 || y >= BOARD_HEIGHT)
                 return false;
 
-            if (shapeAt(x, y) != Tetrominoes.NoShape)
+            if (shapeAt(x, y) != Tetrominoes.NO_SHAPE)
                 return false;
         }
 
@@ -417,60 +455,68 @@ public class GameEngine {
         return true;
     }
 
-	private void removeFullLines() {
-		int numFullLines = 0;
-
-        // 줄이 가등 찼는 지 검사
-		for (int i = BOARD_HEIGHT - 1; i >= 0; --i) {
-			boolean lineIsFull = true;
-			for (int j = 0; j < BOARD_WIDTH; ++j) {
-				if (shapeAt(j, i) == Tetrominoes.NoShape) {
-					lineIsFull = false;
-					break;
-				}
-			}
-
-            // 가득 찬 줄을 위쪽 줄로 덮어씀
-			if (lineIsFull) {
-				++numFullLines;
-                if (lineIsFull)
-                    lastClearedRow = i;
-                    for (int j = 0; j < BOARD_WIDTH; ++j) {
-                    ItemType removedItem = boardItemTypeAt(j, i); // 제거 줄 블록 기억
-                    boardItemTypes[toIndex(j, i)] = null;
-                    if (removedItem != null) {
-                        removedItemShape = shapeAt(j, i);
-                        handleRemovedItemCell(removedItem);
-                    }
-                }
-				for (int k = i; k < BOARD_HEIGHT - 1; ++k) {
-					for (int j = 0; j < BOARD_WIDTH; ++j) {
-                        setBoardCell(j, k, shapeAt(j, k + 1), boardItemTypeAt(j, k + 1));
-                    }
-				}
-				for (int j = 0; j < BOARD_WIDTH; ++j) {
-                    setBoardCell(j, BOARD_HEIGHT - 1, Tetrominoes.NoShape, null);
-				}
-                i++;
-			}
-		}
-
-		// 콤보 보너스 점수, 연속 보너스 점수 추가
-		if (numFullLines > 0) {
-			numLinesRemoved += numFullLines;
-			combo++;
-            maxCombo = Math.max(maxCombo, combo);
-			score += LINE_SCORES[numFullLines];
-			if ((combo > 1)) {
-				score += COMBO_BONUS;
-			}
-			isFallingFinished = true;
-			curPiece.setShape(Tetrominoes.NoShape);
-            if (itemMode) {
-                activateRandomItemForClearedLines(numFullLines);
+    private void removeFullLines() {
+        int numFullLines = 0;
+        for (int row = BOARD_HEIGHT - 1; row >= 0; --row) {
+            if (isFullLine(row)) {
+                ++numFullLines;
+                lastClearedRow = row;
+                handleRemovedLineItems(row);
+                shiftRowsDown(row);
+                row++; // Recheck this row after shifting.
             }
-        } else {
+        }
+        updateAfterLineClears(numFullLines);
+    }
+
+    private boolean isFullLine(int row) {
+        for (int x = 0; x < BOARD_WIDTH; ++x) {
+            if (shapeAt(x, row) == Tetrominoes.NO_SHAPE) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void handleRemovedLineItems(int row) {
+        for (int x = 0; x < BOARD_WIDTH; ++x) {
+            ItemType removedItem = boardItemTypeAt(x, row);
+            boardItemTypes[toIndex(x, row)] = null;
+            if (removedItem != null) {
+                removedItemShape = shapeAt(x, row);
+                handleRemovedItemCell(removedItem);
+            }
+        }
+    }
+
+    private void shiftRowsDown(int clearedRow) {
+        for (int row = clearedRow; row < BOARD_HEIGHT - 1; ++row) {
+            for (int x = 0; x < BOARD_WIDTH; ++x) {
+                setBoardCell(x, row, shapeAt(x, row + 1), boardItemTypeAt(x, row + 1));
+            }
+        }
+        for (int x = 0; x < BOARD_WIDTH; ++x) {
+            setBoardCell(x, BOARD_HEIGHT - 1, Tetrominoes.NO_SHAPE, null);
+        }
+    }
+
+    private void updateAfterLineClears(int numFullLines) {
+        if (numFullLines == 0) {
             combo = 0;
+            return;
+        }
+
+        numLinesRemoved += numFullLines;
+        combo++;
+        maxCombo = Math.max(maxCombo, combo);
+        score += LINE_SCORES[numFullLines];
+        if (combo > 1) {
+            score += COMBO_BONUS;
+        }
+        isFallingFinished = true;
+        curPiece.setShape(Tetrominoes.NO_SHAPE);
+        if (itemMode) {
+            activateRandomItemForClearedLines(numFullLines);
         }
     }
 
@@ -620,7 +666,7 @@ public class GameEngine {
 
     // 같은 색 제거 아이템 : 보드에서 target과 같은 색 지움
     private void clearSameShape(Tetrominoes target) {
-        if (target == null || target == Tetrominoes.NoShape)
+        if (target == null || target == Tetrominoes.NO_SHAPE)
             return;
         for (int y = 0; y < BOARD_HEIGHT; y++) {
             for (int x = 0; x < BOARD_WIDTH; x++) {
@@ -636,7 +682,7 @@ public class GameEngine {
 
         int index = toIndex(x, y);
         ItemType removedItem = boardItemTypes[index];
-        board[index] = Tetrominoes.NoShape;
+        board[index] = Tetrominoes.NO_SHAPE;
         boardItemTypes[index] = null;
 
         if (removedItem != null) {
@@ -656,7 +702,7 @@ public class GameEngine {
         if (x < 0 || x >= BOARD_WIDTH || y < 0 || y >= BOARD_HEIGHT)
             return;
         int index = toIndex(x, y);
-        board[index] = shape == null ? Tetrominoes.NoShape : shape;
+        board[index] = shape == null ? Tetrominoes.NO_SHAPE : shape;
         boardItemTypes[index] = itemType;
     }
 
@@ -715,7 +761,7 @@ public class GameEngine {
 
     public Tetrominoes shapeAt(int x, int y) {
         if (x < 0 || x >= BOARD_WIDTH || y < 0 || y >= BOARD_HEIGHT)
-            return Tetrominoes.NoShape;
+            return Tetrominoes.NO_SHAPE;
         return board[toIndex(x, y)];
     }
 
@@ -738,7 +784,7 @@ public class GameEngine {
             if (boardX < 0 || boardX >= BOARD_WIDTH
                     || boardY < 0 || boardY >= BOARD_HEIGHT)
                 return false;
-            if (shapeAt(boardX, boardY) != Tetrominoes.NoShape)
+            if (shapeAt(boardX, boardY) != Tetrominoes.NO_SHAPE)
                 return false;
         }
         return true;

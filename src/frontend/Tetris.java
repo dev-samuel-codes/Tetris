@@ -283,10 +283,12 @@ public class Tetris extends JFrame {
 
 		@Override
 		public void addLayoutComponent(String name, Component component) {
+			// 배치할 보드와 사이드 패널은 생성자에서 이미 전달받는다.
 		}
 
 		@Override
 		public void removeLayoutComponent(Component component) {
+			// 컴포넌트별 배치 정보를 따로 저장하지 않아 제거 시 정리할 항목이 없다.
 		}
 
 		@Override

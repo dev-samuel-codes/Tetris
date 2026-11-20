@@ -97,7 +97,7 @@ public final class ItemRenderingTest {
             BufferedImage classic = canvas(size);
             Graphics2D graphics = classic.createGraphics();
             try {
-                BlockPainter.drawSquare(graphics, 7, 9, size, Tetrominoes.TShape);
+                BlockPainter.drawSquare(graphics, 7, 9, size, Tetrominoes.T_SHAPE);
             } finally {
                 graphics.dispose();
             }
@@ -124,7 +124,7 @@ public final class ItemRenderingTest {
         BufferedImage image = canvas(size);
         Graphics2D graphics = image.createGraphics();
         try {
-            BlockPainter.drawSquare(graphics, 7, 9, size, Tetrominoes.TShape, type);
+            BlockPainter.drawSquare(graphics, 7, 9, size, Tetrominoes.T_SHAPE, type);
         } finally {
             graphics.dispose();
         }
@@ -168,12 +168,12 @@ public final class ItemRenderingTest {
             engine.dropDown();
             require(engine.getItemTypeAt(itemX, itemY) == type,
                     "착지한 아이템 셀의 종류가 유지되지 않았습니다: " + type);
-            require(engine.shapeAt(itemX, itemY) == Tetrominoes.TShape,
+            require(engine.shapeAt(itemX, itemY) == Tetrominoes.T_SHAPE,
                     "착지한 아이템 셀의 미노 종류가 변경되었습니다.");
 
             Tetrominoes[] cells = (Tetrominoes[]) get(GameEngine.class, engine, "board");
             for (int x = 0; x < GameEngine.BOARD_WIDTH; x++)
-                cells[itemY * GameEngine.BOARD_WIDTH + x] = Tetrominoes.TShape;
+                cells[itemY * GameEngine.BOARD_WIDTH + x] = Tetrominoes.T_SHAPE;
             invoke(GameEngine.class, engine, "removeFullLines");
             require(engine.getLastItemType() == type, "줄 제거 후 마지막 아이템 타입 누락: " + type);
             for (int y = 0; y < GameEngine.BOARD_HEIGHT; y++)
@@ -188,7 +188,7 @@ public final class ItemRenderingTest {
 
     private static void preparePiece(GameEngine engine, ItemType type) throws Exception {
         Shape piece = (Shape) get(GameEngine.class, engine, "curPiece");
-        piece.setShape(Tetrominoes.TShape);
+        piece.setShape(Tetrominoes.T_SHAPE);
         piece.setItemCell(2);
         set(GameEngine.class, engine, "currentItemType", type);
         set(GameEngine.class, engine, "curX", 4);
@@ -223,7 +223,7 @@ public final class ItemRenderingTest {
             ItemType[] types = (ItemType[]) get(GameEngine.class, engine, "boardItemTypes");
             for (int i = 0; i < ITEMS.length; i++) {
                 int index = GameEngine.BOARD_WIDTH + 2 * i;
-                cells[index] = Tetrominoes.TShape;
+                cells[index] = Tetrominoes.T_SHAPE;
                 types[index] = ITEMS[i];
             }
             invoke(Board.class, board, "updateView");
@@ -266,7 +266,7 @@ public final class ItemRenderingTest {
         panel.setLevel(3);
         panel.setLinesRemoved(12);
         panel.setElapsedSeconds(65);
-        panel.setNextShape(Tetrominoes.TShape);
+        panel.setNextShape(Tetrominoes.T_SHAPE);
         panel.setItemStatus(type);
         return panel;
     }

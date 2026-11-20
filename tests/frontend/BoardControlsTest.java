@@ -80,7 +80,7 @@ public final class BoardControlsTest {
             require(!board.getEngine().isPaused(), "키를 놓은 뒤 명시적인 일시정지 재개 실패");
             release(board, GameSettings.getPauseKey());
 
-            ((Shape) get(GameEngine.class, board.getEngine(), "curPiece")).setShape(Tetrominoes.NoShape);
+            ((Shape) get(GameEngine.class, board.getEngine(), "curPiece")).setShape(Tetrominoes.NO_SHAPE);
             classicKey(board, GameSettings.getPauseKey());
             require(board.getEngine().isPaused(), "줄 제거 대기 중 일시정지 실패");
             require(!((Timer) get(Board.class, board, "timer")).isRunning(), "일시정지 중 중력 타이머 실행");
@@ -107,7 +107,7 @@ public final class BoardControlsTest {
         int count = 0;
         for (int y = 0; y < GameEngine.BOARD_HEIGHT; y++)
             for (int x = 0; x < GameEngine.BOARD_WIDTH; x++)
-                if (engine.shapeAt(x, y) != Tetrominoes.NoShape) count++;
+                if (engine.shapeAt(x, y) != Tetrominoes.NO_SHAPE) count++;
         return count;
     }
 
@@ -152,9 +152,9 @@ public final class BoardControlsTest {
         assertUnmoved(board, keys, left, right, mode + " 게임 종료");
         set(GameEngine.class, board.getEngine(), "isStarted", true);
         Shape piece = (Shape) get(GameEngine.class, board.getEngine(), "curPiece");
-        piece.setShape(Tetrominoes.NoShape);
+        piece.setShape(Tetrominoes.NO_SHAPE);
         assertUnmoved(board, keys, left, right, mode + " 블록 없음");
-        piece.setShape(Tetrominoes.SquareShape);
+        piece.setShape(Tetrominoes.SQUARE_SHAPE);
         board.stop();
         assertUnmoved(board, keys, left, right, mode + " 메뉴 복귀 후 정지");
         require(!((Timer) get(Board.class, board, "timer")).isRunning(), mode + " 정지 후 타이머 재시작");
@@ -171,7 +171,7 @@ public final class BoardControlsTest {
 
     private static void prepare(Board board, int score) throws Exception {
         GameEngine engine = board.getEngine();
-        ((Shape) get(GameEngine.class, engine, "curPiece")).setShape(Tetrominoes.SquareShape);
+        ((Shape) get(GameEngine.class, engine, "curPiece")).setShape(Tetrominoes.SQUARE_SHAPE);
         set(GameEngine.class, engine, "curX", 4);
         set(GameEngine.class, engine, "curY", 10);
         set(GameEngine.class, engine, "score", score);

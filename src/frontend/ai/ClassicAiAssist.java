@@ -16,6 +16,7 @@ import javax.swing.Timer;
 // 세션 상태와 엔진 변경은 EDT에서, 모델 준비와 추론은 별도 스레드에서 처리합니다.
 public final class ClassicAiAssist {
     private static final int DURATION_MILLIS = 5000;
+    private static final String ASSIST_COMPLETED_MESSAGE = "AI 도움 사용 완료";
     private final GameEngine engine;
     private final Runnable onChange;
     private final AdvisorFactory factory;
@@ -96,7 +97,7 @@ public final class ClassicAiAssist {
         if (!busy) return;
         accountTime();
         paused = engine.isPaused();
-        if (used && remaining <= 0) finish("AI 도움 사용 완료");
+        if (used && remaining <= 0) finish(ASSIST_COMPLETED_MESSAGE);
         else onChange.run();
     }
 
@@ -119,36 +120,38 @@ public final class ClassicAiAssist {
         Resource previousResource = resource;
         resource = null;
         if (previousResource != null) previousResource.close();
-        if (used) message = "AI 도움 사용 완료";
+        if (used) message = ASSIST_COMPLETED_MESSAGE;
     }
 
     private void tick() {
         if (!busy) return;
         accountTime();
         paused = engine.isPaused();
-        if (used && remaining <= 0) { finish("AI 도움 사용 완료"); return; }
-        if (!engine.isStarted()) { finish(used ? "AI 도움 사용 완료" : "AI 도움을 실행할 수 없습니다. 게임이 종료되었습니다."); return; }
+        if (used && remaining <= 0) { finish(ASSIST_COMPLETED_MESSAGE); return; }
+        if (!engine.isStarted()) { finish(used ? ASSIST_COMPLETED_MESSAGE : "AI 도움을 실행할 수 없습니다. 게임이 종료되었습니다."); return; }
         if (paused) return;
-        if (pendingPlan != null) {
-            AiAssistState state = pendingState;
-            AiAssistPlan plan = pendingPlan;
-            pendingState = null;
-            pendingPlan = null;
-            if (!engine.applyAiAssistPlan(state, plan)) {
-                finish("AI 도움을 실행할 수 없습니다. 현재 블록 상태 또는 이동 경로를 확인해 주세요.");
-                return;
-            }
-            if (!used) {
-                used = true;
-                remaining = DURATION_MILLIS;
-                lastAccountedAt = clock.getAsLong();
-            }
-            int token = generation;
-            onChange.run();
-            if (token != generation || !busy) return;
-        }
+        if (pendingPlan != null && !applyPendingPlan()) return;
         if (worker == null && busy) requestNext();
         if (busy && used) onChange.run();
+    }
+
+    private boolean applyPendingPlan() {
+        AiAssistState state = pendingState;
+        AiAssistPlan plan = pendingPlan;
+        pendingState = null;
+        pendingPlan = null;
+        if (!engine.applyAiAssistPlan(state, plan)) {
+            finish("AI 도움을 실행할 수 없습니다. 현재 블록 상태 또는 이동 경로를 확인해 주세요.");
+            return false;
+        }
+        if (!used) {
+            used = true;
+            remaining = DURATION_MILLIS;
+            lastAccountedAt = clock.getAsLong();
+        }
+        int token = generation;
+        onChange.run();
+        return token == generation && busy;
     }
 
     private void accountTime() {
@@ -159,7 +162,7 @@ public final class ClassicAiAssist {
 
     private void requestNext() {
         if (engine.isPaused()) return;
-        if (engine.isStarted() && engine.getCurrentShape() == Tetrominoes.NoShape) {
+        if (engine.isStarted() && engine.getCurrentShape() == Tetrominoes.NO_SHAPE) {
             engine.tick(); // 줄 삭제 뒤 대기 중인 다음 블록만 생성합니다.
             int token = generation;
             onChange.run();
@@ -167,7 +170,7 @@ public final class ClassicAiAssist {
         }
         AiAssistState state = engine.getAiAssistState();
         if (state == null) {
-            finish(used ? "AI 도움 사용 완료" : "AI 도움을 실행할 수 없습니다. 현재 블록을 확인해 주세요.");
+            finish(used ? ASSIST_COMPLETED_MESSAGE : "AI 도움을 실행할 수 없습니다. 현재 블록을 확인해 주세요.");
             return;
         }
         request(state);
@@ -181,31 +184,35 @@ public final class ClassicAiAssist {
                 return currentResource.acquire().advise(state);
             }
             @Override protected void done() {
-                if (token != generation || !busy) return;
-                worker = null;
-                // 타이머 통지가 늦더라도 기한 이후 응답과 오류를 세션에 반영하지 않습니다.
-                if (used && getRemainingMillis() <= 0) {
-                    finish("AI 도움 사용 완료");
-                    return;
-                }
-                try {
-                    AiAssistPlan result = get();
-                    if (result == null) throw new IllegalStateException("AI 이동 경로가 비어 있습니다.");
-                    pendingState = state;
-                    pendingPlan = result;
-                } catch (CancellationException ignored) {
-                    finish("AI 도움을 실행할 수 없습니다. 요청이 취소되었습니다.");
-                } catch (InterruptedException interrupted) {
-                    Thread.currentThread().interrupt();
-                    finish("AI 도움을 실행할 수 없습니다. 요청이 취소되었습니다.");
-                } catch (ExecutionException failure) {
-                    fail(failure.getCause());
-                } catch (RuntimeException failure) {
-                    fail(failure);
-                }
+                handleAssistResponse(this, state, token);
             }
         };
         worker.execute();
+    }
+
+    private void handleAssistResponse(SwingWorker<AiAssistPlan, Void> completedWorker, AiAssistState state, int token) {
+        if (token != generation || !busy) return;
+        worker = null;
+        // 타이머 통지가 늦더라도 기한 이후 응답과 오류를 세션에 반영하지 않습니다.
+        if (used && getRemainingMillis() <= 0) {
+            finish(ASSIST_COMPLETED_MESSAGE);
+            return;
+        }
+        try {
+            AiAssistPlan result = completedWorker.get();
+            if (result == null) throw new IllegalStateException("AI 이동 경로가 비어 있습니다.");
+            pendingState = state;
+            pendingPlan = result;
+        } catch (CancellationException ignored) {
+            finish("AI 도움을 실행할 수 없습니다. 요청이 취소되었습니다.");
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            finish("AI 도움을 실행할 수 없습니다. 요청이 취소되었습니다.");
+        } catch (ExecutionException failure) {
+            fail(failure.getCause());
+        } catch (RuntimeException failure) {
+            fail(failure);
+        }
     }
 
     private void fail(Throwable cause) {

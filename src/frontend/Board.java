@@ -32,7 +32,7 @@ public class Board extends JPanel implements ActionListener {
     final static int BOARD_WIDTH = GameEngine.BOARD_WIDTH;
     final static int BOARD_HEIGHT = GameEngine.BOARD_HEIGHT;
 
-    private final GameEngine engine = new GameEngine();
+    private final transient GameEngine engine = new GameEngine();
     private final Timer timer;
     private final Timer clockTimer;
     private final Timer levelTimer;
@@ -57,10 +57,9 @@ public class Board extends JPanel implements ActionListener {
     private boolean battleMode = false;
     private String pauseReason = "잠시 쉬어 가세요";
     private final Set<Integer> pressedKeys = new HashSet<>();
-    private final ClassicAiAssist aiAssist;
+    private final transient ClassicAiAssist aiAssist;
     private boolean wasAiAssistBusy;
-
-    private GameOverListener gameOverListener;
+    private transient GameOverListener gameOverListener;
 
     // 게임 종료 인터페이스
     public interface GameOverListener {
@@ -175,7 +174,7 @@ public class Board extends JPanel implements ActionListener {
 
     private boolean canPlay() {
         return !isStopped && !aiAssist.isBusy() && engine.isStarted() && !engine.isPaused()
-                && engine.getCurrentShape() != Tetrominoes.NoShape;
+                && engine.getCurrentShape() != Tetrominoes.NO_SHAPE;
     }
 
     public boolean isRunning() {
@@ -353,6 +352,20 @@ public class Board extends JPanel implements ActionListener {
     }
 
     private void updateView() {
+        updateTimers();
+        int currentLinesRemoved = engine.getNumLinesRemoved();
+        updateLineClearEffect(currentLinesRemoved);
+        updateComboEffect();
+        updateGameOver();
+        updateStatusBar(currentLinesRemoved);
+        updateSidePanel(currentLinesRemoved);
+        if (wasAiAssistBusy && !aiAssist.isBusy()) clearPressedKeys();
+        wasAiAssistBusy = aiAssist.isBusy();
+        firePropertyChange("aiAssist", null, getAiAssistButtonText());
+        repaint();
+    }
+
+    private void updateTimers() {
         if (!isStopped && engine.isStarted() && !engine.isPaused()) {
             if (aiAssist.isBusy()) timer.stop();
             else timer.start();
@@ -362,8 +375,9 @@ public class Board extends JPanel implements ActionListener {
             timer.stop();
             clockTimer.stop();
         }
+    }
 
-        int currentLinesRemoved = engine.getNumLinesRemoved();
+    private void updateLineClearEffect(int currentLinesRemoved) {
         if (currentLinesRemoved > previousLinesRemoved) {
             SoundManager.playLineClear();
 
@@ -372,7 +386,9 @@ public class Board extends JPanel implements ActionListener {
             lineFlashTimer.restart();
         }
         previousLinesRemoved = currentLinesRemoved;
+    }
 
+    private void updateComboEffect() {
         // 콤보 2 이상 이펙트
         int combo = engine.getCombo();
         if (combo >= 2 && combo > previousCombo) {
@@ -381,23 +397,16 @@ public class Board extends JPanel implements ActionListener {
             comboTimer.restart();
         }
         previousCombo = combo;
+    }
 
+    private void updateGameOver() {
         if (wasStarted && !engine.isStarted()) {
             aiAssist.stop();
             SoundManager.stopBgm();
             SoundManager.playGameOver();
             // 1PC 대전의 두 보드는 같은 닉네임을 사용하므로 싱글 랭킹에 저장하지 않음
             if (!battleMode) {
-                ScoreMode scoreMode = engine.isItemMode() ? ScoreMode.ITEM : ScoreMode.CLASSIC;
-                scoreSaveStatus = "점수 저장 중";
-                ScoreManager.saveScore(scoreMode, playerNickname, engine.getScore(), result -> {
-                    if (!isStopped) {
-                        scoreSaveStatus = result.isSuccess() ? "서버 저장 완료"
-                                : result.isPending() ? "재전송 대기" : "저장 실패";
-                        statusbar.setText(scoreSaveStatus);
-                        statusbar.setToolTipText(result.getMessage() + " · " + result.getDetail());
-                    }
-                });
+                saveGameOverScore();
             }
 
             // 싱글 게임은 등록된 종료 리스너에 결과 전달
@@ -407,7 +416,22 @@ public class Board extends JPanel implements ActionListener {
             }
         }
         wasStarted = engine.isStarted();
+    }
 
+    private void saveGameOverScore() {
+        ScoreMode scoreMode = engine.isItemMode() ? ScoreMode.ITEM : ScoreMode.CLASSIC;
+        scoreSaveStatus = "점수 저장 중";
+        ScoreManager.saveScore(scoreMode, playerNickname, engine.getScore(), result -> {
+            if (!isStopped) {
+                scoreSaveStatus = result.isSuccess() ? "서버 저장 완료"
+                        : result.isPending() ? "재전송 대기" : "저장 실패";
+                statusbar.setText(scoreSaveStatus);
+                statusbar.setToolTipText(result.getMessage() + " · " + result.getDetail());
+            }
+        });
+    }
+
+    private void updateStatusBar(int currentLinesRemoved) {
         if (!engine.isStarted()) {
             statusbar.setText(scoreSaveStatus.isEmpty() ? "게임 종료" : scoreSaveStatus);
         } else if (engine.isPaused()) {
@@ -421,7 +445,9 @@ public class Board extends JPanel implements ActionListener {
         } else {
             statusbar.setText("제거한 줄: " + currentLinesRemoved);
         }
+    }
 
+    private void updateSidePanel(int currentLinesRemoved) {
         sidePanel.setScore(engine.getScore());
         sidePanel.setLinesRemoved(currentLinesRemoved);
         updateDropSpeed();
@@ -429,10 +455,6 @@ public class Board extends JPanel implements ActionListener {
         sidePanel.setItemStatus(engine.getLastItemType());
         sidePanel.setItemMode(engine.isItemMode());
         sidePanel.setNextShape(engine.getNextShape());
-        if (wasAiAssistBusy && !aiAssist.isBusy()) clearPressedKeys();
-        wasAiAssistBusy = aiAssist.isBusy();
-        firePropertyChange("aiAssist", null, getAiAssistButtonText());
-        repaint();
     }
 
     @Override
@@ -550,21 +572,21 @@ public class Board extends JPanel implements ActionListener {
 
     private void drawPieces(Graphics2D g, int left, int top, int size) {
         // 현재 블록이 착지할 위치를 반투명하게 표시 (안개아이템 시 제외)
-        if (!engine.isFogActive() && engine.getCurrentShape() != Tetrominoes.NoShape) {
+        if (!engine.isFogActive() && engine.getCurrentShape() != Tetrominoes.NO_SHAPE) {
             drawGhostPiece(g, left, top, size);
         }
 
         for (int i = 0; i < BOARD_HEIGHT; ++i) {
             for (int j = 0; j < BOARD_WIDTH; ++j) {
                 Tetrominoes shape = engine.shapeAt(j, BOARD_HEIGHT - i - 1);
-                if (shape != Tetrominoes.NoShape) {
+                if (shape != Tetrominoes.NO_SHAPE) {
                     BlockPainter.drawSquare(g, left + j * size, top + i * size, size,
                             shape, engine.getItemTypeAt(j, BOARD_HEIGHT - i - 1));
                 }
             }
         }
 
-        if (engine.getCurrentShape() != Tetrominoes.NoShape) {
+        if (engine.getCurrentShape() != Tetrominoes.NO_SHAPE) {
             for (int i = 0; i < 4; ++i) {
                 int x = engine.getCurrentX() + engine.getPieceX(i);
                 int y = engine.getCurrentY() - engine.getPieceY(i);
