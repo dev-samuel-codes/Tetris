@@ -56,16 +56,19 @@ import frontend.GameSettings;
 // 같은 블록 순서로 점수를 겨루는 AI 대전 화면
 public final class AiMatchWindow extends JFrame {
     private static final int TICK_MILLIS = 50;
+    private static final String ESCAPE_KEY = "ESCAPE";
+    private static final String PRIMARY_BUTTON_PROPERTY = "primary";
+    private static final String HARD_DROP_COMMAND = "HARD_DROP";
     private static final int BOARD_WIDTH = 10;
     private static final int BOARD_HEIGHT = 22;
     private static final AtomicLong THREAD_IDS = new AtomicLong();
     private final Resolution resolution;
     private final Set<String> pressedKeys = new HashSet<String>();
-    private volatile Session session;
+    private transient volatile Session session;
     private long generation;
     private boolean disposed;
     private AiDifficulty difficulty;
-    private MatchFrame latestFrame;
+    private transient MatchFrame latestFrame;
     private JLabel clockLabel;
     private JLabel statusLabel;
     private JLabel resultLabel;
@@ -133,7 +136,7 @@ public final class AiMatchWindow extends JFrame {
             choose.setPreferredSize(new Dimension(430, 42));
             choose.addActionListener(event -> startMatch(option));
             if (option == AiDifficulty.NORMAL) {
-                choose.putClientProperty("primary", true);
+                choose.putClientProperty(PRIMARY_BUTTON_PROPERTY, true);
                 defaultChoice = choose;
             }
             row.gridy = index++;
@@ -172,42 +175,37 @@ public final class AiMatchWindow extends JFrame {
         final Session next = new Session(++generation);
         session = next;
         next.executor.execute(() -> {
-            AiMatchClient client = null;
             try {
-                client = new AiMatchClient();
-                next.client = client;
-                if (next.cancelled) {
-                    client.close();
+                AiMatchClient client = next.openClient();
+                if (client == null)
                     return;
-                }
                 final MatchFrame first = client.start(selected, System.nanoTime() & Long.MAX_VALUE);
-                SwingUtilities.invokeLater(() -> {
-                    if (!isCurrent(next))
-                        return;
-                    applyFrame(first);
-                    next.playing = !first.isEnded();
-                    // 게임판을 준비한 뒤 경기 시작
-                    next.paused = !isFocused();
-                    updateStatus();
-                    if (next.playing) {
-                        next.pacer = new FramePacer(next.executor, TICK_MILLIS,
-                                () -> requestFrame(next), error -> {
-                                    if (!next.cancelled)
-                                        fail(next, error);
-                                });
-                        next.pacer.setPaused(next.paused);
-                    } else {
-                        closeSessionClient(next);
-                        next.executor.shutdown();
-                    }
-                });
+                SwingUtilities.invokeLater(() -> displayFirstFrame(next, client, first));
             } catch (IOException | RuntimeException error) {
                 fail(next, error);
-            } finally {
-                if (next.cancelled && client != null)
-                    client.close();
             }
         });
+    }
+
+    private void displayFirstFrame(Session next, AiMatchClient client, MatchFrame first) {
+        if (!isCurrent(next))
+            return;
+        applyFrame(first);
+        next.playing = !first.isEnded();
+        // 게임판을 준비한 뒤 경기 시작
+        next.paused = !isFocused();
+        updateStatus();
+        if (next.playing) {
+            next.pacer = new FramePacer(next.executor, TICK_MILLIS,
+                    () -> requestFrame(next, client), error -> {
+                        if (!next.cancelled)
+                            fail(next, error);
+                    });
+            next.pacer.setPaused(next.paused);
+        } else {
+            next.closeClient();
+            next.executor.shutdown();
+        }
     }
 
     private void buildMatchPage() {
@@ -256,7 +254,7 @@ public final class AiMatchWindow extends JFrame {
         footer.add(instructions, BorderLayout.NORTH);
         JPanel actions = transparent(new GridLayout(1, 4, 10, 0));
         pauseButton = button("일시정지");
-        pauseButton.putClientProperty("primary", true);
+        pauseButton.putClientProperty(PRIMARY_BUTTON_PROPERTY, true);
         pauseButton.setEnabled(false);
         pauseButton.addActionListener(event -> togglePause());
         retryButton = button("다시 시작");
@@ -285,14 +283,14 @@ public final class AiMatchWindow extends JFrame {
         }, pressedKeys);
     }
 
-    private Runnable requestFrame(Session current) throws IOException {
+    private Runnable requestFrame(Session current, AiMatchClient client) throws IOException {
         String command = current.commands.poll();
-        final MatchFrame frame = current.client.step(command == null ? "WAIT" : command);
-        if ("HARD_DROP".equals(command) || frame.getHuman().isEnded())
+        final MatchFrame frame = client.step(command == null ? "WAIT" : command);
+        if (HARD_DROP_COMMAND.equals(command) || frame.getHuman().isEnded())
             current.commands.clear();
         if (frame.isEnded()) {
             current.playing = false;
-            closeSessionClient(current);
+            current.closeClient();
             current.executor.shutdown();
         }
         return () -> {
@@ -311,11 +309,7 @@ public final class AiMatchWindow extends JFrame {
         aiView.update(frame.getAi());
         clockLabel.setText(formatElapsedTime(frame.getElapsedTicks()));
         if (frame.isEnded()) {
-            clearInput();
-            String winner = frame.getWinner();
-            resultLabel.setText("HUMAN".equals(winner) ? "승리!" : "AI".equals(winner) ? "AI 승리" : "무승부");
-            resultLabel.setForeground("HUMAN".equals(winner) ? Style.GREEN : "AI".equals(winner) ? Style.PINK : Style.ACCENT);
-            detailLabel.setText("최종 점수　나 " + score(frame.getHuman().getScore()) + " : AI " + score(frame.getAi().getScore()));
+            showMatchResult(frame);
         } else {
             resultLabel.setText("같은 블록 · 시간 제한 없음 · 점수 대결");
             resultLabel.setForeground(Style.TEXT);
@@ -325,6 +319,14 @@ public final class AiMatchWindow extends JFrame {
                     ? "AI 점수를 넘으면 바로 승리합니다."
                     : "한쪽이 게임오버된 뒤 남은 쪽이 점수를 앞서면 바로 승리합니다.");
         }
+    }
+
+    private void showMatchResult(MatchFrame frame) {
+        clearInput();
+        String winner = frame.getWinner();
+        resultLabel.setText("HUMAN".equals(winner) ? "승리!" : "AI".equals(winner) ? "AI 승리" : "무승부");
+        resultLabel.setForeground("HUMAN".equals(winner) ? Style.GREEN : "AI".equals(winner) ? Style.PINK : Style.ACCENT);
+        detailLabel.setText("최종 점수 나 " + score(frame.getHuman().getScore()) + " : AI " + score(frame.getAi().getScore()));
     }
 
     private void updateStatus() {
@@ -344,7 +346,7 @@ public final class AiMatchWindow extends JFrame {
         failed.commands.clear();
         if (failed.pacer != null)
             failed.pacer.close();
-        closeSessionClient(failed);
+        failed.closeClient();
         failed.executor.shutdown();
         SwingUtilities.invokeLater(() -> {
             if (!isCurrent(failed))
@@ -357,7 +359,7 @@ public final class AiMatchWindow extends JFrame {
             resultLabel.setForeground(Style.PINK);
             detailLabel.setText("다시 시도하거나 설치 및 오류 안내를 확인해 주세요.");
             retryButton.setText("다시 시도");
-            retryButton.putClientProperty("primary", true);
+            retryButton.putClientProperty(PRIMARY_BUTTON_PROPERTY, true);
             retryButton.setFocusable(true);
             getRootPane().setDefaultButton(retryButton);
             pauseButton.setEnabled(false);
@@ -408,7 +410,7 @@ public final class AiMatchWindow extends JFrame {
         bind(root, GameSettings.getRightKey(), "RIGHT", true);
         bind(root, GameSettings.getRotateLeftKey(), "ROTATE_LEFT", false);
         bind(root, GameSettings.getRotateRightKey(), "ROTATE_RIGHT", false);
-        bind(root, GameSettings.getHardDropKey(), "HARD_DROP", false);
+        bind(root, GameSettings.getHardDropKey(), HARD_DROP_COMMAND, false);
         bind(root, GameSettings.getSoftDropKey(), "SOFT_DROP", true);
         bind(root, GameSettings.getPauseKey(), "PAUSE", false);
     }
@@ -441,7 +443,7 @@ public final class AiMatchWindow extends JFrame {
                         || latestFrame == null || latestFrame.getHuman().isEnded())
                     return;
 
-                if ("HARD_DROP".equals(command))
+                if (HARD_DROP_COMMAND.equals(command))
                     current.commands.clear();
 
                 current.commands.offer(command);
@@ -480,17 +482,7 @@ public final class AiMatchWindow extends JFrame {
         if (previous.pacer != null)
             previous.pacer.close();
         previous.executor.shutdownNow();
-        closeSessionClient(previous);
-    }
-
-    private static void closeSessionClient(final Session current) {
-        final AiMatchClient client = current.client;
-        if (client == null)
-            return;
-        // 연결을 닫는 동안 화면이 멈추지 않도록 따로 처리
-        Thread cleanup = new Thread(() -> client.close(), "tetris-ai-close-" + THREAD_IDS.incrementAndGet());
-        cleanup.setDaemon(true);
-        cleanup.start();
+        previous.closeClient();
     }
 
     private void returnToMenu() {
@@ -583,25 +575,25 @@ public final class AiMatchWindow extends JFrame {
         root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true), "release-escape");
         root.getActionMap().put("escape", new AbstractAction() {
             @Override public void actionPerformed(ActionEvent event) {
-                if (!pressedKeys.add("ESCAPE"))
+                if (!pressedKeys.add(ESCAPE_KEY))
                     return;
                 action.run();
                 // 일시정지에서 clearInput()을 호출해도 키를 놓기 전에는 반복 입력을 막음
-                pressedKeys.add("ESCAPE");
+                pressedKeys.add(ESCAPE_KEY);
             }
         });
         root.getActionMap().put("release-escape", new AbstractAction() {
-            @Override public void actionPerformed(ActionEvent event) { pressedKeys.remove("ESCAPE"); }
+            @Override public void actionPerformed(ActionEvent event) { pressedKeys.remove(ESCAPE_KEY); }
         });
     }
 
     static String controlsText() {
         return "<html><center>" + escapeHtml(GameSettings.keyName(GameSettings.getLeftKey())) + " / "
-                + escapeHtml(GameSettings.keyName(GameSettings.getRightKey())) + " 이동　"
+                + escapeHtml(GameSettings.keyName(GameSettings.getRightKey())) + " 이동\u3000"
                 + escapeHtml(GameSettings.keyName(GameSettings.getRotateLeftKey())) + " / "
                 + escapeHtml(GameSettings.keyName(GameSettings.getRotateRightKey())) + " 회전<br>"
-                + escapeHtml(GameSettings.keyName(GameSettings.getSoftDropKey())) + " 하강　"
-                + escapeHtml(GameSettings.keyName(GameSettings.getHardDropKey())) + " 즉시 낙하　"
+                + escapeHtml(GameSettings.keyName(GameSettings.getSoftDropKey())) + " 하강\u3000"
+                + escapeHtml(GameSettings.keyName(GameSettings.getHardDropKey())) + " 즉시 낙하\u3000"
                 + escapeHtml(GameSettings.keyName(GameSettings.getPauseKey())) + " 일시정지</center></html>";
     }
 
@@ -622,7 +614,7 @@ public final class AiMatchWindow extends JFrame {
         final long generation;
         final ArrayBlockingQueue<String> commands = new ArrayBlockingQueue<String>(1);
         final ScheduledExecutorService executor;
-        volatile AiMatchClient client;
+        private AiMatchClient client;
         volatile boolean cancelled;
         volatile boolean paused;
         volatile boolean playing;
@@ -638,6 +630,33 @@ public final class AiMatchWindow extends JFrame {
                     return thread;
                 }
             });
+        }
+
+        AiMatchClient openClient() throws IOException {
+            AiMatchClient opened = new AiMatchClient();
+            synchronized (this) {
+                client = opened;
+            }
+            // 연결을 여는 도중 취소됐으면 뒤늦게 준비된 연결도 정리한다.
+            if (cancelled) {
+                closeClient();
+                return null;
+            }
+            return opened;
+        }
+
+        void closeClient() {
+            final AiMatchClient closing;
+            synchronized (this) {
+                closing = client;
+                client = null;
+            }
+            if (closing == null)
+                return;
+            // 연결을 닫는 동안 화면이 멈추지 않도록 따로 처리
+            Thread cleanup = new Thread(closing::close, "tetris-ai-close-" + THREAD_IDS.incrementAndGet());
+            cleanup.setDaemon(true);
+            cleanup.start();
         }
     }
 
@@ -665,7 +684,7 @@ public final class AiMatchWindow extends JFrame {
         void update(MatchFrame.BoardState state) {
             scoreLabel.setText(score(state.getScore()));
             linesLabel.setText(state.getLines() + "줄");
-            canvas.lineFlash.update(state.getLines(), state.getLastClearedRow());
+            canvas.getLineFlash().update(state.getLines(), state.getLastClearedRow());
             canvas.cells = state.getBoard();
             canvas.ended = state.isEnded();
             canvas.repaint();
@@ -678,7 +697,7 @@ public final class AiMatchWindow extends JFrame {
     }
 
     private static final class BoardCanvas extends JPanel {
-        private final LineClearFlash lineFlash = new LineClearFlash(this);
+        private transient LineClearFlash lineFlash;
         private int[] cells = new int[BOARD_WIDTH * BOARD_HEIGHT];
         private boolean ended;
         private boolean paused;
@@ -690,8 +709,15 @@ public final class AiMatchWindow extends JFrame {
         }
         @Override
         public void removeNotify() {
-            lineFlash.stop();
+            if (lineFlash != null)
+                lineFlash.stop();
             super.removeNotify();
+        }
+
+        private LineClearFlash getLineFlash() {
+            if (lineFlash == null)
+                lineFlash = new LineClearFlash(this);
+            return lineFlash;
         }
 
         @Override
@@ -713,7 +739,7 @@ public final class AiMatchWindow extends JFrame {
                 for (int y = 1; y < BOARD_HEIGHT; y++)
                     g.drawLine(left, top + y * size, left + width, top + y * size);
                 paintCells(g, left, top, size);
-                lineFlash.draw(g, left, top, size);
+                getLineFlash().draw(g, left, top, size);
                 g.setColor(Style.BOARD_BORDER);
                 g.drawRect(left - 1, top - 1, width + 1, height + 1);
                 if (ended || paused) {
