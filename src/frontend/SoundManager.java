@@ -16,6 +16,7 @@ import javax.sound.sampled.LineEvent;
 public final class SoundManager {
     private static final Logger LOGGER = Logger.getLogger(SoundManager.class.getName());
     private static final int MAX_EFFECTS = 12;
+    private static final String WORKING_DIRECTORY_PROPERTY = "user.dir";
     private static Clip bgmClip;
     private static boolean bgmRequested;
     private static final Set<Clip> effectClips = new HashSet<>();
@@ -30,9 +31,9 @@ public final class SoundManager {
             return resourceUrl;
         String fileName = path.substring(path.lastIndexOf('/') + 1);
         File[] candidates = {
-                new File(System.getProperty("user.dir"), fileName),
-                new File(System.getProperty("user.dir"), "src/frontend/audio/" + fileName),
-                new File(System.getProperty("user.dir"), "frontend/audio/" + fileName)
+                new File(System.getProperty(WORKING_DIRECTORY_PROPERTY), fileName),
+                new File(System.getProperty(WORKING_DIRECTORY_PROPERTY), "src/frontend/audio/" + fileName),
+                new File(System.getProperty(WORKING_DIRECTORY_PROPERTY), "frontend/audio/" + fileName)
         };
         for (File candidate : candidates) {
             if (candidate.isFile()) {
