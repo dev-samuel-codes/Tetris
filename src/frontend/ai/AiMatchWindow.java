@@ -712,30 +712,7 @@ public final class AiMatchWindow extends JFrame {
                     g.drawLine(left + x * size, top, left + x * size, top + height);
                 for (int y = 1; y < BOARD_HEIGHT; y++)
                     g.drawLine(left, top + y * size, left + width, top + y * size);
-                Tetrominoes[] shapes = Tetrominoes.values();
-                for (int y = 0; y < BOARD_HEIGHT; y++) {
-                    for (int x = 0; x < BOARD_WIDTH; x++) {
-                        int value = cells[y * BOARD_WIDTH + x];
-
-                        int blockX = left + x * size;
-                        int blockY = top + (BOARD_HEIGHT - y - 1) * size;
-
-                        if (value == 8) {
-                            // 고스트 내부를 흐리게 표시
-                            g.setColor(new Color(255, 255, 255, 30));
-                            g.fillRect(blockX + 1, blockY + 1, size - 2, size - 2);
-
-                            // 고스트 테두리 표시
-                            g.setColor(new Color(255, 255, 255, 100));
-                            g.drawRect(blockX + 1, blockY + 1, size - 3, size - 3);
-
-                        } else if (value > 0 && value < shapes.length) {
-                            BlockPainter.drawSquare(
-                                    g, blockX, blockY, size, shapes[value]
-                            );
-                        }
-                    }
-                }
+                paintCells(g, left, top, size);
                 lineFlash.draw(g, left, top, size);
                 g.setColor(Style.BOARD_BORDER);
                 g.drawRect(left - 1, top - 1, width + 1, height + 1);
@@ -751,6 +728,29 @@ public final class AiMatchWindow extends JFrame {
                 }
             } finally {
                 g.dispose();
+            }
+        }
+
+        private void paintCells(Graphics2D g, int left, int top, int size) {
+            Tetrominoes[] shapes = Tetrominoes.values();
+            for (int y = 0; y < BOARD_HEIGHT; y++) {
+                for (int x = 0; x < BOARD_WIDTH; x++) {
+                    int value = cells[y * BOARD_WIDTH + x];
+                    int blockX = left + x * size;
+                    int blockY = top + (BOARD_HEIGHT - y - 1) * size;
+
+                    if (value == 8) {
+                        // 고스트 내부를 흐리게 표시
+                        g.setColor(new Color(255, 255, 255, 30));
+                        g.fillRect(blockX + 1, blockY + 1, size - 2, size - 2);
+
+                        // 고스트 테두리 표시
+                        g.setColor(new Color(255, 255, 255, 100));
+                        g.drawRect(blockX + 1, blockY + 1, size - 3, size - 3);
+                    } else if (value > 0 && value < shapes.length) {
+                        BlockPainter.drawSquare(g, blockX, blockY, size, shapes[value]);
+                    }
+                }
             }
         }
     }
