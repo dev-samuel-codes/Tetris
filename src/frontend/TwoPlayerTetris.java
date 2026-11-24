@@ -24,7 +24,7 @@ public class TwoPlayerTetris extends JFrame {
     // 1PC 2인용 게임 창 생성
     public TwoPlayerTetris() {
         setTitle("Tetris - 1PC 2인");
-        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+        setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
 
         JPanel root = new JPanel(new BorderLayout(0, 12));
         root.setBackground(Style.BACKGROUND);
@@ -370,6 +370,9 @@ public class TwoPlayerTetris extends JFrame {
                 break;
             case KeyEvent.VK_ENTER:
                 player2Board.hardDrop();
+                break;
+            default:
+                // 지정되지 않은 키는 게임 조작에 사용하지 않는다.
                 break;
         }
 

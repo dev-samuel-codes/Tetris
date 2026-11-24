@@ -37,7 +37,7 @@ public final class AiAssistEngineTest {
             }
         }
         GameEngine engine = fixture(4, 0, 5, 16);
-        board(engine)[2 * 10 + 3] = Tetrominoes.MirroredLShape;
+        board(engine)[2 * 10 + 3] = Tetrominoes.MIRRORED_L_SHAPE;
         check(engine.getAiAssistState().getBoard().charAt(23) == '7', "아래쪽 행부터 직렬화");
 
         GameEngine assisted = fixture(4, 0, 5, 16);
@@ -50,8 +50,8 @@ public final class AiAssistEngineTest {
     private static void testLowCurrentPosition() throws Exception {
         GameEngine assisted = fixture(5, 0, 2, 2);
         GameEngine manual = fixture(5, 0, 2, 2);
-        board(assisted)[4 * 10 + 4] = Tetrominoes.LineShape;
-        board(manual)[4 * 10 + 4] = Tetrominoes.LineShape;
+        board(assisted)[4 * 10 + 4] = Tetrominoes.LINE_SHAPE;
+        board(manual)[4 * 10 + 4] = Tetrominoes.LINE_SHAPE;
         AiAssistPlan plan = manualPlan(manual, "RRH");
         check(assisted.applyAiAssistPlan(assisted.getAiAssistState(), plan), "현재 낮은 위치에서 이동");
         check(snapshot(assisted).equals(snapshot(manual)), "스폰 위치에서 경로를 다시 시작하지 않음");
@@ -74,7 +74,7 @@ public final class AiAssistEngineTest {
         engine.moveLeft();
         rejectUnchanged(engine, old, plan, "이동 이후 오래된 상태 거부");
         engine.moveRight();
-        board(engine)[0] = Tetrominoes.ZShape;
+        board(engine)[0] = Tetrominoes.Z_SHAPE;
         rejectUnchanged(engine, old, plan, "보드 변경 이후 오래된 상태 거부");
         engine = fixture(4, 1, 5, 12);
         rejectUnchanged(engine, old, plan, "회전 변경 이후 오래된 상태 거부");
@@ -118,7 +118,7 @@ public final class AiAssistEngineTest {
             AiAssistPlan plan = manualPlan(manual, "H");
             check(assisted.applyAiAssistPlan(state, plan), "연속 블록 보조 적용: " + piece);
             check(snapshot(assisted).equals(snapshot(manual)), "시드별 다음 블록과 점수 보존");
-            if (manual.getCurrentShape() == Tetrominoes.NoShape && manual.isStarted()) {
+            if (manual.getCurrentShape() == Tetrominoes.NO_SHAPE && manual.isStarted()) {
                 assisted.tick();
                 manual.tick();
             }
@@ -130,14 +130,14 @@ public final class AiAssistEngineTest {
         GameEngine manual = fixture(5, 0, 4, 12);
         for (GameEngine engine : new GameEngine[] {assisted, manual}) {
             for (int x = 0; x < 10; x++)
-                if (x != 4 && x != 5) board(engine)[x] = Tetrominoes.LineShape;
+                if (x != 4 && x != 5) board(engine)[x] = Tetrominoes.LINE_SHAPE;
         }
         Tetrominoes expectedNext = assisted.getNextShape();
         AiAssistPlan plan = manualPlan(manual, "H");
         check(assisted.applyAiAssistPlan(assisted.getAiAssistState(), plan), "줄 삭제를 동반한 AI 착지");
         check(assisted.getScore() == 10 && assisted.getNumLinesRemoved() == 1, "기존 클래식 한 줄 점수");
         check(occupied(assisted) == 2, "첫 블록만 고정하고 줄 삭제");
-        check(assisted.getCurrentShape() == Tetrominoes.NoShape, "줄 삭제의 대기 상태 유지");
+        check(assisted.getCurrentShape() == Tetrominoes.NO_SHAPE, "줄 삭제의 대기 상태 유지");
         check(assisted.getAiAssistState() == null, "새 블록 대기 중 요청 거부");
         check(snapshot(assisted).equals(snapshot(manual)), "수동 줄 삭제 상태 일치");
         assisted.tick();
@@ -166,7 +166,7 @@ public final class AiAssistEngineTest {
         engine.setBattleItemMode(false);
         currentPiece(engine).setItemCell(0);
         check(engine.getAiAssistState() == null, "남아 있는 아이템 블록 거부");
-        currentPiece(engine).setShape(Tetrominoes.NoShape);
+        currentPiece(engine).setShape(Tetrominoes.NO_SHAPE);
         check(engine.getAiAssistState() == null, "활성 블록 없음 거부");
     }
 
@@ -228,7 +228,7 @@ public final class AiAssistEngineTest {
     private static int occupied(GameEngine engine) {
         int count = 0;
         for (int y = 0; y < 22; y++)
-            for (int x = 0; x < 10; x++) if (engine.shapeAt(x, y) != Tetrominoes.NoShape) count++;
+            for (int x = 0; x < 10; x++) if (engine.shapeAt(x, y) != Tetrominoes.NO_SHAPE) count++;
         return count;
     }
 

@@ -24,7 +24,7 @@ public class SidePanel extends JPanel {
     private int elapsedSeconds;
     private int linesRemoved;
     private int level = 1;
-    private Tetrominoes nextShape = Tetrominoes.NoShape;
+    private Tetrominoes nextShape = Tetrominoes.NO_SHAPE;
     private ItemType lastItemType;
     private static final ItemType[] ITEM_GUIDE = {
             ItemType.ROW_CLEAR, ItemType.COLUMN_CLEAR, ItemType.BOMB_CLEAR,
@@ -61,7 +61,7 @@ public class SidePanel extends JPanel {
     }
 
     public void setNextShape(Tetrominoes shape) {
-        nextShape = shape == null ? Tetrominoes.NoShape : shape;
+        nextShape = shape == null ? Tetrominoes.NO_SHAPE : shape;
         repaint();
     }
 
@@ -161,7 +161,7 @@ public class SidePanel extends JPanel {
         g.setColor(Style.BORDER);
         g.drawRect(frameInset, boxTop, getWidth() - frameInset * 2 - 1, frameHeight - 1);
 
-        if (nextShape == Tetrominoes.NoShape)
+        if (nextShape == Tetrominoes.NO_SHAPE)
             return;
 
         Shape preview = new Shape();

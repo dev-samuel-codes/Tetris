@@ -37,16 +37,16 @@ public final class SeededEngineTest {
             engine.start();
             Tetrominoes[] board = (Tetrominoes[]) field.get(engine);
             for (int y = 0; y < rows; y++)
-                for (int x = 0; x < 10; x++) board[y * 10 + x] = Tetrominoes.LineShape;
-            board[21 * 10] = Tetrominoes.SquareShape;
+                for (int x = 0; x < 10; x++) board[y * 10 + x] = Tetrominoes.LINE_SHAPE;
+            board[21 * 10] = Tetrominoes.SQUARE_SHAPE;
             clear.invoke(engine);
             int[] points = {0, 10, 25, 40, 60};
             check(engine.getScore() == points[rows], "기존 클래식 줄 점수 보존");
             check(engine.getNumLinesRemoved() == rows, "정확한 제거 줄 수");
-            check(engine.shapeAt(0, 21 - rows) == Tetrominoes.SquareShape, "상단 블록이 삭제 줄 수만큼 이동");
+            check(engine.shapeAt(0, 21 - rows) == Tetrominoes.SQUARE_SHAPE, "상단 블록이 삭제 줄 수만큼 이동");
             for (int y = 22 - rows; y < 22; y++)
-                for (int x = 0; x < 10; x++) check(engine.shapeAt(x, y) == Tetrominoes.NoShape, "상단은 비워야 합니다.");
-            for (int x = 0; x < 10; x++) board[x] = Tetrominoes.LineShape;
+                for (int x = 0; x < 10; x++) check(engine.shapeAt(x, y) == Tetrominoes.NO_SHAPE, "상단은 비워야 합니다.");
+            for (int x = 0; x < 10; x++) board[x] = Tetrominoes.LINE_SHAPE;
             clear.invoke(engine);
             check(engine.getScore() == points[rows] + 20, "연속 줄 삭제의 콤보 10점");
         }

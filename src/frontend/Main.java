@@ -32,6 +32,7 @@ import javax.swing.JToggleButton;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.WindowConstants;
 import java.awt.event.KeyEvent;
 import javax.swing.JScrollPane;
 
@@ -42,7 +43,7 @@ public class Main extends JFrame {
 
     public Main() {
         setTitle("Tetris");
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         // 기본 메뉴 크기는 유지하고 작은 화면에서는 화면 바깥으로 벗어나지 않게 제한
         Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
         setSize(Math.min(960, screen.width - 48), Math.min(740, screen.height - 64));
@@ -181,7 +182,11 @@ public class Main extends JFrame {
         controls.setHorizontalAlignment(SwingConstants.CENTER);
         mainContainer.add(controls, BorderLayout.SOUTH);
         showPage(mainContainer, playerName.isEmpty() ? applyNickname : classicButton);
+        loadMainMenuScores(mainContainer, playerName, scoreModes, values, connectionStatus);
+    }
 
+    private void loadMainMenuScores(JPanel mainContainer, String playerName, ScoreMode[] scoreModes,
+                                    JLabel[] values, JLabel connectionStatus) {
         // 서버 조회는 비동기로 진행하고 응답은 현재 화면에만 표시
         if (!playerName.isEmpty()) {
             int[] remaining = { scoreModes.length };
@@ -336,52 +341,67 @@ public class Main extends JFrame {
             if (!isDisplayable() || getContentPane() != container)
                 return;
             refresh.setEnabled(true);
-            status.setToolTipText(result.getDetail());
-            // 실패 원인은 상태 문구와 툴팁으로 표시하고 새로고침으로 재조회 가능
-            if (!result.isSuccess()) {
-                status.setText(result.getMessage());
-                status.setForeground(Style.PINK);
-                cells[0][1].setText("랭킹을 가져오지 못했습니다.");
-                cells[1][1].setText("새로고침으로 다시 시도해 주세요.");
+            RankingPage page = handleRankingResponse(result, mode, pageIndex, status, cells);
+            if (page == null)
                 return;
-            }
-            RankingPage page = result.getValue();
-            // 조회 사이에 인원이 줄어 현재 페이지가 비면 마지막 유효 페이지로 이동
-            if (pageIndex > 0 && page.getEntries().isEmpty()) {
-                showRankingMenu(mode, Math.max(0, (page.getTotalPlayers() - 1) / RANKING_PAGE_SIZE));
-                return;
-            }
             status.setText("전체 " + page.getTotalPlayers() + "명 · " + mode.getDisplayName() + " 모드 최고 점수");
             pageLabel.setText((pageIndex + 1) + " / " + Math.max(1,
                     (page.getTotalPlayers() + RANKING_PAGE_SIZE - 1) / RANKING_PAGE_SIZE));
             next.setEnabled((pageIndex + 1) * RANKING_PAGE_SIZE < page.getTotalPlayers());
-            // 마지막 페이지의 남는 행은 빈칸으로 유지하고 기록이 전혀 없으면 안내 표시
-            for (int i = 0; i < rows.length; i++) {
-                if (i >= page.getEntries().size()) {
-                    cells[i][0].setText("—");
-                    cells[i][1].setText(i == 0 ? "아직 등록된 기록이 없습니다." : "");
-                    cells[i][2].setText("—");
-                    continue;
-                }
-                RankingEntry entry = page.getEntries().get(i);
-                // 내 기록은 이름 옆 표시와 행 색을 함께 사용해 쉽게 찾을 수 있게 표시
-                boolean own = entry.getNickname().equals(ScoreManager.getNickname());
-                cells[i][0].setText(String.format("%02d", entry.getRank()));
-                cells[i][0].setForeground(entry.getRank() <= 3 ? Style.GOLD : Style.MUTED_TEXT);
-                cells[i][1].setText(entry.getNickname() + (own ? "  ·  나" : ""));
-                cells[i][1].setToolTipText(entry.getNickname() + (own ? " · 내 기록" : ""));
-                cells[i][1].setForeground(own ? Style.ACCENT : Style.TEXT);
-                cells[i][2].setText(score(entry.getScore()));
-                cells[i][2].setForeground(own ? Style.ACCENT : Style.TEXT);
-                if (own) {
-                    rows[i].setOpaque(true);
-                    rows[i].setBackground(new Color(43, 40, 51));
-                    rows[i].setBorder(BorderFactory.createCompoundBorder(
-                            BorderFactory.createMatteBorder(0, 2, 1, 0, Style.ACCENT),
-                            BorderFactory.createEmptyBorder(10, 6, 10, 8)));
-                }
-            }
+            displayRankingRows(page, rows, cells);
         });
+    }
+
+    private RankingPage handleRankingResponse(ScoreManager.Result<RankingPage> result, ScoreMode mode,
+                                              int pageIndex, JLabel status, JLabel[][] cells) {
+        status.setToolTipText(result.getDetail());
+        // 실패 원인은 상태 문구와 툴팁으로 표시하고 새로고침으로 재조회 가능
+        if (!result.isSuccess()) {
+            status.setText(result.getMessage());
+            status.setForeground(Style.PINK);
+            cells[0][1].setText("랭킹을 가져오지 못했습니다.");
+            cells[1][1].setText("새로고침으로 다시 시도해 주세요.");
+            return null;
+        }
+        RankingPage page = result.getValue();
+        // 조회 사이에 인원이 줄어 현재 페이지가 비면 마지막 유효 페이지로 이동
+        if (pageIndex > 0 && page.getEntries().isEmpty()) {
+            showRankingMenu(mode, Math.max(0, (page.getTotalPlayers() - 1) / RANKING_PAGE_SIZE));
+            return null;
+        }
+        return page;
+    }
+
+    private void displayRankingRows(RankingPage page, JPanel[] rows, JLabel[][] cells) {
+        // 마지막 페이지의 남는 행은 빈칸으로 유지하고 기록이 전혀 없으면 안내 표시
+        for (int i = 0; i < rows.length; i++) {
+            if (i >= page.getEntries().size()) {
+                cells[i][0].setText("—");
+                cells[i][1].setText(i == 0 ? "아직 등록된 기록이 없습니다." : "");
+                cells[i][2].setText("—");
+                continue;
+            }
+            displayRankingEntry(page.getEntries().get(i), rows[i], cells[i]);
+        }
+    }
+
+    private void displayRankingEntry(RankingEntry entry, JPanel row, JLabel[] cells) {
+        // 내 기록은 이름 옆 표시와 행 색을 함께 사용해 쉽게 찾을 수 있게 표시
+        boolean own = entry.getNickname().equals(ScoreManager.getNickname());
+        cells[0].setText(String.format("%02d", entry.getRank()));
+        cells[0].setForeground(entry.getRank() <= 3 ? Style.GOLD : Style.MUTED_TEXT);
+        cells[1].setText(entry.getNickname() + (own ? "  ·  나" : ""));
+        cells[1].setToolTipText(entry.getNickname() + (own ? " · 내 기록" : ""));
+        cells[1].setForeground(own ? Style.ACCENT : Style.TEXT);
+        cells[2].setText(score(entry.getScore()));
+        cells[2].setForeground(own ? Style.ACCENT : Style.TEXT);
+        if (own) {
+            row.setOpaque(true);
+            row.setBackground(new Color(43, 40, 51));
+            row.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createMatteBorder(0, 2, 1, 0, Style.ACCENT),
+                    BorderFactory.createEmptyBorder(10, 6, 10, 8)));
+        }
     }
 
     private void showSettingsMenu() {

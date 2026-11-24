@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class AiMatchClient implements Closeable {
     private static final int MAX_LINE = 4096;
     private static final int STDERR_LIMIT = 4096;
+    private static final String ELAPSED_TIME_FIELD = "경과 시간";
     private static final Set<String> COMMANDS = new HashSet<String>(Arrays.asList(
             "WAIT", "LEFT", "RIGHT", "ROTATE_LEFT", "ROTATE_RIGHT", "SOFT_DROP", "HARD_DROP"));
     private static final String SETUP_HELP =
@@ -43,20 +44,26 @@ public final class AiMatchClient implements Closeable {
     private boolean started;
     private boolean hellModelLoaded;
 
+    //객체를 생성하면 파이썬을 실행시키고 통신준비까지 마치게됨.
     public AiMatchClient() throws IOException {
-        this(launchService(), timeoutProperty("tetris.ai.startupTimeoutMillis", 30000),
+        this(launchService(),  //match_service.py를 실행시키고 파이썬과 소통할수 있는 process 객체를 반환
+                timeoutProperty("tetris.ai.startupTimeoutMillis", 30000),
                 timeoutProperty("tetris.ai.stepTimeoutMillis", 5000));
     }
 
+    // 위에 this를 타고 아래 또다른 생성자를 호출함.
     // 테스트에서는 실제 Python 대신 응답을 흉내 내는 프로세스를 전달
     AiMatchClient(Process process, long startupTimeoutMillis, long stepTimeoutMillis) throws IOException {
         this.process = process;
         this.startupTimeoutMillis = startupTimeoutMillis;
         this.stepTimeoutMillis = stepTimeoutMillis;
+        //파이썬에 글을 보낼 도구 writer을 만든다.
         this.writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8));
-        stderrThread = startStderrReader();
-        startStdoutReader();
+        stderrThread = startStderrReader();  //오류응답
+        startStdoutReader(); // 파이썬이 보낸 글을 한 글자씩 읽다가, 한 줄이 완성되면 replies 큐에 넣는 함수
+        // 정상적인 입력이 들어오면 READY\t2라는 입력이왔는지 확인하는코드
         try {
+            // replies를 꺼내서 정상적인 입력이 왔는지 확인한다.
             String ready = readReply(startupTimeoutMillis, "AI 서비스 시작");
             if (!"READY\t2".equals(ready)) {
                 throw failure("AI 서비스의 시작 응답이 올바르지 않습니다: " + brief(ready), null);
@@ -67,9 +74,11 @@ public final class AiMatchClient implements Closeable {
         }
     }
 
+    //파이썬의 준비 완료를 확인했으니까, 난이도와 시드를 보내서 실제 경기를 시작하는 단계
     public MatchFrame start(AiDifficulty difficulty, long seed) throws IOException {
         if (difficulty == null) throw new IllegalArgumentException("AI 난이도가 필요합니다.");
         synchronized (requestLock) {
+            // 난이도와 시드를 보내고 그 결과를 받아옴
             MatchFrame frame = exchangeFrame("START\t" + difficulty.getId() + "\t" + seed,
                     startupTimeoutMillis, "AI 모델 불러오기");
             started = true;
@@ -78,6 +87,7 @@ public final class AiMatchClient implements Closeable {
         }
     }
 
+    //step()은 사람의 입력을 보내고 한 틱 진행된 결과를 받는 메서드
     public MatchFrame step(String command) throws IOException {
         if (!COMMANDS.contains(command)) throw new IllegalArgumentException("지원하지 않는 AI 대전 입력입니다: " + command);
         synchronized (requestLock) {
@@ -86,6 +96,7 @@ public final class AiMatchClient implements Closeable {
         }
     }
 
+    //현재 자바 보드 상태를 보내고 “이 블록을 어떻게 놓으면 되는지” 계획을 받는다.
     public AiAssistPlan assist(AiAssistState state) throws IOException {
         if (state == null) throw new IllegalArgumentException("AI 도움에 사용할 상태가 필요합니다.");
         synchronized (requestLock) {
@@ -114,6 +125,7 @@ public final class AiMatchClient implements Closeable {
         }
     }
 
+    //파이썬에게 데이터를 전달하는 함수
     private String exchangeRaw(String request, long timeoutMillis, String operation) throws IOException {
         if (closed.get()) throw new IOException("AI 대전 연결이 종료되었습니다.");
         try {
@@ -134,9 +146,11 @@ public final class AiMatchClient implements Closeable {
         return detailed;
     }
 
+    //응답 큐에서 하나를 꺼내고, 문제가 없으면 그 안의 문자열을 반환하는 것
     private String readReply(long timeoutMillis, String operation) throws IOException {
         Reply reply;
         try {
+            //replies 큐에서 하나 꺼내줘
             reply = replies.poll(timeoutMillis, TimeUnit.MILLISECONDS);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
@@ -151,43 +165,51 @@ public final class AiMatchClient implements Closeable {
         return reply.line;
     }
 
+    //파이썬이 보낸 글을 한 글자씩 읽다가, 한 줄이 완성되면 replies 큐에 넣는 것
     private void startStdoutReader() {
-        Thread thread = new Thread(new Runnable() {
-            @Override public void run() {
-                try (Reader reader = new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8)) {
-                    StringBuilder line = new StringBuilder();
-                    int next;
-                    while (!closed.get() && (next = reader.read()) != -1) {
-                        if (next == '\n') {
-                            if (line.length() > 0 && line.charAt(line.length() - 1) == '\r') line.setLength(line.length() - 1);
-                            if (!replies.offer(new Reply(line.toString(), null))) {
-                                terminal(new IOException("AI 서비스가 요청 없이 너무 많은 응답을 보냈습니다."));
-                                process.destroy();
-                                return;
-                            }
-                            line.setLength(0);
-                        } else {
-                            if (line.length() >= MAX_LINE) {
-                                terminal(new IOException("AI 서비스 응답이 허용된 길이를 초과했습니다."));
-                                process.destroy();
-                                return;
-                            }
-                            line.append((char) next);
-                        }
-                    }
-                    if (!closed.get()) {
-                        // 필요한 패키지가 없어 종료된 경우 오류 내용도 함께 확인
-                        try { stderrThread.join(100); }
-                        catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); }
-                    }
-                    terminal(new IOException("AI 서비스 프로세스가 응답을 보내기 전에 종료되었습니다."));
-                } catch (IOException failure) {
-                    terminal(new IOException("AI 서비스 출력 연결이 끊어졌습니다.", failure));
-                }
-            }
-        }, "tetris-ai-stdout");
+        Thread thread = new Thread(this::readStdout, "tetris-ai-stdout");
         thread.setDaemon(true);
         thread.start();
+    }
+
+    private void readStdout() {
+        try (Reader reader = new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8)) {
+            if (!readReplyLines(reader))
+                return;
+            if (!closed.get()) {
+                // 필요한 패키지가 없어 종료된 경우 오류 내용도 함께 확인
+                try { stderrThread.join(100); }
+                catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); }
+            }
+            terminal(new IOException("AI 서비스 프로세스가 응답을 보내기 전에 종료되었습니다."));
+        } catch (IOException failure) {
+            terminal(new IOException("AI 서비스 출력 연결이 끊어졌습니다.", failure));
+        }
+    }
+
+    private boolean readReplyLines(Reader reader) throws IOException {
+        StringBuilder line = new StringBuilder();
+        int next;
+        while (!closed.get() && (next = reader.read()) != -1) {
+            if (next == '\n') {
+                if (line.length() > 0 && line.charAt(line.length() - 1) == '\r')
+                    line.setLength(line.length() - 1);
+                if (!replies.offer(new Reply(line.toString(), null))) {
+                    terminal(new IOException("AI 서비스가 요청 없이 너무 많은 응답을 보냈습니다."));
+                    process.destroy();
+                    return false;
+                }
+                line.setLength(0);
+                continue;
+            }
+            if (line.length() >= MAX_LINE) {
+                terminal(new IOException("AI 서비스 응답이 허용된 길이를 초과했습니다."));
+                process.destroy();
+                return false;
+            }
+            line.append((char) next);
+        }
+        return true;
     }
 
     private Thread startStderrReader() {
@@ -208,7 +230,7 @@ public final class AiMatchClient implements Closeable {
             }
         }, "tetris-ai-stderr");
         thread.setDaemon(true);
-        thread.start();
+        thread.start(); //run()안에 읽기작업을 시작함.
         return thread;
     }
 
@@ -263,15 +285,22 @@ public final class AiMatchClient implements Closeable {
             throw invalid("승자");
         }
         if (ended == "NONE".equals(winner)) throw invalid("종료 및 승자 상태");
+        //사람 정보를 객체로
         MatchFrame.BoardState human = board(
                 fields, 4,
                 fields.length == 16 ? clearedRow(fields[14]) : -1
         );
-
+        //ai 정보를 객체로
         MatchFrame.BoardState ai = board(
                 fields, 9,
                 fields.length == 16 ? clearedRow(fields[15]) : -1
         );
+        validateMatchResult(ended, winner, human, ai);
+        return new MatchFrame(elapsed, ended, winner, human, ai);
+    }
+
+    private static void validateMatchResult(boolean ended, String winner, MatchFrame.BoardState human,
+                                            MatchFrame.BoardState ai) throws IOException {
         // 한쪽이 끝나도 살아 있는 쪽이 점수를 넘기면 승패가 확정됨
         boolean settled = (human.isEnded() && ai.isEnded())
                 || (human.isEnded() && ai.getScore() > human.getScore())
@@ -282,7 +311,6 @@ public final class AiMatchClient implements Closeable {
             String expectedWinner = comparison > 0 ? "HUMAN" : comparison < 0 ? "AI" : "DRAW";
             if (!expectedWinner.equals(winner)) throw invalid("점수 및 승자 상태");
         }
-        return new MatchFrame(elapsed, ended, winner, human, ai);
     }
 
     static AiAssistPlan parseAssist(String line) throws IOException {
@@ -350,12 +378,12 @@ public final class AiMatchClient implements Closeable {
     }
 
     private static long elapsedTicks(String token) throws IOException {
-        if (token.isEmpty() || token.length() > 19) throw invalid("경과 시간");
+        if (token.isEmpty() || token.length() > 19) throw invalid(ELAPSED_TIME_FIELD);
         for (int i = 0; i < token.length(); i++)
-            if (token.charAt(i) < '0' || token.charAt(i) > '9') throw invalid("경과 시간");
+            if (token.charAt(i) < '0' || token.charAt(i) > '9') throw invalid(ELAPSED_TIME_FIELD);
         try {
             return Long.parseLong(token);
-        } catch (NumberFormatException failure) { throw invalid("경과 시간"); }
+        } catch (NumberFormatException failure) { throw invalid(ELAPSED_TIME_FIELD); }
     }
 
     private static IOException invalid(String field) {

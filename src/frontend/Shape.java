@@ -6,14 +6,16 @@ import java.util.Random;
 
 public class Shape {
 
-	private Tetrominoes pieceShape;
-	private int coords[][];
-	private int[][][] coordsTable;
-	private int itemCellIndex = -1;
+	private static final Random RANDOM = new Random();
+
+	private Tetrominoes pieceShape; //현재블록의 종류
+	private int coords[][]; // 현재 블록을 구성하는 네칸의 상대좌표
+	private int[][][] coordsTable; // 각 종류의 기본 좌표표
+	private int itemCellIndex = -1; //네 칸중 아이템이 들어있는 칸의 번호
 
 	public Shape() {
 		coords = new int[4][2];
-		setShape(Tetrominoes.NoShape);
+		setShape(Tetrominoes.NO_SHAPE);
 	}
 
 	public void setShape(Tetrominoes shape) {
@@ -73,8 +75,7 @@ public class Shape {
 	}
 
 	public void setRandomShape() {
-		Random r = new Random();
-		int x = Math.abs(r.nextInt()) % 7 + 1;
+		int x = RANDOM.nextInt(7) + 1;
 		Tetrominoes[] values = Tetrominoes.values();
 		setShape(values[x]);
 	}
@@ -96,7 +97,7 @@ public class Shape {
 	}
 
 	public Shape rotateLeft() {
-		if (pieceShape == Tetrominoes.SquareShape)
+		if (pieceShape == Tetrominoes.SQUARE_SHAPE)
 			return this;
 
 		Shape result = new Shape();
@@ -111,7 +112,7 @@ public class Shape {
 	}
 
 	public Shape rotateRight() {
-		if (pieceShape == Tetrominoes.SquareShape)
+		if (pieceShape == Tetrominoes.SQUARE_SHAPE)
 			return this;
 
 		Shape result = new Shape();
