@@ -105,42 +105,14 @@ public final class ScoreServer {
         }
         try {
             if ((parts.length == 2 || parts.length == 3) && "BEST".equals(parts[0])) {
-                ScoreMode mode = parts.length == 3 ? mode(parts[1]) : ScoreMode.CLASSIC;
-                String nickname = nickname(parts[parts.length - 1]);
-                respond(writer, "BEST " + scores.best(mode, nickname));
+                handleBest(parts, writer, scores);
             } else if (parts.length == 3 && "SUBMIT".equals(parts[0])) {
                 // 구버전은 게임 모드를 보내지 않아 아이템 기록이 클래식에 섞일 수 있음
                 respond(writer, "ERROR MODE_REQUIRED");
             } else if (parts.length == 4 && "SUBMIT".equals(parts[0])) {
-                ScoreMode mode = mode(parts[1]);
-                String nickname = nickname(parts[2]);
-                int score;
-                try {
-                    score = nonnegativeInteger(parts[3]);
-                } catch (IllegalArgumentException e) {
-                    respond(writer, "ERROR INVALID_SCORE");
-                    return;
-                }
-                respond(writer, "OK " + scores.submit(mode, nickname, score));
+                handleSubmit(parts, writer, scores);
             } else if ((parts.length == 3 || parts.length == 4) && "RANKING".equals(parts[0])) {
-                ScoreMode mode = parts.length == 4 ? mode(parts[1]) : ScoreMode.CLASSIC;
-                int position = parts.length == 4 ? 2 : 1;
-                int offset;
-                int limit;
-                try {
-                    offset = nonnegativeInteger(parts[position]);
-                    limit = nonnegativeInteger(parts[position + 1]);
-                    if (limit < 1 || limit > 100)
-                        throw new IllegalArgumentException();
-                } catch (IllegalArgumentException e) {
-                    respond(writer, ERROR_BAD_REQUEST);
-                    return;
-                }
-                ScoreRepository.RankingPage page = scores.ranking(mode, offset, limit);
-                writer.write("RANKING " + page.totalPlayers + " " + page.rows.size() + "\n");
-                for (ScoreRepository.RankingRow row : page.rows)
-                    writer.write("ROW " + row.rank + " " + row.nicknameToken + " " + row.score + "\n");
-                respond(writer, "END");
+                handleRanking(parts, writer, scores);
             } else {
                 respond(writer, ERROR_BAD_REQUEST);
             }
@@ -153,6 +125,45 @@ public final class ScoreServer {
         } catch (IOException e) {
             respond(writer, "ERROR STORAGE");
         }
+    }
+
+    private static void handleBest(String[] parts, BufferedWriter writer, ScoreRepository scores) throws IOException, InvalidModeException, InvalidNicknameException{
+        ScoreMode mode = parts.length == 3 ? mode(parts[1]) : ScoreMode.CLASSIC;
+        String nickname = nickname(parts[parts.length - 1]);
+        respond(writer, "BEST " + scores.best(mode, nickname));
+    }
+
+    private static void handleSubmit(String[] parts, BufferedWriter writer, ScoreRepository scores) throws IOException, InvalidModeException, InvalidNicknameException {
+        ScoreMode mode = mode(parts[1]);
+        String nickname = nickname(parts[2]);
+        int score;
+        try {
+            score = nonnegativeInteger(parts[3]);
+        } catch (IllegalArgumentException e) {
+            respond(writer, "ERROR INVALID_SCORE");
+            return;
+        }
+        respond(writer, "OK " + scores.submit(mode, nickname, score));
+    }
+
+    private static void handleRanking(String[] parts, BufferedWriter writer, ScoreRepository scores) throws IOException, InvalidModeException {
+        ScoreMode mode = parts.length == 4 ? mode(parts[1]) : ScoreMode.CLASSIC;
+        int position = parts.length == 4 ? 2 : 1;
+        int offset;
+        int limit;
+        try {
+            offset = nonnegativeInteger(parts[position]);
+            limit = nonnegativeInteger(parts[position + 1]);
+            if (limit < 1 || limit > 100) throw new IllegalArgumentException();
+        } catch (IllegalArgumentException e) {
+            respond(writer, ERROR_BAD_REQUEST);
+            return;
+        }
+        ScoreRepository.RankingPage page = scores.ranking(mode, offset, limit);
+        writer.write("RANKING " + page.totalPlayers + " " + page.rows.size() + "\n");
+        for (ScoreRepository.RankingRow row : page.rows)
+            writer.write("ROW " + row.rank + " " + row.nicknameToken + " " + row.score + "\n");
+        respond(writer, "END");
     }
 
     private static ScoreMode mode(String token) throws InvalidModeException {
