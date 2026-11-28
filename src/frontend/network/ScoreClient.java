@@ -4,8 +4,7 @@ import shared.score.ScoreMode;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
+import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -59,28 +58,34 @@ public final class ScoreClient {
     public RankingPage loadRanking(ScoreMode mode, int offset, int limit) throws IOException {
         if (offset < 0 || limit < 1 || limit > 100)
             throw new IllegalArgumentException("랭킹 조회 범위를 확인해 주세요.");
-        return exchange("RANKING " + modeName(mode) + " " + offset + " " + limit, reader -> {
-            String[] header = readLine(reader).split(" ");
-            if (header.length != 3 || !"RANKING".equals(header[0]))
-                throw new IOException("랭킹 응답을 확인하지 못했습니다.");
-            int total = parseNumber(header[1]);
-            int count = parseNumber(header[2]);
-            if (count > limit || count > Math.max(0, total - offset))
-                throw new IOException("랭킹 응답의 개수가 올바르지 않습니다.");
-            List<RankingEntry> entries = new ArrayList<>();
-            for (int i = 0; i < count; i++) {
-                String[] row = readLine(reader).split(" ");
-                if (row.length != 4 || !"ROW".equals(row[0]))
-                    throw new IOException("랭킹 항목이 올바르지 않습니다.");
-                int rank = parseNumber(row[1]);
-                if (rank != offset + i + 1)
-                    throw new IOException("랭킹 순서가 올바르지 않습니다.");
-                entries.add(new RankingEntry(rank, decodeNickname(row[2]), parseNumber(row[3])));
-            }
-            if (!"END".equals(readLine(reader)))
-                throw new IOException("랭킹 응답이 끝나지 않았습니다.");
-            return new RankingPage(total, entries);
-        });
+        return exchange("RANKING " + modeName(mode) + " " + offset + " " + limit,
+                reader -> readRankingPage(reader, offset, limit));
+    }
+
+    private static RankingPage readRankingPage(BufferedReader reader, int offset, int limit) throws IOException {
+        String[] header = readLine(reader).split(" ");
+        if (header.length != 3 || !"RANKING".equals(header[0]))
+            throw new IOException("랭킹 응답을 확인하지 못했습니다.");
+        int total = parseNumber(header[1]);
+        int count = parseNumber(header[2]);
+        if (count > limit || count > Math.max(0, total - offset))
+            throw new IOException("랭킹 응답의 개수가 올바르지 않습니다.");
+        List<RankingEntry> entries = new ArrayList<>(count);
+        for (int i = 0; i < count; i++)
+            entries.add(readRankingEntry(reader, offset + i + 1));
+        if (!"END".equals(readLine(reader)))
+            throw new IOException("랭킹 응답이 끝나지 않았습니다.");
+        return new RankingPage(total, entries);
+    }
+
+    private static RankingEntry readRankingEntry(BufferedReader reader, int expectedRank) throws IOException {
+        String[] row = readLine(reader).split(" ");
+        if (row.length != 4 || !"ROW".equals(row[0]))
+            throw new IOException("랭킹 항목이 올바르지 않습니다.");
+        int rank = parseNumber(row[1]);
+        if (rank != expectedRank)
+            throw new IOException("랭킹 순서가 올바르지 않습니다.");
+        return new RankingEntry(rank, decodeNickname(row[2]), parseNumber(row[3]));
     }
 
     private static String modeName(ScoreMode mode) {
@@ -93,15 +98,13 @@ public final class ScoreClient {
     public static String normalizeNickname(String nickname) {
         String normalized = Normalizer.normalize(nickname == null ? "" : nickname.trim(), Normalizer.Form.NFC);
         int length = normalized.codePointCount(0, normalized.length());
-        if (length < 1 || length > 16)
+        if (length < 1 || length > 16 || !normalized.codePoints().allMatch(ScoreClient::isNicknameCharacter))
             throw new IllegalArgumentException("닉네임은 문자·숫자·_·-로 1~16자 입력해 주세요.");
-        for (int index = 0; index < normalized.length();) {
-            int point = normalized.codePointAt(index);
-            if (!Character.isLetterOrDigit(point) && point != '_' && point != '-')
-                throw new IllegalArgumentException("닉네임은 문자·숫자·_·-로 1~16자 입력해 주세요.");
-            index += Character.charCount(point);
-        }
         return normalized;
+    }
+
+    private static boolean isNicknameCharacter(int point) {
+        return Character.isLetterOrDigit(point) || point == '_' || point == '-';
     }
 
     public static String encodeNickname(String nickname) {
@@ -127,25 +130,32 @@ public final class ScoreClient {
         try (Socket socket = new Socket()) {
             socket.connect(new InetSocketAddress(host, port), TIMEOUT_MS);
             socket.setSoTimeout(TIMEOUT_MS);
-            BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
-            PrintWriter writer = new PrintWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8), true);
+            BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
             if (!"TETRIS/1 READY".equals(readLine(reader)))
                 throw new IOException("테트리스 서버의 응답이 아닙니다.");
-            writer.println(command);
-            if (writer.checkError())
-                throw new IOException("서버에 요청을 보내지 못했습니다.");
+            sendRequest(socket.getOutputStream(), command);
             return reply.read(reader);
         }
     }
 
-    private int readValue(BufferedReader reader, String kind) throws IOException {
+    private static void sendRequest(OutputStream output, String command) throws IOException {
+        try {
+            output.write((command + "\n").getBytes(StandardCharsets.US_ASCII));
+            output.flush();
+        } catch (IOException e) {
+            throw new IOException("서버에 요청을 보내지 못했습니다.", e);
+        }
+    }
+
+    private static int readValue(BufferedReader reader, String kind) throws IOException {
         String[] values = readLine(reader).split(" ");
         if (values.length != 2 || !kind.equals(values[0]))
             throw new IOException("서버가 점수 요청을 처리하지 못했습니다.");
         return parseNumber(values[1]);
     }
 
-    private int parseNumber(String text) throws IOException {
+    private static int parseNumber(String text) throws IOException {
         try {
             int value = Integer.parseInt(text);
             if (value < 0)
@@ -157,7 +167,7 @@ public final class ScoreClient {
     }
 
     // 예상보다 긴 응답을 계속 메모리에 쌓지 않도록 제한
-    private String readLine(BufferedReader reader) throws IOException {
+    private static String readLine(BufferedReader reader) throws IOException {
         StringBuilder line = new StringBuilder();
         int value;
         while ((value = reader.read()) != -1) {

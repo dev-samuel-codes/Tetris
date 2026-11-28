@@ -2,10 +2,9 @@ package backend.network;
 
 import backend.score.ScoreRepository;
 import frontend.engine.GameEngine;
-import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStreamWriter;
+import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
@@ -32,14 +31,19 @@ public final class OnlineMatchService implements AutoCloseable {
     private static final int MAX_ROOMS = 16;
     private static final int MAX_MESSAGE_BYTES = 160;
     private static final int INPUTS_PER_SECOND = 25;
+    private static final String PROTOCOL = "ONLINE/1";
+    private static final String BYE = "ONLINE/1 BYE";
+    private static final String BAD_REQUEST = "BAD_REQUEST";
+    private static final String ROOM_CLOSED = "ROOM_CLOSED";
+    private static final String SCORE_REASON = "SCORE";
 
     private final Object stateLock = new Object();
-    private final Map<String, Room> rooms = new HashMap<String, Room>();
-    private final Map<Socket, Activity> sockets = new ConcurrentHashMap<Socket, Activity>();
+    private final Map<String, Room> rooms = new HashMap<>();
+    private final Map<Socket, Activity> sockets = new ConcurrentHashMap<>();
     private final SecureRandom random = new SecureRandom();
     private final LongSupplier clock;
     private final ThreadPoolExecutor clients = new ThreadPoolExecutor(
-            0, 32, 30, TimeUnit.SECONDS, new SynchronousQueue<Runnable>());
+            0, 32, 30, TimeUnit.SECONDS, new SynchronousQueue<>());
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private boolean closed;
 
@@ -56,10 +60,13 @@ public final class OnlineMatchService implements AutoCloseable {
 
     /** true이면 ScoreServer가 소켓을 닫지 않아야 합니다. 이후 소유권은 이 서비스에 있습니다. */
     public boolean handoff(Socket socket, String firstMessage) {
-        if (!firstMessage.startsWith("ONLINE/1"))
+        if (!firstMessage.startsWith(PROTOCOL))
             return false;
         Activity activity = new Activity(clock.getAsLong());
-        sockets.put(socket, activity);
+        if (!register(socket, activity)) {
+            closeSocket(socket);
+            return true;
+        }
         try {
             clients.execute(() -> handle(socket, firstMessage, activity));
         } catch (RejectedExecutionException e) {
@@ -76,33 +83,22 @@ public final class OnlineMatchService implements AutoCloseable {
         return true;
     }
 
+    private boolean register(Socket socket, Activity activity) {
+        synchronized (stateLock) {
+            if (closed)
+                return false;
+            sockets.put(socket, activity);
+            return true;
+        }
+    }
+
     private void handle(Socket socket, String firstMessage, Activity activity) {
         Connection connection = null;
         try {
             socket.setTcpNoDelay(true);
-            String[] parts = firstMessage.split(" ", -1);
-            if (parts.length == 3 && "ONLINE/1".equals(parts[0]) && "CREATE".equals(parts[1])) {
-                connection = enter(null, nickname(parts[2]), socket);
-            } else if (parts.length == 4 && "ONLINE/1".equals(parts[0]) && "JOIN".equals(parts[1])) {
-                if (!parts[2].matches("[A-Z0-9]{6}"))
-                    throw new RequestException("BAD_REQUEST");
-                connection = enter(parts[2], nickname(parts[3]), socket);
-            } else {
-                throw new RequestException("BAD_REQUEST");
-            }
+            connection = joinOrCreate(socket, firstMessage);
             respond(socket, request(connection, "POLL"), activity);
-            while (true) {
-                String message = readMessage(socket);
-                String response;
-                try {
-                    response = request(connection, message);
-                } catch (RequestException e) {
-                    response = "ERROR " + e.code;
-                }
-                respond(socket, response, activity);
-                if ("ONLINE/1 BYE".equals(response))
-                    break;
-            }
+            serveRequests(connection, activity);
         } catch (RequestException e) {
             try {
                 respond(socket, "ERROR " + e.code, activity);
@@ -119,7 +115,31 @@ public final class OnlineMatchService implements AutoCloseable {
         }
     }
 
-    private String nickname(String token) throws RequestException {
+    private Connection joinOrCreate(Socket socket, String message) throws RequestException {
+        String[] parts = message.split(" ", -1);
+        if (PROTOCOL.equals(parts[0])) {
+            if (parts.length == 3 && "CREATE".equals(parts[1]))
+                return enter(null, nickname(parts[2]), socket);
+            if (parts.length == 4 && "JOIN".equals(parts[1]) && parts[2].matches("[A-Z0-9]{6}"))
+                return enter(parts[2], nickname(parts[3]), socket);
+        }
+        throw new RequestException(BAD_REQUEST);
+    }
+
+    private void serveRequests(Connection connection, Activity activity) throws IOException {
+        String response;
+        do {
+            String message = readMessage(connection.socket);
+            try {
+                response = request(connection, message);
+            } catch (RequestException e) {
+                response = "ERROR " + e.code;
+            }
+            respond(connection.socket, response, activity);
+        } while (!BYE.equals(response));
+    }
+
+    private static String nickname(String token) throws RequestException {
         try {
             return ScoreRepository.decodeNicknameToken(token);
         } catch (IllegalArgumentException e) {
@@ -132,78 +152,90 @@ public final class OnlineMatchService implements AutoCloseable {
             if (closed)
                 throw new RequestException("SERVER_FULL");
             long now = clock.getAsLong();
-            Room room;
-            int seat;
-            if (code == null) {
-                if (rooms.size() >= MAX_ROOMS)
-                    throw new RequestException("SERVER_FULL");
-                do {
-                    code = String.format(java.util.Locale.ROOT, "%06d", random.nextInt(1000000));
-                } while (rooms.containsKey(code));
-                room = new Room(code, now, random.nextLong());
-                rooms.put(code, room);
-                seat = 0;
-            } else {
-                room = rooms.get(code);
-                if (room == null)
-                    throw new RequestException("ROOM_NOT_FOUND");
-                if (now - room.created >= WAIT_EXPIRY && "WAITING".equals(room.phase)) {
-                    finish(room, -1, "EXPIRED", now);
-                    throw new RequestException("ROOM_CLOSED");
-                }
-                if (!"WAITING".equals(room.phase))
-                    throw new RequestException("ROOM_CLOSED");
-                if (room.players[1] != null)
-                    throw new RequestException("ROOM_FULL");
-                seat = 1;
-            }
+            Room room = code == null ? createRoom(now) : availableRoom(code, now);
+            int seat = code == null ? 0 : 1;
             Connection connection = new Connection(room, seat, nickname, socket, now);
             room.players[seat] = connection;
             return connection;
         }
     }
 
+    private Room createRoom(long now) throws RequestException {
+        if (rooms.size() >= MAX_ROOMS)
+            throw new RequestException("SERVER_FULL");
+        String code;
+        do {
+            code = String.format(java.util.Locale.ROOT, "%06d", random.nextInt(1_000_000));
+        } while (rooms.containsKey(code));
+        Room room = new Room(code, now, random.nextLong());
+        rooms.put(code, room);
+        return room;
+    }
+
+    private Room availableRoom(String code, long now) throws RequestException {
+        Room room = rooms.get(code);
+        if (room == null)
+            throw new RequestException("ROOM_NOT_FOUND");
+        if (room.phase == Phase.WAITING && now - room.created >= WAIT_EXPIRY)
+            finish(room, -1, "EXPIRED", now);
+        if (room.phase != Phase.WAITING)
+            throw new RequestException(ROOM_CLOSED);
+        if (room.players[1] != null)
+            throw new RequestException("ROOM_FULL");
+        return room;
+    }
+
     String request(Connection connection, String message) throws RequestException {
         synchronized (stateLock) {
             if (connection.departed)
-                throw new RequestException("ROOM_CLOSED");
+                throw new RequestException(ROOM_CLOSED);
             Room room = connection.room;
             long now = clock.getAsLong();
             advanceRoom(room, now);
             if ("LEAVE".equals(message)) {
                 departLocked(connection, "LEFT", now);
-                return "ONLINE/1 BYE";
+                return BYE;
             }
             if ("READY".equals(message)) {
-                if ("WAITING".equals(room.phase))
-                    connection.ready = true;
-                if ("WAITING".equals(room.phase) && room.players[0] != null && room.players[1] != null
-                        && room.players[0].ready && room.players[1].ready) {
-                    room.phase = "COUNTDOWN";
-                    room.startAt = now + COUNTDOWN;
-                }
+                markReady(connection, now);
             } else if (message.startsWith("INPUT ")) {
-                String action = message.substring(6);
-                if (!validAction(action))
-                    throw new RequestException("BAD_REQUEST");
-                // 화면의 마지막 키가 top-out 또는 종료보다 늦게 도착해도 정상 결과를 유지
-                if (!"PLAYING".equals(room.phase) || !connection.engine.isStarted())
-                    return snapshot(connection, now).encode();
-                // POLL 횟수는 게임 속도에 영향을 주지 않습니다. 입력은 초당 25개로 제한합니다.
-                if (now - connection.inputWindow >= TimeUnit.SECONDS.toNanos(1)) {
-                    connection.inputWindow = now;
-                    connection.inputCount = 0;
-                }
-                if (++connection.inputCount > INPUTS_PER_SECOND)
-                    throw new RequestException("RATE_LIMIT");
-                input(connection.engine, action);
-                applyBattleItems(room);
-                evaluate(room, now);
+                applyInput(connection, message.substring(6), now);
             } else if (!"POLL".equals(message)) {
-                throw new RequestException("BAD_REQUEST");
+                throw new RequestException(BAD_REQUEST);
             }
             return snapshot(connection, now).encode();
         }
+    }
+
+    private static void markReady(Connection connection, long now) {
+        Room room = connection.room;
+        if (room.phase != Phase.WAITING)
+            return;
+        connection.ready = true;
+        Connection opponent = room.players[1 - connection.seat];
+        if (opponent != null && opponent.ready) {
+            room.phase = Phase.COUNTDOWN;
+            room.startAt = now + COUNTDOWN;
+        }
+    }
+
+    private static void applyInput(Connection connection, String action, long now) throws RequestException {
+        if (!validAction(action))
+            throw new RequestException(BAD_REQUEST);
+        Room room = connection.room;
+        // 게임 종료 직후에 도착한 입력은 보드를 변경하지 않습니다.
+        if (room.phase != Phase.PLAYING || !connection.engine.isStarted())
+            return;
+        if (now - connection.inputWindow >= TimeUnit.SECONDS.toNanos(1)) {
+            connection.inputWindow = now;
+            connection.inputCount = 0;
+        }
+        connection.inputCount++;
+        if (connection.inputCount > INPUTS_PER_SECOND)
+            throw new RequestException("RATE_LIMIT");
+        input(connection.engine, action);
+        applyBattleItems(room);
+        evaluate(room, now);
     }
 
     private static boolean validAction(String action) {
@@ -225,7 +257,7 @@ public final class OnlineMatchService implements AutoCloseable {
 
     // 모든 방의 시간 진행은 네트워크 작업 풀과 독립적인 scheduler에서 수행합니다.
     void advance() {
-        List<Socket> expired = new ArrayList<Socket>();
+        List<Socket> expired = new ArrayList<>();
         long now = clock.getAsLong();
         synchronized (stateLock) {
             for (Room room : rooms.values())
@@ -240,19 +272,19 @@ public final class OnlineMatchService implements AutoCloseable {
             closeSocket(socket);
     }
 
-    private void advanceRoom(Room room, long now) {
-        if (("WAITING".equals(room.phase) || "COUNTDOWN".equals(room.phase))
+    private static void advanceRoom(Room room, long now) {
+        if ((room.phase == Phase.WAITING || room.phase == Phase.COUNTDOWN)
                 && now - room.created >= WAIT_EXPIRY) {
             finish(room, -1, "EXPIRED", now);
             return;
         }
-        if ("COUNTDOWN".equals(room.phase) && now >= room.startAt) {
-            room.phase = "PLAYING";
+        if (room.phase == Phase.COUNTDOWN && now >= room.startAt) {
+            room.phase = Phase.PLAYING;
             room.nextTick = room.startAt + GRAVITY;
             for (Connection connection : room.players)
                 connection.engine.start();
         }
-        while ("PLAYING".equals(room.phase) && now >= room.nextTick) {
+        while (room.phase == Phase.PLAYING && now >= room.nextTick) {
             for (Connection connection : room.players)
                 connection.engine.tick();
 
@@ -281,21 +313,20 @@ public final class OnlineMatchService implements AutoCloseable {
         }
     }
 
-    private void evaluate(Room room, long now) {
+    private static void evaluate(Room room, long now) {
         GameEngine first = room.players[0].engine;
         GameEngine second = room.players[1].engine;
-        if (!first.isStarted() && !second.isStarted()) {
-            int comparison = Integer.compare(first.getScore(), second.getScore());
-            finish(room, comparison == 0 ? -1 : comparison > 0 ? 0 : 1, "SCORE", now);
-        } else if (!first.isStarted() && second.getScore() > first.getScore()) {
-            finish(room, 1, "SCORE", now);
+        if (!first.isStarted() && second.getScore() > first.getScore()) {
+            finish(room, 1, SCORE_REASON, now);
         } else if (!second.isStarted() && first.getScore() > second.getScore()) {
-            finish(room, 0, "SCORE", now);
+            finish(room, 0, SCORE_REASON, now);
+        } else if (!first.isStarted() && !second.isStarted()) {
+            finish(room, -1, SCORE_REASON, now);
         }
     }
 
     private static void finish(Room room, int winner, String reason, long now) {
-        room.phase = "FINISHED";
+        room.phase = Phase.FINISHED;
         room.winner = winner;
         room.reason = reason;
         room.finishedAt = now;
@@ -312,8 +343,8 @@ public final class OnlineMatchService implements AutoCloseable {
             return;
         connection.departed = true;
         Room room = connection.room;
-        if (!"FINISHED".equals(room.phase)) {
-            int winner = "PLAYING".equals(room.phase) ? 1 - connection.seat : -1;
+        if (room.phase != Phase.FINISHED) {
+            int winner = room.phase == Phase.PLAYING ? 1 - connection.seat : -1;
             finish(room, winner, reason, now);
         }
         // 결과는 남은 참가자가 조회할 수 있게 보존하고 모두 나가면 방 코드를 회수
@@ -322,13 +353,15 @@ public final class OnlineMatchService implements AutoCloseable {
             rooms.remove(room.code);
     }
 
-    private OnlineFrame snapshot(Connection connection, long now) {
+    private static OnlineFrame snapshot(Connection connection, long now) {
         Room room = connection.room;
-        long elapsed = room.startAt == 0 || "COUNTDOWN".equals(room.phase)
-                || "WAITING".equals(room.phase) ? 0
-                : Math.max(0, ("FINISHED".equals(room.phase) ? room.finishedAt : now) - room.startAt);
-        long countdown = "COUNTDOWN".equals(room.phase) ? Math.max(0, room.startAt - now) : 0;
-        return new OnlineFrame(room.code, connection.seat, room.phase, room.winner, room.reason,
+        long elapsed = 0;
+        if (room.startAt != 0 && room.phase != Phase.COUNTDOWN && room.phase != Phase.WAITING) {
+            long end = room.phase == Phase.FINISHED ? room.finishedAt : now;
+            elapsed = Math.max(0, end - room.startAt);
+        }
+        long countdown = room.phase == Phase.COUNTDOWN ? Math.max(0, room.startAt - now) : 0;
+        return new OnlineFrame(room.code, connection.seat, room.phase.name(), room.winner, room.reason,
                 TimeUnit.NANOSECONDS.toMillis(elapsed), TimeUnit.NANOSECONDS.toMillis(countdown),
                 player(room.players[0]), player(room.players[1]));
     }
@@ -404,10 +437,9 @@ public final class OnlineMatchService implements AutoCloseable {
     }
 
     private void respond(Socket socket, String response, Activity activity) throws IOException {
-        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
-        writer.write(response);
-        writer.write('\n');
-        writer.flush();
+        OutputStream output = socket.getOutputStream();
+        output.write((response + "\n").getBytes(StandardCharsets.UTF_8));
+        output.flush();
         activity.lastCompleted = clock.getAsLong();
     }
 
@@ -431,7 +463,6 @@ public final class OnlineMatchService implements AutoCloseable {
         clients.shutdownNow();
     }
 
-    // 나중에 방 저장소와 소켓 전송을 별도 클래스로 나누어도 괜찮을 것 같음
     static final class Connection {
         final Room room;
         final int seat;
@@ -457,12 +488,14 @@ public final class OnlineMatchService implements AutoCloseable {
         }
     }
 
+    private enum Phase { WAITING, COUNTDOWN, PLAYING, FINISHED }
+
     static final class Room {
         final String code;
         final long created;
         final long seed;
         final Connection[] players = new Connection[2];
-        String phase = "WAITING";
+        Phase phase = Phase.WAITING;
         String reason = "NONE";
         int winner = -1;
         long startAt;
