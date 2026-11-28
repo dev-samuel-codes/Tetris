@@ -21,6 +21,7 @@ public final class ScoreServer {
     private static final int DEFAULT_PORT = 5000;
     private static final int READ_TIMEOUT_MS = 5000;
     private static final int MAX_MESSAGE_BYTES = 160;
+    private static final String ERROR_BAD_REQUEST = "ERROR BAD_REQUEST";
 
     private ScoreServer() {
     }
@@ -72,7 +73,7 @@ public final class ScoreServer {
             try {
                 message = readMessage(client);
             } catch (IOException e) {
-                respond(writer, "ERROR BAD_REQUEST");
+                respond(writer, ERROR_BAD_REQUEST);
                 return;
             }
             // 온라인 지속 소켓은 전용 32스레드 풀이 소유하고 랭킹 풀은 즉시 반환
@@ -132,7 +133,7 @@ public final class ScoreServer {
                     if (limit < 1 || limit > 100)
                         throw new IllegalArgumentException();
                 } catch (IllegalArgumentException e) {
-                    respond(writer, "ERROR BAD_REQUEST");
+                    respond(writer, ERROR_BAD_REQUEST);
                     return;
                 }
                 ScoreRepository.RankingPage page = scores.ranking(mode, offset, limit);
@@ -141,7 +142,7 @@ public final class ScoreServer {
                     writer.write("ROW " + row.rank + " " + row.nicknameToken + " " + row.score + "\n");
                 respond(writer, "END");
             } else {
-                respond(writer, "ERROR BAD_REQUEST");
+                respond(writer, ERROR_BAD_REQUEST);
             }
         } catch (InvalidModeException e) {
             respond(writer, "ERROR INVALID_MODE");
