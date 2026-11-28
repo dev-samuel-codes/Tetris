@@ -6,7 +6,6 @@ import frontend.Resolution;
 import frontend.ScoreManager;
 import frontend.Shape;
 import frontend.Tetrominoes;
-import frontend.network.OnlineClient;
 import frontend.network.ScoreClient;
 import frontend.style.Style;
 import frontend.ui.PixelLogo;
@@ -43,6 +42,7 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
+import javax.swing.WindowConstants;
 import frontend.GameSettings;
 import frontend.engine.GameEngine.ItemType;
 import java.awt.GradientPaint;
@@ -50,12 +50,17 @@ import java.awt.GradientPaint;
 // 서버 스냅숏만 표시합니다. 낙하·점수·승패의 계산은 서버가 담당합니다.
 // 나중에 연결 폼과 관전 화면이 늘어나면 JPanel 단위로 분리할 수 있습니다.
 public final class OnlineMatchWindow extends JFrame {
+    private static final long serialVersionUID = 1L;
+    private static final String PLAYING = "PLAYING";
+    private static final String WAITING = "WAITING";
+    private static final String COUNTDOWN = "COUNTDOWN";
+    private static final String PRIMARY_BUTTON = "primary";
     private final Resolution resolution;
-    private final Set<String> pressedKeys = new HashSet<String>();
-    private OnlineSession session;
+    private final Set<String> pressedKeys = new HashSet<>();
+    private transient OnlineSession session;
     private long generation;
     private boolean disposed;
-    private OnlineFrame latest;
+    private transient OnlineFrame latest;
     private JTextField nicknameField;
     private JTextField codeField;
     private JLabel formStatus;
@@ -81,7 +86,7 @@ public final class OnlineMatchWindow extends JFrame {
     public OnlineMatchWindow(Resolution resolution) {
         this.resolution = resolution;
         setTitle("Tetris · 온라인 점수 대전");
-        setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
+        setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
         Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
         setSize(Math.min(2 * 10 * resolution.getCellSize() + 220, screen.width - 48),
                 Math.min(22 * resolution.getCellSize() + 275, screen.height - 64));
@@ -131,7 +136,7 @@ public final class OnlineMatchWindow extends JFrame {
         bottom.add(formStatus, BorderLayout.NORTH);
         JPanel actions = transparent(new GridLayout(1, 2, 12, 0));
         createButton = button("방 만들기");
-        createButton.putClientProperty("primary", true);
+        createButton.putClientProperty(PRIMARY_BUTTON, true);
         joinButton = button("방 참가");
         createButton.addActionListener(event -> connect(false));
         joinButton.addActionListener(event -> connect(true));
@@ -172,54 +177,62 @@ public final class OnlineMatchWindow extends JFrame {
     }
 
     private void connect(boolean joining) {
-        final OnlineClient client;
         try {
             savedNickname = ScoreClient.normalizeNickname(nicknameField.getText());
             savedCode = codeField.getText().trim().toUpperCase(Locale.ROOT);
             if (joining && !savedCode.matches("[A-Z0-9]{6}"))
                 throw new IllegalArgumentException("방 코드는 영문 대문자·숫자 6자리로 입력해 주세요.");
-            client = new OnlineClient(serverHost, Integer.parseInt(serverPort.trim()));
+            int port = Integer.parseInt(serverPort.trim());
+            stopSession();
+            long currentGeneration = generation;
+            session = new OnlineSession(serverHost, port,
+                    frame -> showConnectedFrame(currentGeneration, frame),
+                    error -> showConnectionFailure(currentGeneration, error));
+        } catch (NumberFormatException error) {
+            setFormStatus("연결 설정을 확인할 수 없습니다.", true);
+            return;
         } catch (IllegalArgumentException error) {
-            setFormStatus(error instanceof NumberFormatException ? "연결 설정을 확인할 수 없습니다." : error.getMessage(), true);
+            setFormStatus(error.getMessage(), true);
             return;
         }
-        stopSession();
         createButton.setEnabled(false);
         joinButton.setEnabled(false);
         nicknameField.setEnabled(false);
         codeField.setEnabled(false);
         setFormStatus("연결 중… 메뉴 복귀로 취소할 수 있습니다.", false);
-        final long currentGeneration = generation;
-        session = new OnlineSession(client, frame -> {
-            if (disposed || currentGeneration != generation)
-                return;
-            connectionActive = true;
-            if (own == null)
-                showMatch();
-            applyFrame(frame);
-        }, error -> {
-            if (disposed || currentGeneration != generation)
-                return;
-            connectionActive = false;
-            String message = error.getMessage() == null ? "연결을 계속할 수 없습니다." : error.getMessage();
-            if (own == null) {
-                showForm();
-                setFormStatus(message + " 다시 방을 만들거나 참가해 주세요.", true);
-            } else {
-                clearInput();
-                ready.setEnabled(false);
-                ready.setText("연결 해제");
-                copyCode.setFocusable(true);
-                leaveButton.setFocusable(true);
-                menuButton.setFocusable(true);
-                status.setPreferredSize(new Dimension(0, 44));
-                setMatchStatus("연결 해제 · " + message + " 아래의 다시 연결을 눌러 주세요.");
-                status.setForeground(Style.PINK);
-                reconnect.setVisible(true);
-                rootRevalidate();
-            }
-        });
         session.start(savedNickname, joining ? savedCode : null);
+    }
+
+    private void showConnectedFrame(long currentGeneration, OnlineFrame frame) {
+        if (disposed || currentGeneration != generation)
+            return;
+        connectionActive = true;
+        if (own == null)
+            showMatch();
+        applyFrame(frame);
+    }
+
+    private void showConnectionFailure(long currentGeneration, Throwable error) {
+        if (disposed || currentGeneration != generation)
+            return;
+        connectionActive = false;
+        String message = error.getMessage() == null ? "연결을 계속할 수 없습니다." : error.getMessage();
+        if (own == null) {
+            showForm();
+            setFormStatus(message + " 다시 방을 만들거나 참가해 주세요.", true);
+            return;
+        }
+        clearInput();
+        ready.setEnabled(false);
+        ready.setText("연결 해제");
+        copyCode.setFocusable(true);
+        leaveButton.setFocusable(true);
+        menuButton.setFocusable(true);
+        status.setPreferredSize(new Dimension(0, 44));
+        setMatchStatus("연결 해제 · " + message + " 아래의 다시 연결을 눌러 주세요.");
+        status.setForeground(Style.PINK);
+        reconnect.setVisible(true);
+        rootRevalidate();
     }
 
     private void showMatch() {
@@ -262,13 +275,27 @@ public final class OnlineMatchWindow extends JFrame {
         boards.add(other);
         center.add(boards, BorderLayout.CENTER);
         root.add(center, BorderLayout.CENTER);
+        root.add(matchFooter(), BorderLayout.SOUTH);
+        bindKeys(root);
+        bindEscape(root, this::leaveRoom);
+        install(root);
+        getRootPane().setDefaultButton(ready);
+        root.setFocusable(true);
+        // 연결 폼보다 경기 화면에 높이를 더 배정해 두 보드의 칸을 읽을 수 있게 표시
+        Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
+        setMinimumSize(new Dimension(660, Math.min(640, screen.height - 96)));
+        setSize(Math.min(2 * 10 * resolution.getCellSize() + 220, screen.width - 48),
+                Math.min(22 * resolution.getCellSize() + 275, screen.height - 64));
+    }
+
+    private JPanel matchFooter() {
         JPanel footer = transparent(new BorderLayout(0, 8));
         JLabel keys = label(controlsText(), Style.MUTED_TEXT, Style.SMALL_FONT);
         keys.setHorizontalAlignment(SwingConstants.CENTER);
         footer.add(keys, BorderLayout.NORTH);
         JPanel actions = transparent(new GridLayout(1, 3, 12, 0));
         ready = button("준비하기");
-        ready.putClientProperty("primary", true);
+        ready.putClientProperty(PRIMARY_BUTTON, true);
         ready.setFocusable(true);
         ready.addActionListener(event -> {
             if (session != null) {
@@ -277,88 +304,104 @@ public final class OnlineMatchWindow extends JFrame {
                 session.ready();
             }
         });
-        JButton leave = button("방 나가기");
-        leaveButton = leave;
-        leave.addActionListener(event -> {
-            if (confirmLeaving()) showForm();
-        });
-        JButton menu = button("메뉴 복귀");
-        menuButton = menu;
-        menu.addActionListener(event -> returnToMenu());
+        leaveButton = button("방 나가기");
+        leaveButton.addActionListener(event -> leaveRoom());
+        menuButton = button("메뉴 복귀");
+        menuButton.addActionListener(event -> returnToMenu());
         reconnect = button("다시 연결");
-        reconnect.putClientProperty("primary", true);
+        reconnect.putClientProperty(PRIMARY_BUTTON, true);
         reconnect.setVisible(false);
         reconnect.addActionListener(event -> showForm());
         actions.add(ready);
-        actions.add(leave);
-        actions.add(menu);
+        actions.add(leaveButton);
+        actions.add(menuButton);
         JPanel actionArea = transparent(new BorderLayout(0, 8));
         actionArea.add(reconnect, BorderLayout.NORTH);
         actionArea.add(actions, BorderLayout.SOUTH);
         footer.add(actionArea, BorderLayout.SOUTH);
-        root.add(footer, BorderLayout.SOUTH);
-        bindKeys(root);
-        bindEscape(root, () -> { if (confirmLeaving()) showForm(); });
-        install(root);
-        getRootPane().setDefaultButton(ready);
-        root.setFocusable(true);
-        // 연결 폼보다 경기 화면에 높이를 더 배정해 두 보드의 칸을 읽을 수 있게 표시
-        setMinimumSize(new Dimension(660, Math.min(640, Toolkit.getDefaultToolkit().getScreenSize().height - 96)));
-        Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
-        setSize(Math.min(2 * 10 * resolution.getCellSize() + 220, screen.width - 48),
-                Math.min(22 * resolution.getCellSize() + 275, screen.height - 64));
+        return footer;
     }
 
     private void applyFrame(OnlineFrame frame) {
-        boolean enteringPlay = "PLAYING".equals(frame.getPhase()) && (latest == null || !"PLAYING".equals(latest.getPhase()));
+        boolean playing = PLAYING.equals(frame.getPhase());
+        boolean enteringPlay = playing && (latest == null || !PLAYING.equals(latest.getPhase()));
         latest = frame;
-        boolean playing = "PLAYING".equals(frame.getPhase());
         copyCode.setFocusable(!playing);
         ready.setFocusable(!playing);
         leaveButton.setFocusable(!playing);
         menuButton.setFocusable(!playing);
-        getRootPane().setDefaultButton("WAITING".equals(frame.getPhase()) ? ready : null);
+        boolean waiting = WAITING.equals(frame.getPhase());
+        getRootPane().setDefaultButton(waiting ? ready : null);
         if (enteringPlay) getContentPane().requestFocusInWindow();
         room.setText("방 " + frame.getRoomCode());
         copyCode.setEnabled(true);
         clock.setText(formatElapsedTime(frame.getElapsedMillis()));
         OnlineFrame.Player player = frame.getPlayer(frame.getSeat());
         OnlineFrame.Player opponent = frame.getPlayer(1 - frame.getSeat());
-        boolean started = "PLAYING".equals(frame.getPhase()) || (frame.isFinished() && "SCORE".equals(frame.getReason()));
+        boolean started = playing || (frame.isFinished() && "SCORE".equals(frame.getReason()));
         own.update(player, started);
         other.update(opponent, started);
-        ready.setEnabled("WAITING".equals(frame.getPhase()) && !player.isReady());
-        ready.setText(frame.isFinished() ? "경기 종료" : "PLAYING".equals(frame.getPhase())
-                ? "경기 중" : "COUNTDOWN".equals(frame.getPhase()) ? "곧 시작" : player.isReady() ? "준비 완료" : "준비하기");
-        if (frame.isFinished()) connectionActive = false;
+        ready.setEnabled(waiting && !player.isReady());
+        ready.setText(readyButtonText(frame, player));
         setMatchStatus(statusText(frame));
-        status.setForeground(frame.isFinished() ? frame.getWinner() == frame.getSeat() ? Style.GREEN : Style.ACCENT : Style.TEXT);
-        if (!"PLAYING".equals(frame.getPhase()) || !player.isAlive())
+        if (frame.isFinished()) {
+            connectionActive = false;
+            status.setForeground(frame.getWinner() == frame.getSeat() ? Style.GREEN : Style.ACCENT);
+        } else {
+            status.setForeground(Style.TEXT);
+        }
+        if (!playing || !player.isAlive())
             clearInput();
     }
 
-    static String statusText(OnlineFrame frame) {
-        if (frame.isFinished()) {
-            String result = frame.getWinner() < 0 ? "SCORE".equals(frame.getReason()) ? "무승부" : "방 종료"
-                    : frame.getWinner() == frame.getSeat() ? "승리!" : "패배";
-            String reason = "DISCONNECT".equals(frame.getReason()) ? " · 상대 연결 해제"
-                    : "LEFT".equals(frame.getReason()) ? " · 상대가 방을 나갔습니다"
-                    : "EXPIRED".equals(frame.getReason()) ? " · 대기 시간이 만료되었습니다" : "";
-            return result + reason;
+    private static String readyButtonText(OnlineFrame frame, OnlineFrame.Player player) {
+        switch (frame.getPhase()) {
+            case "FINISHED": return "경기 종료";
+            case PLAYING: return "경기 중";
+            case COUNTDOWN: return "곧 시작";
+            default: return player.isReady() ? "준비 완료" : "준비하기";
         }
-        if ("COUNTDOWN".equals(frame.getPhase()))
+    }
+
+    static String statusText(OnlineFrame frame) {
+        if (frame.isFinished())
+            return matchResult(frame) + finishReason(frame.getReason());
+        if (COUNTDOWN.equals(frame.getPhase()))
             return "시작까지 " + Math.max(1, (frame.getCountdownMillis() + 999) / 1000) + "초";
-        if ("WAITING".equals(frame.getPhase()))
-            return frame.getPlayer(1 - frame.getSeat()).getNickname().isEmpty()
-                    ? "상대 참가를 기다리고 있습니다 · 방 코드를 알려 주세요"
-                    : frame.getPlayer(frame.getSeat()).isReady()
-                    ? "준비 완료 · 상대의 준비를 기다립니다"
-                    : frame.getPlayer(1 - frame.getSeat()).isReady()
-                    ? "상대 준비 완료 · 준비하기를 누르면 시작합니다"
-                    : "두 명 모두 준비하면 3초 뒤 시작합니다";
-        return !frame.getPlayer(frame.getSeat()).isAlive() ? "게임오버 · 상대의 최종 점수를 기다립니다"
-                : !frame.getPlayer(1 - frame.getSeat()).isAlive() ? "상대 게임오버 · 상대 점수를 넘으면 승리합니다"
-                : "경기 중 · 같은 블록 순서 · 점수 대결";
+        OnlineFrame.Player player = frame.getPlayer(frame.getSeat());
+        OnlineFrame.Player opponent = frame.getPlayer(1 - frame.getSeat());
+        if (WAITING.equals(frame.getPhase()))
+            return waitingStatus(player, opponent);
+        if (!player.isAlive())
+            return "게임오버 · 상대의 최종 점수를 기다립니다";
+        if (!opponent.isAlive())
+            return "상대 게임오버 · 상대 점수를 넘으면 승리합니다";
+        return "경기 중 · 같은 블록 순서 · 점수 대결";
+    }
+
+    private static String waitingStatus(OnlineFrame.Player player, OnlineFrame.Player opponent) {
+        if (opponent.getNickname().isEmpty())
+            return "상대 참가를 기다리고 있습니다 · 방 코드를 알려 주세요";
+        if (player.isReady())
+            return "준비 완료 · 상대의 준비를 기다립니다";
+        if (opponent.isReady())
+            return "상대 준비 완료 · 준비하기를 누르면 시작합니다";
+        return "두 명 모두 준비하면 3초 뒤 시작합니다";
+    }
+
+    private static String matchResult(OnlineFrame frame) {
+        if (frame.getWinner() < 0)
+            return "SCORE".equals(frame.getReason()) ? "무승부" : "방 종료";
+        return frame.getWinner() == frame.getSeat() ? "승리!" : "패배";
+    }
+
+    private static String finishReason(String reason) {
+        switch (reason) {
+            case "DISCONNECT": return " · 상대 연결 해제";
+            case "LEFT": return " · 상대가 방을 나갔습니다";
+            case "EXPIRED": return " · 대기 시간이 만료되었습니다";
+            default: return "";
+        }
     }
 
     // 사용자 키 설정을 네트워크 대전에도 적용
@@ -368,7 +411,7 @@ public final class OnlineMatchWindow extends JFrame {
         bind(root, GameSettings.getRotateLeftKey(), "ROTATE_LEFT", false);
         bind(root, GameSettings.getRotateRightKey(), "ROTATE_RIGHT", false);
         bind(root, GameSettings.getSoftDropKey(), "SOFT_DROP", true);
-        bind(root, GameSettings.getHardDropKey(), "HARD_DROP", false);
+        bind(root, GameSettings.getHardDropKey(), OnlineSession.HARD_DROP, false);
     }
 
     // 설정된 키를 네트워크 대전 명령과 연결
@@ -385,7 +428,7 @@ public final class OnlineMatchWindow extends JFrame {
         root.getActionMap().put(pressed, new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent event) {
-                if (session == null || latest == null || !"PLAYING".equals(latest.getPhase())
+                if (session == null || latest == null || !PLAYING.equals(latest.getPhase())
                         || !latest.getPlayer(latest.getSeat()).isAlive())
                     return;
 
@@ -407,7 +450,7 @@ public final class OnlineMatchWindow extends JFrame {
     private void clearInput() {
         pressedKeys.clear();
         if (session != null)
-            session.commands.clear();
+            session.clearInput();
     }
 
     private void stopSession() {
@@ -446,11 +489,16 @@ public final class OnlineMatchWindow extends JFrame {
     }
 
     private boolean confirmLeaving() {
-        if (!connectionActive || latest == null || !"PLAYING".equals(latest.getPhase()))
+        if (!connectionActive || latest == null || !PLAYING.equals(latest.getPhase()))
             return true;
         clearInput();
         return JOptionPane.showConfirmDialog(this, "지금 나가면 경기에서 패배합니다. 방을 나가시겠습니까?",
                 "진행 중인 경기", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE) == JOptionPane.YES_OPTION;
+    }
+
+    private void leaveRoom() {
+        if (confirmLeaving())
+            showForm();
     }
 
     private void copyRoomCode() {
@@ -483,10 +531,10 @@ public final class OnlineMatchWindow extends JFrame {
 
     static String controlsText() {
         return "<html><center>" + escapeHtml(GameSettings.keyName(GameSettings.getLeftKey())) + " / "
-                + escapeHtml(GameSettings.keyName(GameSettings.getRightKey())) + " 이동　"
+                + escapeHtml(GameSettings.keyName(GameSettings.getRightKey())) + " 이동\u3000"
                 + escapeHtml(GameSettings.keyName(GameSettings.getRotateLeftKey())) + " / "
                 + escapeHtml(GameSettings.keyName(GameSettings.getRotateRightKey())) + " 회전<br>"
-                + escapeHtml(GameSettings.keyName(GameSettings.getSoftDropKey())) + " 하강　"
+                + escapeHtml(GameSettings.keyName(GameSettings.getSoftDropKey())) + " 하강\u3000"
                 + escapeHtml(GameSettings.keyName(GameSettings.getHardDropKey())) + " 즉시 낙하</center></html>";
     }
 
@@ -562,6 +610,7 @@ public final class OnlineMatchWindow extends JFrame {
     }
 
     static final class BoardView extends JPanel {
+        private static final long serialVersionUID = 1L;
         final JLabel name;
         final JLabel metrics;
         final BoardCanvas canvas;
@@ -622,8 +671,11 @@ public final class OnlineMatchWindow extends JFrame {
     }
 
     static final class BoardCanvas extends JPanel {
-        int[] cells = new int[220];
-        int[] itemTypes = new int[220];
+        private static final long serialVersionUID = 1L;
+        private static final ItemType[] ITEMS = ItemType.values();
+        private static final Tetrominoes[] SHAPES = Tetrominoes.values();
+        int[] cells = new int[OnlineFrame.WIDTH * OnlineFrame.HEIGHT];
+        int[] itemTypes = new int[OnlineFrame.WIDTH * OnlineFrame.HEIGHT];
         boolean fogActive;
         int fogRemaining;
         boolean ended;
@@ -639,38 +691,19 @@ public final class OnlineMatchWindow extends JFrame {
             super.paintComponent(graphics);
             Graphics2D g = (Graphics2D) graphics.create();
             try {
-                int size = Math.max(1, Math.min((getWidth() - 2) / 10, (getHeight() - 2) / 22));
-                int width = 10 * size, height = 22 * size;
-                int left = (getWidth() - width) / 2, top = (getHeight() - height) / 2;
+                int size = Math.max(1, Math.min((getWidth() - 2) / OnlineFrame.WIDTH, (getHeight() - 2) / OnlineFrame.HEIGHT));
+                int width = OnlineFrame.WIDTH * size;
+                int height = OnlineFrame.HEIGHT * size;
+                int left = (getWidth() - width) / 2;
+                int top = (getHeight() - height) / 2;
                 g.setColor(Style.BOARD_BACKGROUND);
                 g.fillRect(left, top, width, height);
                 g.setColor(Style.BOARD_GRID);
-                for (int x = 1; x < 10; x++) g.drawLine(left + x * size, top, left + x * size, top + height);
-                for (int y = 1; y < 22; y++) g.drawLine(left, top + y * size, left + width, top + y * size);
-                for (int y = 0; y < 22; y++) {
-                    for (int x = 0; x < 10; x++) {
-                        int index = y * 10 + x;
-                        int value = cells[index];
-                        int itemValue = itemTypes[index];
-
-                        if (value > 0 && value < 8) {
-                            ItemType itemType = null;
-
-                            // 0은 아이템 없음, 1부터 실제 ItemType
-                            if (itemValue > 0 && itemValue <= ItemType.values().length)
-                                itemType = ItemType.values()[itemValue - 1];
-
-                            BlockPainter.drawSquare(
-                                    g,
-                                    left + x * size,
-                                    top + (21 - y) * size,
-                                    size,
-                                    Tetrominoes.values()[value],
-                                    itemType
-                            );
-                        }
-                    }
-                }
+                for (int x = 1; x < OnlineFrame.WIDTH; x++)
+                    g.drawLine(left + x * size, top, left + x * size, top + height);
+                for (int y = 1; y < OnlineFrame.HEIGHT; y++)
+                    g.drawLine(left, top + y * size, left + width, top + y * size);
+                drawCells(g, left, top, size);
 
                 // 안개 효과 표시
                 if (fogActive)
@@ -694,6 +727,19 @@ public final class OnlineMatchWindow extends JFrame {
             }
         }
 
+        private void drawCells(Graphics2D g, int left, int top, int size) {
+            for (int i = 0; i < cells.length; i++) {
+                int shape = cells[i];
+                if (shape < 1 || shape > 7)
+                    continue;
+                int item = itemTypes[i];
+                ItemType itemType = item > 0 && item <= ITEMS.length ? ITEMS[item - 1] : null;
+                int x = i % OnlineFrame.WIDTH;
+                int y = OnlineFrame.HEIGHT - 1 - i / OnlineFrame.WIDTH;
+                BlockPainter.drawSquare(g, left + x * size, top + y * size, size, SHAPES[shape], itemType);
+            }
+        }
+
         // 안개 아이템 효과를 보드 위쪽 절반에 표시
         private void drawFog(Graphics2D g, int left, int top, int size) {
             int width = 10 * size;
@@ -711,10 +757,10 @@ public final class OnlineMatchWindow extends JFrame {
 
             GradientPaint gradient = new GradientPaint(
                     left,
-                    top + fogHeight - size,
+                    (float) top + fogHeight - size,
                     new Color(fog.getRed(), fog.getGreen(), fog.getBlue(), 245),
                     left,
-                    top + fogHeight,
+                    (float) top + fogHeight,
                     new Color(fog.getRed(), fog.getGreen(), fog.getBlue(), 0)
             );
 
@@ -754,6 +800,7 @@ public final class OnlineMatchWindow extends JFrame {
         }
     }
     static final class NextCanvas extends JPanel {
+        private static final long serialVersionUID = 1L;
         int shape;
 
         NextCanvas() {
@@ -768,7 +815,8 @@ public final class OnlineMatchWindow extends JFrame {
                 return;
             Shape piece = new Shape();
             piece.setShape(Tetrominoes.values()[shape]);
-            int minX = piece.minX(), minY = piece.minY();
+            int minX = piece.minX();
+            int minY = piece.minY();
             int size = Math.max(1, Math.min(8, (getHeight() - 4) / 4));
             for (int i = 0; i < 4; i++)
                 BlockPainter.drawSquare(graphics, 2 + (piece.x(i) - minX) * size,
