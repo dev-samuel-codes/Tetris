@@ -104,14 +104,14 @@ public final class ScoreServer {
             return;
         }
         try {
-            if ((parts.length == 2 || parts.length == 3) && "BEST".equals(parts[0])) {
+            if (isBestRequest(parts)) {
                 handleBest(parts, writer, scores);
             } else if (parts.length == 3 && "SUBMIT".equals(parts[0])) {
                 // 구버전은 게임 모드를 보내지 않아 아이템 기록이 클래식에 섞일 수 있음
                 respond(writer, "ERROR MODE_REQUIRED");
-            } else if (parts.length == 4 && "SUBMIT".equals(parts[0])) {
+            } else if (isSubmitRequest(parts)) {
                 handleSubmit(parts, writer, scores);
-            } else if ((parts.length == 3 || parts.length == 4) && "RANKING".equals(parts[0])) {
+            } else if (isRankingRequest(parts)) {
                 handleRanking(parts, writer, scores);
             } else {
                 respond(writer, ERROR_BAD_REQUEST);
@@ -125,6 +125,15 @@ public final class ScoreServer {
         } catch (IOException e) {
             respond(writer, "ERROR STORAGE");
         }
+    }
+    private static boolean isBestRequest(String[] parts) {
+        return (parts.length == 2 || parts.length == 3) && "BEST".equals(parts[0]);
+    }
+    private static boolean isSubmitRequest(String[] parts) {
+        return (parts.length == 4 && "SUBMIT".equals(parts[0]));
+    }
+    private static boolean isRankingRequest(String[] parts) {
+        return (parts.length == 3 || parts.length == 4) && "RANKING".equals(parts[0]);
     }
 
     private static void handleBest(String[] parts, BufferedWriter writer, ScoreRepository scores) throws IOException, InvalidModeException, InvalidNicknameException{
